@@ -29,7 +29,7 @@ class PresentationEditor extends StatefulWidget {
     required this.media,
     this.title = '',
     this.onClose,
-    this.strings = const BrefStrings(),
+    this.strings = const LofficeStrings(),
     this.fonts,
   });
 
@@ -39,7 +39,7 @@ class PresentationEditor extends StatefulWidget {
   final MediaFetcher media;
   final String title;
   final VoidCallback? onClose;
-  final BrefStrings strings;
+  final LofficeStrings strings;
 
   /// The package bundling the free fonts standing in for Office's.
   final String? fonts;
@@ -66,7 +66,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
   Tree? _painted;
 
   DocSession get _session => widget.session;
-  BrefStrings get _s => widget.strings;
+  LofficeStrings get _s => widget.strings;
 
   @override
   void initState() {

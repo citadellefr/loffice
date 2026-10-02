@@ -10,11 +10,11 @@ import (
 	"time"
 )
 
-// fonts are the twin fonts, found under the directories of $BREF_FONTS.
+// fonts are the twin fonts, found under the directories of $LOFFICE_FONTS.
 func fonts(t testing.TB) *FontSet {
-	fs := NewFontSet(filepath.SplitList(os.Getenv("BREF_FONTS"))...)
+	fs := NewFontSet(filepath.SplitList(os.Getenv("LOFFICE_FONTS"))...)
 	if !fs.Complete() {
-		t.Skip("set BREF_FONTS to directories holding Carlito, Caladea and Liberation")
+		t.Skip("set LOFFICE_FONTS to directories holding Carlito, Caladea and Liberation")
 	}
 	return fs
 }
@@ -156,12 +156,12 @@ func TestOptions(t *testing.T) {
 	}
 }
 
-// TestDump shows, for the document named by $BREF_DOC, where each page
+// TestDump shows, for the document named by $LOFFICE_DOC, where each page
 // starts in our layout and in Word's.
 func TestDump(t *testing.T) {
-	name := os.Getenv("BREF_DOC")
+	name := os.Getenv("LOFFICE_DOC")
 	if name == "" {
-		t.Skip("set BREF_DOC to a corpus file name")
+		t.Skip("set LOFFICE_DOC to a corpus file name")
 	}
 	paths, _ := filepath.Glob(filepath.Join("..", "..", "..", "corpus", "files", "*", name))
 	if len(paths) == 0 {

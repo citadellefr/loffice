@@ -1,4 +1,4 @@
-package bref
+package loffice
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/citadellefr/bref/ot"
+	"github.com/citadellefr/loffice/ot"
 )
 
 type fakeConn struct {

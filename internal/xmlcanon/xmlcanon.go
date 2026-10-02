@@ -16,7 +16,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/citadellefr/bref/internal/xmltok"
+	"github.com/citadellefr/loffice/internal/xmltok"
 )
 
 const (

@@ -1,4 +1,4 @@
-package bref
+package loffice
 
 import (
 	"context"
@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/citadellefr/bref/ot"
-	"github.com/citadellefr/bref/pptx"
+	"github.com/citadellefr/loffice/ot"
+	"github.com/citadellefr/loffice/pptx"
 )
 
 func TestPresentationsAreEditedAndSaved(t *testing.T) {

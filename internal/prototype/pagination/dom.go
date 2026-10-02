@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"strconv"
 
-	"github.com/citadellefr/bref/internal/xmltok"
+	"github.com/citadellefr/loffice/internal/xmltok"
 )
 
 // node is a parsed XML element, named by its local name: the prototype reads

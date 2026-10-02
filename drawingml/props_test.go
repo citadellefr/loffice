@@ -4,7 +4,7 @@ import (
 	"maps"
 	"testing"
 
-	"github.com/citadellefr/bref/internal/xmldom"
+	"github.com/citadellefr/loffice/internal/xmldom"
 )
 
 // changes are edits of Props a client may make, and what reading the

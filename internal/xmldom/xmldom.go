@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/citadellefr/bref/internal/xmltok"
+	"github.com/citadellefr/loffice/internal/xmltok"
 )
 
 var ErrNoRoot = errors.New("xmldom: no root element")

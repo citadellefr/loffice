@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/citadellefr/bref/opc"
-	"github.com/citadellefr/bref/ot"
+	"github.com/citadellefr/loffice/opc"
+	"github.com/citadellefr/loffice/ot"
 )
 
 func openCorpus(t *testing.T, name string) (*Document, *ot.Tree) {
@@ -141,7 +141,7 @@ func TestEdits(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out := os.Getenv("BREF_EDITED"); out != "" {
+	if out := os.Getenv("LOFFICE_EDITED"); out != "" {
 		if err := os.MkdirAll(out+"/poi", 0o755); err != nil {
 			t.Fatal(err)
 		}

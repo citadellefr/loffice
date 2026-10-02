@@ -3,7 +3,7 @@ package docx
 import (
 	"strconv"
 
-	"github.com/citadellefr/bref/internal/xmldom"
+	"github.com/citadellefr/loffice/internal/xmldom"
 )
 
 // builtinStyles are the styles of Word's blank document that files often

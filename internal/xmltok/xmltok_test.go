@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/citadellefr/bref/opc"
+	"github.com/citadellefr/loffice/opc"
 )
 
 func tokens(t *testing.T, doc string) []string {

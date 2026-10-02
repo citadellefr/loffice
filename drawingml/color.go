@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strconv"
 
-	"github.com/citadellefr/bref/internal/xmldom"
+	"github.com/citadellefr/loffice/internal/xmldom"
 )
 
 // Color is a DrawingML color: exactly one of its kinds, then the

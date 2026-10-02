@@ -1,4 +1,4 @@
-package bref
+package loffice
 
 import (
 	"cmp"
@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/citadellefr/bref/ot"
+	"github.com/citadellefr/loffice/ot"
 )
 
 var (

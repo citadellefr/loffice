@@ -1,17 +1,17 @@
 import 'dart:io';
 
-import 'package:bref/src/ot/delta.dart';
-import 'package:bref/src/ot/tree.dart';
-import 'package:bref/src/word/blocks.dart';
-import 'package:bref/src/word/document.dart';
-import 'package:bref/src/word/layout.dart';
-import 'package:bref/src/word/paragraph.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:loffice/src/ot/delta.dart';
+import 'package:loffice/src/ot/tree.dart';
+import 'package:loffice/src/word/blocks.dart';
+import 'package:loffice/src/word/document.dart';
+import 'package:loffice/src/word/layout.dart';
+import 'package:loffice/src/word/paragraph.dart';
 
 /// How long laying out a long document takes, at first and after a
-/// keystroke: a measure, not a test, run when $BREF_BENCH is set.
+/// keystroke: a measure, not a test, run when $LOFFICE_BENCH is set.
 void main() {
-  test('lays out 2 000 paragraphs, then again after a keystroke', skip: Platform.environment['BREF_BENCH'] == null ? 'BREF_BENCH not set' : false, () {
+  test('lays out 2 000 paragraphs, then again after a keystroke', skip: Platform.environment['LOFFICE_BENCH'] == null ? 'LOFFICE_BENCH not set' : false, () {
     const words = 'Le chiffre d’affaires du trimestre progresse nettement grâce aux nouveaux clients et aux services rendus';
     Tree build(String extra) {
       final flow = Delta();

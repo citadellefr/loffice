@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/citadellefr/bref/internal/xmldom"
+	"github.com/citadellefr/loffice/internal/xmldom"
 )
 
 // Props are formatting as the attributes of a flow have it: string keys and

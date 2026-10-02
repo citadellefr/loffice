@@ -4,9 +4,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/citadellefr/bref/chart"
-	"github.com/citadellefr/bref/internal/xmldom"
-	"github.com/citadellefr/bref/opc"
+	"github.com/citadellefr/loffice/chart"
+	"github.com/citadellefr/loffice/internal/xmldom"
+	"github.com/citadellefr/loffice/opc"
 )
 
 const chartsKey = "charts"

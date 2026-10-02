@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/citadellefr/bref/internal/xmltok"
+	"github.com/citadellefr/loffice/internal/xmltok"
 )
 
 // sharedStrings is the table of strings cells point to. Strings a changed

@@ -7,7 +7,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/citadellefr/bref/opc"
+	"github.com/citadellefr/loffice/opc"
 )
 
 var chartPart = regexp.MustCompile(`/charts/chart\d*\.xml$`)

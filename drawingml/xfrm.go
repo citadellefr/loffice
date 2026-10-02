@@ -3,7 +3,7 @@ package drawingml
 import (
 	"strconv"
 
-	"github.com/citadellefr/bref/internal/xmldom"
+	"github.com/citadellefr/loffice/internal/xmldom"
 )
 
 // Xfrm places a shape, in EMU; a group also maps its children's coordinates

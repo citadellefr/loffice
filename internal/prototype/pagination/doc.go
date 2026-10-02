@@ -9,7 +9,7 @@
 // document of the corpus and scores, page by page, whether a page started
 // where Word started it ends where Word ended it.
 //
-//	BREF_FONTS=/usr/share/fonts/truetype go test ./internal/prototype/pagination -run AgainstWord -v
+//	LOFFICE_FONTS=/usr/share/fonts/truetype go test ./internal/prototype/pagination -run AgainstWord -v
 //
 // It is written in Go to run on the corpus in CI; the editor lays out pages
 // in Dart, where these rules will be ported.

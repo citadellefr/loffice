@@ -3,7 +3,7 @@ package drawingml
 import (
 	"strconv"
 
-	"github.com/citadellefr/bref/internal/xmldom"
+	"github.com/citadellefr/loffice/internal/xmldom"
 )
 
 // Line is the outline of a shape. Absent fields are inherited.

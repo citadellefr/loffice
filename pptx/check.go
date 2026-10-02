@@ -3,8 +3,8 @@ package pptx
 import (
 	"errors"
 
-	"github.com/citadellefr/bref/internal/partrel"
-	"github.com/citadellefr/bref/ot"
+	"github.com/citadellefr/loffice/internal/partrel"
+	"github.com/citadellefr/loffice/ot"
 )
 
 var (

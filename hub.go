@@ -1,4 +1,4 @@
-package bref
+package loffice
 
 import (
 	"context"
@@ -114,7 +114,7 @@ func (h *Hub) Close(ctx context.Context) error {
 			}
 		}
 		if err := r.flush(ctx); err != nil {
-			errs = append(errs, fmt.Errorf("bref: saving %s: %w", r.key, err))
+			errs = append(errs, fmt.Errorf("loffice: saving %s: %w", r.key, err))
 		}
 		r.stop()
 	}

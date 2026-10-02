@@ -5,8 +5,8 @@ import (
 	"maps"
 	"strconv"
 
-	"github.com/citadellefr/bref/internal/xmldom"
-	"github.com/citadellefr/bref/ot"
+	"github.com/citadellefr/loffice/internal/xmldom"
+	"github.com/citadellefr/loffice/ot"
 )
 
 // Section is the layout of the pages of a section, in twentieths of a

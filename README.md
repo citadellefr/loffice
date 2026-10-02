@@ -1,18 +1,18 @@
-# Bref
+# L'Office
 
 **Word, Excel and PowerPoint documents for Go servers and Flutter apps.**
 
-Bref opens, edits and saves `.docx`, `.xlsx` and `.pptx` files natively, with
+L'Office opens, edits and saves `.docx`, `.xlsx` and `.pptx` files natively, with
 real-time collaboration and an interface that feels familiar to Microsoft
 Office users. It is developed by [Citadelle](https://github.com/citadellefr),
 where it replaces a LibreOffice-based editor, and is released under the MIT
 license.
 
-> Bref is in early development. Nothing here is ready for use yet.
+> L'Office is in early development. Nothing here is ready for use yet.
 
 ## Principles
 
-- **Nothing is lost.** Whatever Bref does not understand in a file is written
+- **Nothing is lost.** Whatever L'Office does not understand in a file is written
   back exactly as it was read. Opening and saving a document without editing it
   gives back the same document.
 - **The server owns the file.** The Go package reads and writes Office Open
@@ -24,7 +24,7 @@ license.
 
 | Package | Role |
 |---|---|
-| [`bref`](.) | The hub: one room per open document, edits rebased and relayed to everyone connected, saves after a pause. Serves Word documents (`.docx`, `.docm`, `.dotx`), presentations (`.pptx`, `.pptm`, `.ppsx`), workbooks (`.xlsx`, `.xlsm`, `.xltx`) and CSV files (`.csv`), whose formulas it calculates, plain text files (`.txt`), and the pictures of documents. |
+| [`loffice`](.) | The hub: one room per open document, edits rebased and relayed to everyone connected, saves after a pause. Serves Word documents (`.docx`, `.docm`, `.dotx`), presentations (`.pptx`, `.pptm`, `.ppsx`), workbooks (`.xlsx`, `.xlsm`, `.xltx`) and CSV files (`.csv`), whose formulas it calculates, plain text files (`.txt`), and the pictures of documents. |
 | [`dart`](dart) | The Flutter package: the session with the hub, the same `ot` algorithms, and the editors of Word, Excel and PowerPoint documents, Word's with its own page layout. |
 | [`ot`](ot) | Edits and how concurrent edits are reconciled. A document is a tree of nodes (slides, shapes, the body of a text file), each with a type, attributes and possibly text; text is a flow of characters and paragraph marks, changed by deltas. The Dart package runs the same algorithms, checked against shared vectors. |
 | [`drawingml`](drawingml) | The DrawingML of all three formats: colors, fills, lines, geometries, positions and text bodies, read as JSON and text flows, written back as patches of the XML they came from. |
@@ -84,13 +84,13 @@ go test ./internal/xmltok -run '^$' -fuzz FuzzSameAsEncodingXML
 
 The corpus is downloaded from pinned commits and never committed.
 
-The corpus tests write the packages they rewrite to `$BREF_OUT`, which CI then
+The corpus tests write the packages they rewrite to `$LOFFICE_OUT`, which CI then
 checks with the Open XML SDK: a rewrite must add no error to those of the
 original file.
 
 ```sh
-BREF_OUT=/tmp/out go test ./pptx -run Corpus
+LOFFICE_OUT=/tmp/out go test ./pptx -run Corpus
 dotnet run --project tools/validate -- corpus/files /tmp/out
-BREF_EDITED=/tmp/edited go test ./pptx -run Edits   # a document edited
-BREF_EDITED=1 dotnet run --project tools/validate -- corpus/files /tmp/edited
+LOFFICE_EDITED=/tmp/edited go test ./pptx -run Edits   # a document edited
+LOFFICE_EDITED=1 dotnet run --project tools/validate -- corpus/files /tmp/edited
 ```

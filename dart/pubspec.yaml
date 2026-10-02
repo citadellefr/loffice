@@ -1,8 +1,8 @@
-name: bref
-description: Collaborative editor for Office documents in Flutter, with real-time co-editing and offline edits. Client of the Bref Go server.
+name: loffice
+description: Collaborative editor for Office documents in Flutter, with real-time co-editing and offline edits. Client of the L'Office Go server.
 version: 0.3.0
-repository: https://github.com/citadellefr/bref
-issue_tracker: https://github.com/citadellefr/bref/issues
+repository: https://github.com/citadellefr/loffice
+issue_tracker: https://github.com/citadellefr/loffice/issues
 topics: [office, editor, collaboration, xlsx, websocket]
 
 environment:

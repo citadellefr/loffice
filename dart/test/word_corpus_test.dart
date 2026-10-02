@@ -1,19 +1,19 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:bref/src/ot/tree.dart';
-import 'package:bref/src/word/blocks.dart';
-import 'package:bref/src/word/document.dart';
-import 'package:bref/src/word/edits.dart';
-import 'package:bref/src/word/layout.dart';
-import 'package:bref/src/word/paragraph.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:loffice/src/ot/tree.dart';
+import 'package:loffice/src/word/blocks.dart';
+import 'package:loffice/src/word/document.dart';
+import 'package:loffice/src/word/edits.dart';
+import 'package:loffice/src/word/layout.dart';
+import 'package:loffice/src/word/paragraph.dart';
 
-/// Lays out every tree of $BREF_WORD_CORPUS, as the Go package docx dumps
+/// Lays out every tree of $LOFFICE_WORD_CORPUS, as the Go package docx dumps
 /// them, and puts a caret in each flow: none may throw.
 void main() {
-  final dir = Platform.environment['BREF_WORD_CORPUS'];
-  test('lays out the corpus', skip: dir == null ? 'BREF_WORD_CORPUS not set' : false, () {
+  final dir = Platform.environment['LOFFICE_WORD_CORPUS'];
+  test('lays out the corpus', skip: dir == null ? 'LOFFICE_WORD_CORPUS not set' : false, () {
     var documents = 0, pages = 0;
     final failures = <String>[];
     final slow = <(int, String)>[];

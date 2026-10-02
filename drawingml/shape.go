@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"github.com/citadellefr/bref/internal/xmldom"
-	"github.com/citadellefr/bref/ot"
+	"github.com/citadellefr/loffice/internal/xmldom"
+	"github.com/citadellefr/loffice/ot"
 )
 
 var spPrOrder = []string{

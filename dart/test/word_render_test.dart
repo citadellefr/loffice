@@ -2,21 +2,21 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
-import 'package:bref/src/ot/tree.dart';
-import 'package:bref/src/word/blocks.dart';
-import 'package:bref/src/word/document.dart';
-import 'package:bref/src/word/layout.dart';
-import 'package:bref/src/word/page_painter.dart';
-import 'package:bref/src/word/paragraph.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:loffice/src/ot/tree.dart';
+import 'package:loffice/src/word/blocks.dart';
+import 'package:loffice/src/word/document.dart';
+import 'package:loffice/src/word/layout.dart';
+import 'package:loffice/src/word/page_painter.dart';
+import 'package:loffice/src/word/paragraph.dart';
 
 import 'fonts.dart';
 
-/// Draws the pages of the trees in $BREF_WORD, as the Go package docx dumps
-/// them, into PNG files beside them, with the fonts found in $BREF_FONTS:
+/// Draws the pages of the trees in $LOFFICE_WORD, as the Go package docx dumps
+/// them, into PNG files beside them, with the fonts found in $LOFFICE_FONTS:
 /// a look at the rendering, not a test.
 void main() {
-  final dir = Platform.environment['BREF_WORD'];
+  final dir = Platform.environment['LOFFICE_WORD'];
   test('renders pages', () async {
     await loadFonts();
     for (final file in Directory(dir!).listSync().whereType<File>().where((f) => f.path.endsWith('.json'))) {
@@ -40,7 +40,7 @@ void main() {
       // ignore: avoid_print
       print('${file.path}: ${layout.pages.length} pages in ${watch.elapsedMilliseconds} ms');
       final painter = PagePainter(images: (m) => images[m], context: context);
-      for (final page in layout.pages.take(int.tryParse(Platform.environment['BREF_PAGES'] ?? '') ?? 6)) {
+      for (final page in layout.pages.take(int.tryParse(Platform.environment['LOFFICE_PAGES'] ?? '') ?? 6)) {
         const scale = 1.5;
         final recorder = ui.PictureRecorder();
         painter.paint(ui.Canvas(recorder)..scale(scale), page);
@@ -50,5 +50,5 @@ void main() {
         File('$base-${page.index + 1}.png').writeAsBytesSync(png!.buffer.asUint8List());
       }
     }
-  }, skip: dir == null ? 'BREF_WORD not set' : false);
+  }, skip: dir == null ? 'LOFFICE_WORD not set' : false);
 }

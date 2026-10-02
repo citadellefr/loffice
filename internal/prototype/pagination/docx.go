@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/citadellefr/bref/opc"
+	"github.com/citadellefr/loffice/opc"
 )
 
 const (

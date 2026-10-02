@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/citadellefr/bref/internal/xmldom"
-	"github.com/citadellefr/bref/ot"
+	"github.com/citadellefr/loffice/internal/xmldom"
+	"github.com/citadellefr/loffice/ot"
 )
 
 // workbook writes the list of sheets, the names defined, the active

@@ -1,11 +1,11 @@
-package bref
+package loffice
 
 import (
 	"os"
 	"strings"
 	"testing"
 
-	"github.com/citadellefr/bref/xlsx"
+	"github.com/citadellefr/loffice/xlsx"
 )
 
 func TestWorkbooksAreCalculatedAndSaved(t *testing.T) {

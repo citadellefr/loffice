@@ -1,12 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:bref/bref.dart';
-import 'package:bref/src/word/document.dart';
-import 'package:bref/src/word/edits.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:loffice/loffice.dart';
+import 'package:loffice/src/word/document.dart';
+import 'package:loffice/src/word/edits.dart';
 
 import 'fakes.dart';
 

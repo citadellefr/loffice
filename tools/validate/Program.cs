@@ -1,4 +1,4 @@
-// Validates the packages Bref wrote against the Open XML SDK, the reference
+// Validates the packages L'Office wrote against the Open XML SDK, the reference
 // for what Office opens without offering a repair. An original file may
 // already break the schema; a rewrite fails only on errors it adds.
 //
@@ -15,9 +15,9 @@ if (args.Length != 2)
 }
 
 var validator = new OpenXmlValidator(FileFormatVersions.Microsoft365);
-// Documents Bref edited may lose parts, a deleted slide; the parts it added
+// Documents L'Office edited may lose parts, a deleted slide; the parts it added
 // must be valid.
-var edited = Environment.GetEnvironmentVariable("BREF_EDITED") == "1";
+var edited = Environment.GetEnvironmentVariable("LOFFICE_EDITED") == "1";
 int files = 0, skipped = 0, failed = 0;
 foreach (var rewritten in Directory.EnumerateFiles(args[1], "*", SearchOption.AllDirectories).Order())
 {
@@ -30,7 +30,7 @@ foreach (var rewritten in Directory.EnumerateFiles(args[1], "*", SearchOption.Al
     }
     files++;
     var after = Check(rewritten);
-    // parts the SDK could not see in the original, under a name Bref
+    // parts the SDK could not see in the original, under a name L'Office
     // normalized, bring their own errors
     var hidden = Hidden(Path.Combine(args[0], name));
     var added = after == null

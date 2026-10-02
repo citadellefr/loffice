@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/citadellefr/bref/formula"
-	"github.com/citadellefr/bref/internal/charset"
-	"github.com/citadellefr/bref/ot"
+	"github.com/citadellefr/loffice/formula"
+	"github.com/citadellefr/loffice/internal/charset"
+	"github.com/citadellefr/loffice/ot"
 )
 
 func ansi(s string) string {

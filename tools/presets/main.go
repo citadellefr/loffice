@@ -16,8 +16,8 @@ import (
 	"os"
 	"slices"
 
-	"github.com/citadellefr/bref/drawingml"
-	"github.com/citadellefr/bref/internal/xmldom"
+	"github.com/citadellefr/loffice/drawingml"
+	"github.com/citadellefr/loffice/internal/xmldom"
 )
 
 func main() {

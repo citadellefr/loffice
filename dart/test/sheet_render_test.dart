@@ -2,22 +2,22 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
-import 'package:bref/src/excel/filter.dart';
-import 'package:bref/src/excel/number_format.dart';
-import 'package:bref/src/excel/sheet_view.dart';
-import 'package:bref/src/excel/workbook.dart';
-import 'package:bref/src/ot/tree.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:loffice/src/excel/filter.dart';
+import 'package:loffice/src/excel/number_format.dart';
+import 'package:loffice/src/excel/sheet_view.dart';
+import 'package:loffice/src/excel/workbook.dart';
+import 'package:loffice/src/ot/tree.dart';
 
 import 'fonts.dart';
 
-/// Draws the sheets of the workbooks in \$BREF_SHEETS, as the Go package
+/// Draws the sheets of the workbooks in \$LOFFICE_SHEETS, as the Go package
 /// dumps them, into PNG files beside them: a look at the rendering, not a
 /// test.
 void main() {
-  final dir = Platform.environment['BREF_SHEETS'];
+  final dir = Platform.environment['LOFFICE_SHEETS'];
   testWidgets('renders sheets', (tester) async {
     await tester.runAsync(loadFonts);
     tester.view.physicalSize = const Size(1200, 700);

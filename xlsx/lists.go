@@ -3,8 +3,8 @@ package xlsx
 import (
 	"strings"
 
-	"github.com/citadellefr/bref/formula"
-	"github.com/citadellefr/bref/internal/xmldom"
+	"github.com/citadellefr/loffice/formula"
+	"github.com/citadellefr/loffice/internal/xmldom"
 )
 
 const (

@@ -1,4 +1,4 @@
-package bref
+package loffice
 
 import (
 	"bytes"
@@ -6,8 +6,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/citadellefr/bref/internal/charset"
-	"github.com/citadellefr/bref/ot"
+	"github.com/citadellefr/loffice/internal/charset"
+	"github.com/citadellefr/loffice/ot"
 )
 
 // textFile is a plain text file: a single node, "body", whose text has one

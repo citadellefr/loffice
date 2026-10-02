@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/citadellefr/bref/internal/xmldom"
+	"github.com/citadellefr/loffice/internal/xmldom"
 )
 
 // Style is a cell format, what an "xf" node holds. A style made in the

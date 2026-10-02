@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/citadellefr/bref/internal/xmldom"
-	"github.com/citadellefr/bref/ot"
+	"github.com/citadellefr/loffice/internal/xmldom"
+	"github.com/citadellefr/loffice/ot"
 )
 
 // Attributes of tables, rows and cells, each a JSON value; widths are in

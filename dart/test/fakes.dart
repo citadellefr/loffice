@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:bref/bref.dart';
+import 'package:loffice/loffice.dart';
 
 /// The Go hub's protocol, in memory: edits are rebased over the history,
 /// applied and relayed. Frames wait in both directions until delivered, so

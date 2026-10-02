@@ -1,10 +1,10 @@
-import 'package:bref/src/ot/delta.dart';
-import 'package:bref/src/ot/tree.dart';
-import 'package:bref/src/word/blocks.dart';
-import 'package:bref/src/word/document.dart';
-import 'package:bref/src/word/layout.dart';
-import 'package:bref/src/word/paragraph.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:loffice/src/ot/delta.dart';
+import 'package:loffice/src/ot/tree.dart';
+import 'package:loffice/src/word/blocks.dart';
+import 'package:loffice/src/word/document.dart';
+import 'package:loffice/src/word/layout.dart';
+import 'package:loffice/src/word/paragraph.dart';
 
 /// A document of A4 pages with 72 pt margins, holding [body], a list of
 /// nodes under "body" built from their type and text.

@@ -32,10 +32,10 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/citadellefr/bref/formula"
-	"github.com/citadellefr/bref/internal/xmldom"
-	"github.com/citadellefr/bref/opc"
-	"github.com/citadellefr/bref/ot"
+	"github.com/citadellefr/loffice/formula"
+	"github.com/citadellefr/loffice/internal/xmldom"
+	"github.com/citadellefr/loffice/opc"
+	"github.com/citadellefr/loffice/ot"
 )
 
 const (

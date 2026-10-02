@@ -3,7 +3,7 @@ package drawingml
 import (
 	"strconv"
 
-	"github.com/citadellefr/bref/internal/xmldom"
+	"github.com/citadellefr/loffice/internal/xmldom"
 )
 
 // Fill is how an area is painted: exactly one of its kinds.

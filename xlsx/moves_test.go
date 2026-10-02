@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/citadellefr/bref/opc"
-	"github.com/citadellefr/bref/ot"
+	"github.com/citadellefr/loffice/opc"
+	"github.com/citadellefr/loffice/ot"
 )
 
 // move applies rows or columns inserted or removed as the hub does, the
@@ -53,10 +53,10 @@ func TestMovedFormats(t *testing.T) {
 }
 
 // Every workbook of the corpus takes rows inserted and a column removed.
-// When BREF_MOVED is set, the packages are written there for the
+// When LOFFICE_MOVED is set, the packages are written there for the
 // validator.
 func TestCorpusMoves(t *testing.T) {
-	out := os.Getenv("BREF_MOVED")
+	out := os.Getenv("LOFFICE_MOVED")
 	moved := 0
 	for _, f := range workbooks(t) {
 		data, _ := os.ReadFile(f)

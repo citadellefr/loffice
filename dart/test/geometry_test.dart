@@ -1,8 +1,8 @@
 import 'dart:ui';
 
-import 'package:bref/src/drawing/geometry.dart';
-import 'package:bref/src/drawing/presets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:loffice/src/drawing/geometry.dart';
+import 'package:loffice/src/drawing/presets.dart';
 
 Rect _bounds(List<ShapePath> paths) => paths.map((p) => p.path.getBounds()).reduce((a, b) => a.expandToInclude(b));
 

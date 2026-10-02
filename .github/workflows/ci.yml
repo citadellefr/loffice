@@ -20,7 +20,7 @@ jobs:
       - run: go test -race -short ./...
       - run: go test ./...
         env:
-          BREF_FONTS: /usr/share/fonts/truetype
+          LOFFICE_FONTS: /usr/share/fonts/truetype
 
   # Every package the corpus tests rewrite must add no error to what the
   # Open XML SDK finds in the original.
@@ -35,22 +35,22 @@ jobs:
         with:
           dotnet-version: 8.0.x
       - run: corpus/fetch.sh
-      - run: BREF_OUT=$RUNNER_TEMP/out go test ./opc -run Corpus
+      - run: LOFFICE_OUT=$RUNNER_TEMP/out go test ./opc -run Corpus
       - run: dotnet run --project tools/validate -c Release -- corpus/files $RUNNER_TEMP/out
-      - run: BREF_OUT=$RUNNER_TEMP/pptx go test ./pptx -run Corpus
+      - run: LOFFICE_OUT=$RUNNER_TEMP/pptx go test ./pptx -run Corpus
       - run: dotnet run --project tools/validate -c Release -- corpus/files $RUNNER_TEMP/pptx
-      - run: BREF_EDITED=$RUNNER_TEMP/edited go test ./pptx -run Edits
-      - run: BREF_EDITED=1 dotnet run --project tools/validate -c Release -- corpus/files $RUNNER_TEMP/edited
-      - run: BREF_OUT=$RUNNER_TEMP/xlsx go test ./xlsx -run CorpusRewrite
+      - run: LOFFICE_EDITED=$RUNNER_TEMP/edited go test ./pptx -run Edits
+      - run: LOFFICE_EDITED=1 dotnet run --project tools/validate -c Release -- corpus/files $RUNNER_TEMP/edited
+      - run: LOFFICE_OUT=$RUNNER_TEMP/xlsx go test ./xlsx -run CorpusRewrite
       - run: dotnet run --project tools/validate -c Release -- corpus/files $RUNNER_TEMP/xlsx
-      - run: BREF_EDITED=$RUNNER_TEMP/xlsx-edited go test ./xlsx -run CorpusEdits
-      - run: BREF_EDITED=1 dotnet run --project tools/validate -c Release -- corpus/files $RUNNER_TEMP/xlsx-edited
-      - run: BREF_MOVED=$RUNNER_TEMP/xlsx-moved go test ./xlsx -run CorpusMoves
-      - run: BREF_EDITED=1 dotnet run --project tools/validate -c Release -- corpus/files $RUNNER_TEMP/xlsx-moved
-      - run: BREF_OUT=$RUNNER_TEMP/docx go test ./docx -run CorpusRewrite
+      - run: LOFFICE_EDITED=$RUNNER_TEMP/xlsx-edited go test ./xlsx -run CorpusEdits
+      - run: LOFFICE_EDITED=1 dotnet run --project tools/validate -c Release -- corpus/files $RUNNER_TEMP/xlsx-edited
+      - run: LOFFICE_MOVED=$RUNNER_TEMP/xlsx-moved go test ./xlsx -run CorpusMoves
+      - run: LOFFICE_EDITED=1 dotnet run --project tools/validate -c Release -- corpus/files $RUNNER_TEMP/xlsx-moved
+      - run: LOFFICE_OUT=$RUNNER_TEMP/docx go test ./docx -run CorpusRewrite
       - run: dotnet run --project tools/validate -c Release -- corpus/files $RUNNER_TEMP/docx
-      - run: BREF_EDITED=$RUNNER_TEMP/docx-edited go test ./docx -run CorpusEdit
-      - run: BREF_EDITED=1 dotnet run --project tools/validate -c Release -- corpus/files $RUNNER_TEMP/docx-edited
+      - run: LOFFICE_EDITED=$RUNNER_TEMP/docx-edited go test ./docx -run CorpusEdit
+      - run: LOFFICE_EDITED=1 dotnet run --project tools/validate -c Release -- corpus/files $RUNNER_TEMP/docx-edited
 
   # The targets of the plan, measured: relaying a keystroke, calculating
   # 10 000 dependents again, opening a sheet of 100 000 × 20.

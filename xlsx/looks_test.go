@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/citadellefr/bref/formula"
-	"github.com/citadellefr/bref/ot"
+	"github.com/citadellefr/loffice/formula"
+	"github.com/citadellefr/loffice/ot"
 )
 
 func looksTree(t *testing.T) (*ot.Tree, *Calc) {

@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/citadellefr/bref/opc"
-	"github.com/citadellefr/bref/ot"
+	"github.com/citadellefr/loffice/opc"
+	"github.com/citadellefr/loffice/ot"
 )
 
 func workbooks(t *testing.T) []string {
@@ -90,9 +90,9 @@ func TestCorpusSave(t *testing.T) {
 }
 
 // Every sheet rewritten from the tree reads back into the same tree. When
-// BREF_OUT is set, the packages are written there for the validator.
+// LOFFICE_OUT is set, the packages are written there for the validator.
 func TestCorpusRewrite(t *testing.T) {
-	out := os.Getenv("BREF_OUT")
+	out := os.Getenv("LOFFICE_OUT")
 	files := 0
 	for _, f := range workbooks(t) {
 		data, _ := os.ReadFile(f)

@@ -12,9 +12,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/citadellefr/bref/drawingml"
-	"github.com/citadellefr/bref/internal/xmldom"
-	"github.com/citadellefr/bref/ot"
+	"github.com/citadellefr/loffice/drawingml"
+	"github.com/citadellefr/loffice/internal/xmldom"
+	"github.com/citadellefr/loffice/ot"
 )
 
 const NS = "http://schemas.openxmlformats.org/drawingml/2006/chart"

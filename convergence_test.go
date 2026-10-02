@@ -1,4 +1,4 @@
-package bref
+package loffice
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/citadellefr/bref/ot"
+	"github.com/citadellefr/loffice/ot"
 )
 
 // treeFile is a format for tests that takes any edit: the file is the JSON

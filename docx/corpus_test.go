@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/citadellefr/bref/opc"
-	"github.com/citadellefr/bref/ot"
+	"github.com/citadellefr/loffice/opc"
+	"github.com/citadellefr/loffice/ot"
 )
 
 func documents(t *testing.T) []string {
@@ -101,9 +101,9 @@ func samePackage(t *testing.T, name string, a, b []byte) {
 }
 
 // Every part rewritten from the tree reads back as the same tree. When
-// BREF_OUT is set, the packages are written there for the validator.
+// LOFFICE_OUT is set, the packages are written there for the validator.
 func TestCorpusRewrite(t *testing.T) {
-	out := os.Getenv("BREF_OUT")
+	out := os.Getenv("LOFFICE_OUT")
 	var files int
 	for _, f := range documents(t) {
 		data, _ := os.ReadFile(f)
@@ -159,9 +159,9 @@ func sameTree(a, b *ot.Tree) error {
 }
 
 // Every document edited as the editor would, saved and read back. When
-// BREF_EDITED is set, the packages are written there for the validator.
+// LOFFICE_EDITED is set, the packages are written there for the validator.
 func TestCorpusEdit(t *testing.T) {
-	out := os.Getenv("BREF_EDITED")
+	out := os.Getenv("LOFFICE_EDITED")
 	var files int
 	for _, f := range documents(t) {
 		data, _ := os.ReadFile(f)

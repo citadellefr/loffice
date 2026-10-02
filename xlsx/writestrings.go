@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/citadellefr/bref/internal/xmltok"
+	"github.com/citadellefr/loffice/internal/xmltok"
 )
 
 // stringWriter is the table of shared strings as written: the one read,

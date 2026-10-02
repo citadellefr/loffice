@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/citadellefr/bref/internal/xmldom"
-	"github.com/citadellefr/bref/ot"
+	"github.com/citadellefr/loffice/internal/xmldom"
+	"github.com/citadellefr/loffice/ot"
 )
 
 const body = `<p:txBody xmlns:a="` + NS + `" xmlns:p="urn:p"><a:bodyPr/><a:lstStyle/>` +

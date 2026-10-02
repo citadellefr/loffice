@@ -1,4 +1,4 @@
-// Package bref is the server half of a collaborative document editor. It
+// Package loffice is the server half of a collaborative document editor. It
 // keeps every open document in memory, orders the edits of the people
 // connected to it, relays their cursors and saves the document through a
 // Store.
@@ -8,7 +8,7 @@
 // received since, applies it and hands it to everyone with the next
 // revision. Clients show their own edits at once and rebase them over what
 // arrives, so nobody waits for the server and everybody converges.
-package bref
+package loffice
 
 import (
 	"context"
@@ -73,17 +73,17 @@ const (
 )
 
 var (
-	ErrClosed  = errors.New("bref: hub closed")
-	ErrNoMedia = errors.New("bref: no such picture")
+	ErrClosed  = errors.New("loffice: hub closed")
+	ErrNoMedia = errors.New("loffice: no such picture")
 	// ErrPicture is a picture a document does not take: not a PNG, JPEG or
 	// GIF file, too large, or a format without pictures.
-	ErrPicture = errors.New("bref: this picture cannot be added")
+	ErrPicture = errors.New("loffice: this picture cannot be added")
 )
 
 // ErrGone is returned (possibly wrapped) by Store.Save when the file no
 // longer exists, e.g. it was deleted: everyone connected to it is
 // disconnected with the error as the reason, and its unsaved edits dropped.
-var ErrGone = errors.New("bref: document no longer exists")
+var ErrGone = errors.New("loffice: document no longer exists")
 
 func (o Options) withDefaults() Options {
 	if o.SaveDelay <= 0 {

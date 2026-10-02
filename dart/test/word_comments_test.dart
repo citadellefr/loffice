@@ -1,11 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:bref/bref.dart';
-import 'package:bref/src/word/comments.dart';
-import 'package:bref/src/word/document.dart';
-import 'package:bref/src/word/edits.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:loffice/loffice.dart';
+import 'package:loffice/src/word/comments.dart';
+import 'package:loffice/src/word/document.dart';
+import 'package:loffice/src/word/edits.dart';
 
 void main() {
   Tree fixture() => Tree.fromEdit(Edit.fromJson(jsonDecode(File('../testdata/docx/comments-rich-para.json').readAsStringSync()))!)!;

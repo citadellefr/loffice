@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/citadellefr/bref/opc"
-	"github.com/citadellefr/bref/ot"
+	"github.com/citadellefr/loffice/opc"
+	"github.com/citadellefr/loffice/ot"
 )
 
 // build is a Word document of that body, with a header, a picture and

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0 — 2026-10-02
+
+- Renamed L'Office: the module is `github.com/citadellefr/loffice`, its
+  root package `loffice`, the Dart package `loffice` (`LofficeStrings`),
+  and the test variables `LOFFICE_*`. Versions up to 0.6.0 were published
+  as `github.com/citadellefr/bref`, a name that now belongs to a markdown
+  editor.
+
 ## 0.6.0 — 2026-10-01
 
 - Charts are drawn in the three editors, not yet edited. The package

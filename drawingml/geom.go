@@ -3,7 +3,7 @@ package drawingml
 import (
 	"strconv"
 
-	"github.com/citadellefr/bref/internal/xmldom"
+	"github.com/citadellefr/loffice/internal/xmldom"
 )
 
 // Geometry is the outline of a shape: one of the preset shapes with its

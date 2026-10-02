@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/citadellefr/bref/formula"
-	"github.com/citadellefr/bref/ot"
+	"github.com/citadellefr/loffice/formula"
+	"github.com/citadellefr/loffice/ot"
 )
 
 // looksType is the node under a sheet whose grid holds the looks its

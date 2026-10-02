@@ -8,11 +8,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/citadellefr/bref/internal/partrel"
-	"github.com/citadellefr/bref/internal/xmlcanon"
-	"github.com/citadellefr/bref/internal/xmldom"
-	"github.com/citadellefr/bref/opc"
-	"github.com/citadellefr/bref/ot"
+	"github.com/citadellefr/loffice/internal/partrel"
+	"github.com/citadellefr/loffice/internal/xmlcanon"
+	"github.com/citadellefr/loffice/internal/xmldom"
+	"github.com/citadellefr/loffice/opc"
+	"github.com/citadellefr/loffice/ot"
 )
 
 func presentations(t *testing.T) []string {
@@ -102,10 +102,10 @@ func samePackage(t *testing.T, name string, a, b []byte) {
 }
 
 // Every slide rewritten from the tree means what it meant, but for runs of
-// the same formatting side by side, which become one. When BREF_OUT is
+// the same formatting side by side, which become one. When LOFFICE_OUT is
 // set, the packages are written there for the validator.
 func TestCorpusRewrite(t *testing.T) {
-	out := os.Getenv("BREF_OUT")
+	out := os.Getenv("LOFFICE_OUT")
 	var files, parts int
 	for _, f := range presentations(t) {
 		data, _ := os.ReadFile(f)

@@ -2,9 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
-import 'package:bref/src/ot/delta.dart';
-import 'package:bref/src/ot/diff.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:loffice/src/ot/delta.dart';
+import 'package:loffice/src/ot/diff.dart';
 
 Delta _delta(Object? json) => Delta.fromJson(json ?? const [])!;
 

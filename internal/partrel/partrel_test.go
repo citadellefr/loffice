@@ -3,8 +3,8 @@ package partrel
 import (
 	"testing"
 
-	"github.com/citadellefr/bref/internal/xmldom"
-	"github.com/citadellefr/bref/opc"
+	"github.com/citadellefr/loffice/internal/xmldom"
+	"github.com/citadellefr/loffice/opc"
 )
 
 func TestRelative(t *testing.T) {

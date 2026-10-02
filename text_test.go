@@ -1,9 +1,9 @@
-package bref
+package loffice
 
 import (
 	"testing"
 
-	"github.com/citadellefr/bref/ot"
+	"github.com/citadellefr/loffice/ot"
 )
 
 func TestTextFiles(t *testing.T) {

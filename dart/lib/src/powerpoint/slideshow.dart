@@ -14,7 +14,7 @@ class Slideshow extends StatefulWidget {
     required this.deck,
     required this.painter,
     this.start = 0,
-    this.strings = const BrefStrings(),
+    this.strings = const LofficeStrings(),
     this.images,
   });
 
@@ -23,7 +23,7 @@ class Slideshow extends StatefulWidget {
 
   /// The slide to start from, in the deck's order.
   final int start;
-  final BrefStrings strings;
+  final LofficeStrings strings;
 
   /// Notifies when pictures arrive.
   final Listenable? images;

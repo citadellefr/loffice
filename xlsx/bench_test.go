@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/citadellefr/bref/ot"
+	"github.com/citadellefr/loffice/ot"
 )
 
 // BenchmarkOpenLarge opens a sheet of 100 000 rows and 20 columns, half
@@ -37,7 +37,7 @@ func BenchmarkOpenLarge(b *testing.B) {
 	b.ReportMetric(float64(after.HeapAlloc-before.HeapAlloc)/float64(xml), "×xml")
 }
 
-// largeWorkbook is the blank workbook with rows × cols cells, as Bref
+// largeWorkbook is the blank workbook with rows × cols cells, as L'Office
 // writes it.
 func largeWorkbook(b *testing.B, rows, cols int) []byte {
 	blank, err := os.ReadFile("../testdata/xlsx/blank.xlsx")

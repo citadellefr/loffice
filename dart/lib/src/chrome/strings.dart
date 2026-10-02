@@ -1,6 +1,6 @@
 /// The words of the editors, as the French version of Office has them.
-class BrefStrings {
-  const BrefStrings();
+class LofficeStrings {
+  const LofficeStrings();
 
   // ribbon tabs
   String get file => 'Fichier';

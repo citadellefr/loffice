@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/citadellefr/bref/internal/xmltok"
-	"github.com/citadellefr/bref/opc"
+	"github.com/citadellefr/loffice/internal/xmltok"
+	"github.com/citadellefr/loffice/opc"
 )
 
 const w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"

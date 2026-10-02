@@ -2,13 +2,13 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
-import 'package:bref/src/chart/chart.dart';
-import 'package:bref/src/chart/chart_painter.dart';
-import 'package:bref/src/chart/scale.dart';
-import 'package:bref/src/drawing/color.dart';
-import 'package:bref/src/ot/tree.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:loffice/src/chart/chart.dart';
+import 'package:loffice/src/chart/chart_painter.dart';
+import 'package:loffice/src/chart/scale.dart';
+import 'package:loffice/src/drawing/color.dart';
+import 'package:loffice/src/ot/tree.dart';
 
 void main() {
   test('value axes take the bounds and steps Excel takes', () {

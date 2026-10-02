@@ -66,7 +66,7 @@ class SlideCanvas extends StatefulWidget {
     required this.painter,
     required this.selection,
     this.focusNode,
-    this.strings = const BrefStrings(),
+    this.strings = const LofficeStrings(),
     this.onShortcut,
   });
 
@@ -76,7 +76,7 @@ class SlideCanvas extends StatefulWidget {
   final SlidePainter painter;
   final SlideSelection selection;
   final FocusNode? focusNode;
-  final BrefStrings strings;
+  final LofficeStrings strings;
 
   /// Keys the canvas leaves to the editor around it; true when handled.
   final bool Function(KeyEvent event)? onShortcut;

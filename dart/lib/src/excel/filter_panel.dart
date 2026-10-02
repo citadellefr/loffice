@@ -27,7 +27,7 @@ Future<FilterChoice?> showFilterPanel(
   required List<String> values,
   required bool blanks,
   FilterColumn? current,
-  BrefStrings strings = const BrefStrings(),
+  LofficeStrings strings = const LofficeStrings(),
 }) {
   final screen = MediaQuery.sizeOf(context);
   const width = 280.0, height = 440.0;
@@ -56,7 +56,7 @@ class _FilterPanel extends StatefulWidget {
   final List<String> values;
   final bool blanks;
   final FilterColumn? current;
-  final BrefStrings strings;
+  final LofficeStrings strings;
 
   @override
   State<_FilterPanel> createState() => _FilterPanelState();
@@ -67,7 +67,7 @@ class _FilterPanelState extends State<_FilterPanel> {
   late bool _blank;
   var _search = '';
 
-  BrefStrings get _s => widget.strings;
+  LofficeStrings get _s => widget.strings;
 
   @override
   void initState() {

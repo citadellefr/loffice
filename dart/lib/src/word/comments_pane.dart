@@ -23,7 +23,7 @@ class WordCommentsPane extends StatefulWidget {
     required this.onDelete,
     required this.onEdit,
     required this.onClose,
-    this.strings = const BrefStrings(),
+    this.strings = const LofficeStrings(),
   });
 
   final List<WordThread> threads;
@@ -47,7 +47,7 @@ class WordCommentsPane extends StatefulWidget {
   final ValueChanged<WordComment> onDelete;
   final void Function(WordComment comment, String text) onEdit;
   final VoidCallback onClose;
-  final BrefStrings strings;
+  final LofficeStrings strings;
 
   @override
   State<WordCommentsPane> createState() => _WordCommentsPaneState();
@@ -61,7 +61,7 @@ class _WordCommentsPaneState extends State<WordCommentsPane> {
   final _keys = <String, GlobalKey>{};
   String? _edited;
 
-  BrefStrings get _s => widget.strings;
+  LofficeStrings get _s => widget.strings;
 
   @override
   void initState() {

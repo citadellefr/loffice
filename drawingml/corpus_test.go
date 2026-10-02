@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/citadellefr/bref/internal/xmlcanon"
-	"github.com/citadellefr/bref/internal/xmldom"
-	"github.com/citadellefr/bref/opc"
+	"github.com/citadellefr/loffice/internal/xmlcanon"
+	"github.com/citadellefr/loffice/internal/xmldom"
+	"github.com/citadellefr/loffice/opc"
 )
 
 // presentationParts are the parts of the corpus's presentations holding

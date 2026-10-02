@@ -7,18 +7,18 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/citadellefr/bref/formula"
+	"github.com/citadellefr/loffice/formula"
 )
 
-// TestDump writes the trees of workbooks to $BREF_DUMP, as the hub
-// serves them, for the Dart package to draw them: $BREF_DUMP_FILES lists
+// TestDump writes the trees of workbooks to $LOFFICE_DUMP, as the hub
+// serves them, for the Dart package to draw them: $LOFFICE_DUMP_FILES lists
 // them, relative to corpus/files.
 func TestDump(t *testing.T) {
-	dir := os.Getenv("BREF_DUMP")
+	dir := os.Getenv("LOFFICE_DUMP")
 	if dir == "" {
-		t.Skip("BREF_DUMP not set")
+		t.Skip("LOFFICE_DUMP not set")
 	}
-	for _, name := range strings.Split(os.Getenv("BREF_DUMP_FILES"), ",") {
+	for _, name := range strings.Split(os.Getenv("LOFFICE_DUMP_FILES"), ",") {
 		data, err := os.ReadFile(filepath.Join("../corpus/files", name))
 		if err != nil {
 			t.Fatal(err)

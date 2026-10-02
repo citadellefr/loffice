@@ -2,19 +2,19 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
-import 'package:bref/src/ot/tree.dart';
-import 'package:bref/src/powerpoint/deck.dart';
-import 'package:bref/src/powerpoint/slide_painter.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:loffice/src/ot/tree.dart';
+import 'package:loffice/src/powerpoint/deck.dart';
+import 'package:loffice/src/powerpoint/slide_painter.dart';
 
 import 'fonts.dart';
 
-/// Draws the slides of the trees in $BREF_RENDER, as the Go package dumps
-/// them, into PNG files beside them, with the fonts found in $BREF_FONTS:
+/// Draws the slides of the trees in $LOFFICE_RENDER, as the Go package dumps
+/// them, into PNG files beside them, with the fonts found in $LOFFICE_FONTS:
 /// a look at the rendering, not a test.
 void main() {
-  final dir = Platform.environment['BREF_RENDER'];
+  final dir = Platform.environment['LOFFICE_RENDER'];
   test('renders slides', () async {
     await loadFonts();
     for (final file in Directory(dir!).listSync().whereType<File>().where((f) => f.path.endsWith('.json'))) {
@@ -65,5 +65,5 @@ void main() {
         await save(recorder.endRecording(), sheet, '$base-sheet-${first ~/ 12 + 1}.png');
       }
     }
-  }, skip: dir == null ? 'BREF_RENDER not set' : false);
+  }, skip: dir == null ? 'LOFFICE_RENDER not set' : false);
 }

@@ -2,25 +2,25 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
-import 'package:bref/bref.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:loffice/loffice.dart';
 
 import 'fakes.dart';
 import 'fonts.dart';
 
 /// The Word editor on a fixture of testdata/docx, drawn into
-/// $BREF_SCREENSHOT: a look at the interface, not a test.
+/// $LOFFICE_SCREENSHOT: a look at the interface, not a test.
 void main() {
-  final out = Platform.environment['BREF_SCREENSHOT'];
+  final out = Platform.environment['LOFFICE_SCREENSHOT'];
   testWidgets('draws the editor', skip: out == null, (tester) async {
     await tester.runAsync(loadFonts);
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    final hub = FakeHub.tree(Edit.fromJson(jsonDecode(File('../testdata/docx/${Platform.environment['BREF_FIXTURE'] ?? 'tbl-having-applied-style'}.json').readAsStringSync()))!);
+    final hub = FakeHub.tree(Edit.fromJson(jsonDecode(File('../testdata/docx/${Platform.environment['LOFFICE_FIXTURE'] ?? 'tbl-having-applied-style'}.json').readAsStringSync()))!);
     final session = DocSession(hub.connect)..start();
     addTearDown(session.dispose);
     await tester.pumpWidget(MaterialApp(

@@ -1,4 +1,4 @@
-package bref
+package loffice
 
 import (
 	"encoding/json"
@@ -7,11 +7,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/citadellefr/bref/docx"
-	"github.com/citadellefr/bref/formula"
-	"github.com/citadellefr/bref/ot"
-	"github.com/citadellefr/bref/pptx"
-	"github.com/citadellefr/bref/xlsx"
+	"github.com/citadellefr/loffice/docx"
+	"github.com/citadellefr/loffice/formula"
+	"github.com/citadellefr/loffice/ot"
+	"github.com/citadellefr/loffice/pptx"
+	"github.com/citadellefr/loffice/xlsx"
 )
 
 // format writes a document back into the kind of file it was read from,
@@ -183,7 +183,7 @@ func open(key string, data []byte) (*ot.Tree, format, error) {
 	ext := strings.ToLower(path.Ext(key))
 	read := formats[ext]
 	if read == nil {
-		return nil, nil, fmt.Errorf("bref: %q files are not supported", ext)
+		return nil, nil, fmt.Errorf("loffice: %q files are not supported", ext)
 	}
 	return read(path.Base(key), data)
 }

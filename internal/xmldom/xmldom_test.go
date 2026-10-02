@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/citadellefr/bref/opc"
+	"github.com/citadellefr/loffice/opc"
 )
 
 const sample = `<?xml version="1.0"?>

@@ -28,7 +28,7 @@
   selected, moved, resized and rotated, text typed with its formatting,
   bullets and levels, colors of the theme, notes, slide sorter, slide show
   (F5) with fades, the state of saving always in sight.
-- `BrefStrings.refused` takes the server's reason, for an app to word it.
+- `LofficeStrings.refused` takes the server's reason, for an app to word it.
 
 ## 0.1.0 — 2026-09-26
 

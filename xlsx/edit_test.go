@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/citadellefr/bref/ot"
+	"github.com/citadellefr/loffice/ot"
 )
 
 func apply(t *testing.T, d *Document, tree *ot.Tree, e ot.Edit) {
@@ -25,10 +25,10 @@ func cell(r, c int, fields string) ot.Cell {
 
 // Every workbook of the corpus takes the same edits: cells set, a format
 // made, cells merged, rows frozen, a filter set, a sheet renamed, one added
-// before the others and the last one deleted. When BREF_EDITED is set, the packages
+// before the others and the last one deleted. When LOFFICE_EDITED is set, the packages
 // are written there for the validator.
 func TestCorpusEdits(t *testing.T) {
-	out := os.Getenv("BREF_EDITED")
+	out := os.Getenv("LOFFICE_EDITED")
 	edited := 0
 	for _, f := range workbooks(t) {
 		data, _ := os.ReadFile(f)

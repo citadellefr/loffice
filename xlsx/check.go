@@ -8,8 +8,8 @@ import (
 	"strings"
 	"unicode/utf16"
 
-	"github.com/citadellefr/bref/formula"
-	"github.com/citadellefr/bref/ot"
+	"github.com/citadellefr/loffice/formula"
+	"github.com/citadellefr/loffice/ot"
 )
 
 var ErrReadOnly = errors.New("xlsx: this part of the workbook cannot be edited")

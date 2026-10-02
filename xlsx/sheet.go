@@ -11,11 +11,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/citadellefr/bref/formula"
-	"github.com/citadellefr/bref/internal/xmldom"
-	"github.com/citadellefr/bref/internal/xmltok"
-	"github.com/citadellefr/bref/opc"
-	"github.com/citadellefr/bref/ot"
+	"github.com/citadellefr/loffice/formula"
+	"github.com/citadellefr/loffice/internal/xmldom"
+	"github.com/citadellefr/loffice/internal/xmltok"
+	"github.com/citadellefr/loffice/opc"
+	"github.com/citadellefr/loffice/ot"
 )
 
 // Tail are the fields of the columns from From on, up to To.

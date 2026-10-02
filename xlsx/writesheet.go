@@ -6,9 +6,9 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/citadellefr/bref/formula"
-	"github.com/citadellefr/bref/internal/xmldom"
-	"github.com/citadellefr/bref/ot"
+	"github.com/citadellefr/loffice/formula"
+	"github.com/citadellefr/loffice/internal/xmldom"
+	"github.com/citadellefr/loffice/ot"
 )
 
 // worksheetOrder is the order of the children of a worksheet.

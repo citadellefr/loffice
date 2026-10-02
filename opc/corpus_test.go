@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/citadellefr/bref/internal/xmlcanon"
+	"github.com/citadellefr/loffice/internal/xmlcanon"
 )
 
 // ooxmlExtensions are the files the corpus tests open.
@@ -97,9 +97,9 @@ func TestCorpusRoundTrip(t *testing.T) {
 
 // TestCorpusContentTypesRewrite adds and removes a part, which rewrites
 // [Content_Types].xml: the rewrite must mean what the original meant. When
-// BREF_OUT is set, the packages are written there for the validator.
+// LOFFICE_OUT is set, the packages are written there for the validator.
 func TestCorpusContentTypesRewrite(t *testing.T) {
-	out := os.Getenv("BREF_OUT")
+	out := os.Getenv("LOFFICE_OUT")
 	var rewrites, identical int
 	root := filepath.Join("..", "corpus", "files")
 	for _, path := range corpus(t) {

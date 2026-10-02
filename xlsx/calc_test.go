@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/citadellefr/bref/formula"
-	"github.com/citadellefr/bref/ot"
+	"github.com/citadellefr/loffice/formula"
+	"github.com/citadellefr/loffice/ot"
 )
 
 func calcTree(t *testing.T) (*ot.Tree, *Calc) {

@@ -1,5 +1,5 @@
-import 'package:bref/src/excel/formula_text.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:loffice/src/excel/formula_text.dart';
 
 void main() {
   test('formulas shown in French', () {

@@ -1,7 +1,7 @@
-import 'package:bref/bref.dart';
-import 'package:bref/src/word/edits.dart';
-import 'package:bref/src/word/revisions.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:loffice/loffice.dart';
+import 'package:loffice/src/word/edits.dart';
+import 'package:loffice/src/word/revisions.dart';
 
 void main() {
   const date = '2026-09-29T08:30:00Z';

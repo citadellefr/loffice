@@ -29,14 +29,14 @@ class SpreadsheetEditor extends StatefulWidget {
     required this.session,
     this.title = '',
     this.onClose,
-    this.strings = const BrefStrings(),
+    this.strings = const LofficeStrings(),
     this.fonts,
   });
 
   final DocSession session;
   final String title;
   final VoidCallback? onClose;
-  final BrefStrings strings;
+  final LofficeStrings strings;
 
   /// The package bundling the free fonts standing in for Office's.
   final String? fonts;
@@ -71,7 +71,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
   ];
 
   DocSession get _session => widget.session;
-  BrefStrings get _s => widget.strings;
+  LofficeStrings get _s => widget.strings;
 
   @override
   void initState() {

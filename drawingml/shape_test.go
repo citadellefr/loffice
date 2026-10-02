@@ -6,7 +6,7 @@ import (
 	"maps"
 	"testing"
 
-	"github.com/citadellefr/bref/internal/xmldom"
+	"github.com/citadellefr/loffice/internal/xmldom"
 )
 
 var shapeChanges = []struct{ key, value string }{
