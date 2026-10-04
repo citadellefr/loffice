@@ -17,7 +17,7 @@ typedef Styled = (Map<String, Object?>, ColorContext);
 /// corner of its frame, and its cells as they are drawn. Rows grow to hold
 /// their text, as PowerPoint grows them.
 class TableLayout {
-  TableLayout._(this.columns, this.rows, this.cells, this.slots, this.fill, this._nodes);
+  TableLayout._(this.columns, this.rows, this.fits, this.cells, this.slots, this.fill, this._nodes);
 
   /// Lays out the table of a frame, in the colors and theme of its slide.
   factory TableLayout.of(Deck deck, Node table, {required ColorContext colors, required DeckTheme theme, String? fonts}) {
@@ -70,7 +70,7 @@ class TableLayout {
     final options = _map(table.attributes['tbl']);
     final style = _Style(deck.tableStyleOf(table), options, rowNodes.length, cols, colors, theme);
     final face = Fonts(theme: theme.typeface, package: fonts);
-    final heights = [for (final r in rowNodes) math.max(0.0, _number(r.attributes['h']) / emuPerPoint)];
+    final fits = List.filled(rowNodes.length, 0.0);
     final texts = <TextFrame>[];
     final levels = <Props Function(int)>[];
     for (final p in placed) {
@@ -81,8 +81,9 @@ class TableLayout {
       levels.add((lvl) => {...inherited.level(lvl), ...own});
       final text = _layout(p.node, levels.last, face, colors, Size(width, 0));
       texts.add(text);
-      if (p.rowSpan == 1) heights[p.row] = math.max(heights[p.row], _needed(text, p.node));
+      if (p.rowSpan == 1) fits[p.row] = math.max(fits[p.row], _needed(text, p.node));
     }
+    final heights = [for (var r = 0; r < rowNodes.length; r++) math.max(fits[r], _number(rowNodes[r].attributes['h']) / emuPerPoint)];
     for (var i = 0; i < placed.length; i++) {
       final p = placed[i];
       if (p.rowSpan == 1) continue;
@@ -117,12 +118,16 @@ class TableLayout {
       );
     }
     final tableFill = options['fill'] is Map<String, Object?> ? (options['fill']! as Map<String, Object?>, colors) : null;
-    return TableLayout._(columns, rows, cells, slots, tableFill, nodesOf(tree, table));
+    return TableLayout._(columns, rows, fits, cells, slots, tableFill, nodesOf(tree, table));
   }
 
   /// The edges of the columns and of the rows, the first at 0.
   final List<double> columns;
   final List<double> rows;
+
+  /// The height each row needs for the text of its cells, those spanning
+  /// rows left out.
+  final List<double> fits;
 
   /// The cells drawn, those merged into another left out, by node id.
   final Map<String, CellLayout> cells;
@@ -159,6 +164,27 @@ class TableLayout {
       if (row >= c.row && row < c.row + c.rowSpan && col >= c.col && col < c.col + c.colSpan) return c;
     }
     return null;
+  }
+
+  /// The cells of the smallest block of rows and columns holding [a] and
+  /// [b] that cuts no merged cell, row by row.
+  List<CellLayout> range(CellLayout a, CellLayout b) {
+    var top = math.min(a.row, b.row), left = math.min(a.col, b.col);
+    var bottom = math.max(a.row + a.rowSpan, b.row + b.rowSpan), right = math.max(a.col + a.colSpan, b.col + b.colSpan);
+    bool overlaps(CellLayout c) => c.row < bottom && c.row + c.rowSpan > top && c.col < right && c.col + c.colSpan > left;
+    for (var grown = true; grown;) {
+      grown = false;
+      for (final c in cells.values.where(overlaps)) {
+        if (c.row < top || c.col < left || c.row + c.rowSpan > bottom || c.col + c.colSpan > right) {
+          top = math.min(top, c.row);
+          left = math.min(left, c.col);
+          bottom = math.max(bottom, c.row + c.rowSpan);
+          right = math.max(right, c.col + c.colSpan);
+          grown = true;
+        }
+      }
+    }
+    return cells.values.where(overlaps).toList()..sort((x, y) => x.row != y.row ? x.row - y.row : x.col - y.col);
   }
 
   /// The cell at a point, null outside the table.

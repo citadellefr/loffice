@@ -11,6 +11,7 @@ import '../text/editing.dart';
 import 'deck.dart';
 import 'edits.dart';
 import 'slide_painter.dart';
+import 'table.dart';
 import 'table_edits.dart';
 
 /// What is selected on a slide: shapes, or a range of the text of one.
@@ -84,7 +85,7 @@ class SlideCanvas extends StatefulWidget {
   State<SlideCanvas> createState() => SlideCanvasState();
 }
 
-enum _Drag { none, move, resize, rotate, text }
+enum _Drag { none, move, resize, rotate, text, cells, column, row }
 
 /// Handles of a selected shape: the corners, the middles of the sides and
 /// the rotation handle above.
@@ -108,6 +109,15 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
   DateTime _lastDown = DateTime(0);
   Offset _lastDownAt = Offset.zero;
   var _clicks = 0;
+
+  /// The cell a range of cells goes from, and where its text was being
+  /// selected from before the range took over.
+  String? _anchor;
+  var _anchorOffset = 0;
+
+  /// The table whose edge is under the mouse or dragged, and that edge.
+  (Node, _Drag, int)? _edge;
+  MouseCursor _cursor = MouseCursor.defer;
 
   Timer? _blink;
   var _caretOn = true;
@@ -234,6 +244,65 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
     return cell == null ? null : _session.document[cell.node.id];
   }
 
+  /// The cells selected, when they are.
+  List<CellLayout> get _selectedCells => [
+    for (final id in _selection.shapes)
+      if (_session.document[id] case final n? when n.type == 'tc') ?widget.painter.cellOf(n),
+  ];
+
+  /// Selects the cells from [anchor] to [to], or the text of [anchor] when
+  /// they are the same cell.
+  void _selectRange(Node anchor, Node to) {
+    final frame = widget.painter.frameOf(anchor);
+    final table = frame == null ? null : widget.painter.tableOf(frame);
+    final a = widget.painter.cellOf(anchor), b = widget.painter.cellOf(to);
+    if (table == null || a == null || b == null || widget.painter.frameOf(to)?.id != frame!.id) return;
+    _anchor = anchor.id;
+    if (a == b) {
+      if (_selection.editing != anchor.id) _selection.edit(anchor.id, _anchorOffset);
+      return;
+    }
+    final ids = [for (final c in table.range(a, b)) c.node.id];
+    if (_selection.editing != null || !_selection.shapes.containsAll(ids) || _selection.shapes.length != ids.length) _selection.selectShapes(ids);
+  }
+
+  /// The edge of a table at a point that a drag moves: a column's right or
+  /// a row's bottom, where no merged cell covers it.
+  (Node, _Drag, int)? _edgeAt(Offset p) {
+    if (_session.readOnly) return null;
+    final slack = 4 / _scale;
+    for (final shape in _deck.shapesOf(widget.slide).reversed) {
+      final table = widget.painter.tableOf(shape);
+      if (table == null) {
+        if (_contains(shape, p)) return null;
+        continue;
+      }
+      final local = widget.painter.transformOf(shape).invert().apply(p);
+      if (!(Offset.zero & table.size).inflate(slack).contains(local)) continue;
+      final rtl = (shape.attributes['tbl'] as Map<String, Object?>?)?['rtl'] == true;
+      final cell = table.cellAt(Offset(local.dx.clamp(0, table.size.width - 0.01), local.dy.clamp(0, table.size.height - 0.01)));
+      for (var i = 1; i < table.columns.length && !rtl; i++) {
+        final inside = cell != null && cell.col < i && i < cell.col + cell.colSpan;
+        if ((local.dx - table.columns[i]).abs() < slack && !inside) return (shape, _Drag.column, i);
+      }
+      for (var i = 1; i < table.rows.length; i++) {
+        final inside = cell != null && cell.row < i && i < cell.row + cell.rowSpan;
+        if ((local.dy - table.rows[i]).abs() < slack && !inside) return (shape, _Drag.row, i);
+      }
+      return null;
+    }
+    return null;
+  }
+
+  /// How far the edge dragged moves, in points of its table.
+  double get _edgeShift {
+    final edge = _edge;
+    if (edge == null) return 0;
+    final inverse = widget.painter.transformOf(edge.$1).invert();
+    final d = inverse.apply(_dragTo) - inverse.apply(_dragFrom);
+    return edge.$2 == _Drag.column ? d.dx : d.dy;
+  }
+
   /// Where the handles of a shape are, on the slide.
   Map<_Handle, Offset> _handles(Node shape) {
     final box = _deck.styleOf(shape).bounds;
@@ -274,6 +343,14 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
     _goalX = null;
     final shift = HardwareKeyboard.instance.isShiftPressed;
 
+    final edge = _edgeAt(p);
+    if (edge != null) {
+      _edge = edge;
+      _drag = edge.$2;
+      _pressed = edge.$1;
+      return;
+    }
+
     final editing = _editingNode;
     if (editing != null && _contains(editing, p)) {
       final frame = widget.painter.textOf(editing);
@@ -289,7 +366,9 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
       } else {
         _selection.edit(editing.id, shift ? _selection.base : offset, offset);
       }
-      _drag = _Drag.text;
+      _anchor = editing.id;
+      _anchorOffset = _selection.base;
+      _drag = editing.type == 'tc' ? _Drag.cells : _Drag.text;
       return;
     }
 
@@ -317,10 +396,19 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
       _drag = _Drag.text;
       return;
     }
-    final cell = shift || _session.readOnly ? null : _cellAt(hit, p);
-    if (cell != null) {
+    final cell = _session.readOnly ? null : _cellAt(hit, p);
+    final anchor = _anchor == null ? null : _session.document[_anchor!];
+    final inRange = _selection.editing != null || _selectedCells.isNotEmpty;
+    if (cell != null && shift && anchor != null && inRange && widget.painter.frameOf(anchor)?.id == hit.id) {
+      _selectRange(anchor, cell);
+      _drag = _Drag.cells;
+      return;
+    }
+    if (cell != null && !shift) {
       _startEditing(cell, at: p, word: _clicks >= 2);
-      _drag = _Drag.text;
+      _anchor = cell.id;
+      _anchorOffset = _selection.base;
+      _drag = _Drag.cells;
       return;
     }
     if (shift) {
@@ -345,16 +433,37 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
           final offset = frame.offsetAt(widget.painter.transformOf(editing).invert().apply(p));
           _selection.edit(editing.id, _selection.base, offset);
         }
-      case _Drag.move || _Drag.resize || _Drag.rotate:
+      case _Drag.cells:
+        final anchor = _anchor == null ? null : _session.document[_anchor!];
+        final frame = anchor == null ? null : widget.painter.frameOf(anchor);
+        final over = frame == null ? null : _cellAt(frame, p);
+        if (anchor != null && over != null) _selectRange(anchor, over);
+        final editing = _editingNode;
+        final text = editing == null ? null : widget.painter.textOf(editing);
+        if (editing != null && text != null) {
+          _selection.edit(editing.id, _selection.base, text.offsetAt(widget.painter.transformOf(editing).invert().apply(p)));
+        }
+      case _Drag.move || _Drag.resize || _Drag.rotate || _Drag.column || _Drag.row:
         setState(() {});
       case _Drag.none:
     }
+  }
+
+  void _hover(PointerHoverEvent e) {
+    final edge = _edgeAt(_toSlide(e.localPosition));
+    final cursor = switch (edge?.$2) {
+      _Drag.column => SystemMouseCursors.resizeColumn,
+      _Drag.row => SystemMouseCursors.resizeRow,
+      _ => MouseCursor.defer,
+    };
+    if (cursor != _cursor) setState(() => _cursor = cursor);
   }
 
   void _up(PointerUpEvent e) {
     final drag = _drag;
     _drag = _Drag.none;
     if (!_moved) {
+      _edge = null;
       // a click on a shape already selected goes into its text
       final pressed = _pressed;
       if (drag == _Drag.move && pressed != null && _selection.shapes.length == 1 && pressed.type == 'sp' && _clicks == 1 && _wasSelected) {
@@ -368,14 +477,25 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
       _Drag.move => DeckEdits(_deck).place(_previews()),
       _Drag.resize => DeckEdits(_deck).place(_previews()),
       _Drag.rotate => _single == null ? Edit() : DeckEdits(_deck).rotate(_single!, _rotation(_single!)),
+      _Drag.column || _Drag.row => _edgeEdit(),
       _ => Edit(),
     };
+    _edge = null;
     if (!edit.isEmpty) _session.edit(edit);
     _wasSelected = true;
     setState(() {});
   }
 
   var _wasSelected = false;
+
+  Edit _edgeEdit() {
+    final edge = _edge;
+    final frame = edge == null ? null : _session.document[edge.$1.id];
+    final table = frame == null ? null : widget.painter.tableOf(frame);
+    if (edge == null || frame == null || table == null) return Edit();
+    final edits = TableEdits(_session.document, frame, table);
+    return edge.$2 == _Drag.column ? edits.resizeColumn(edge.$3, _edgeShift) : edits.resizeRow(edge.$3, _edgeShift);
+  }
 
   void _startEditing(Node shape, {Offset? at, bool word = false}) {
     if (_session.readOnly) return;
@@ -486,6 +606,16 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
       return true;
     }
     if (_session.readOnly) return false;
+    final cells = _selectedCells;
+    if (cells.isNotEmpty) {
+      final frame = widget.painter.frameOf(cells.first.node);
+      final table = frame == null ? null : widget.painter.tableOf(frame);
+      if ((key == LogicalKeyboardKey.delete || key == LogicalKeyboardKey.backspace) && table != null) {
+        _session.edit(TableEdits(_session.document, frame!, table).clear(cells));
+        return true;
+      }
+      return false;
+    }
     if (key == LogicalKeyboardKey.delete || key == LogicalKeyboardKey.backspace) {
       _session.edit(DeckEdits(_deck).delete(shapes));
       _selection.clear();
@@ -807,8 +937,11 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
           onPointerDown: _down,
           onPointerMove: _move,
           onPointerUp: _up,
+          onPointerHover: _hover,
           child: MouseRegion(
-            cursor: _selection.editing != null ? SystemMouseCursors.text : SystemMouseCursors.basic,
+            cursor: _cursor != MouseCursor.defer
+                ? _cursor
+                : (_selection.editing != null ? SystemMouseCursors.text : SystemMouseCursors.basic),
             child: CustomPaint(
               size: Size(constraints.maxWidth, constraints.maxHeight),
               painter: _CanvasPainter(this, theme.colorScheme),
@@ -913,6 +1046,13 @@ class _CanvasPainter extends CustomPainter {
       final shape = node?.type == 'tc' ? painter.frameOf(node!) : node;
       final size = shape == null ? null : painter.sizeOf(shape);
       if (shape == null || size == null) continue;
+      if (node!.type == 'tc' && selection.editing != id) {
+        final cell = painter.sizeOf(node);
+        canvas.save();
+        canvas.transform(painter.transformOf(node).storage);
+        if (cell != null) canvas.drawRect(Offset.zero & cell, Paint()..color = colors.primary.withValues(alpha: 0.2));
+        canvas.restore();
+      }
       canvas.save();
       canvas.transform(painter.transformOf(shape).storage);
       final outline = Paint()
@@ -948,7 +1088,16 @@ class _CanvasPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1 / scale
         ..color = colors.primary.withValues(alpha: 0.8);
-      if (state._drag == _Drag.rotate && state._single != null) {
+      final edge = state._edge;
+      final table = edge == null ? null : painter.tableOf(edge.$1);
+      if (edge != null && table != null) {
+        canvas.save();
+        canvas.transform(painter.transformOf(edge.$1).storage);
+        final at = (edge.$2 == _Drag.column ? table.columns : table.rows)[edge.$3] + state._edgeShift;
+        final line = edge.$2 == _Drag.column ? (Offset(at, 0), Offset(at, table.size.height)) : (Offset(0, at), Offset(table.size.width, at));
+        _dashed(canvas, Rect.fromPoints(line.$1, line.$2), colors.primary, 1 / scale);
+        canvas.restore();
+      } else if (state._drag == _Drag.rotate && state._single != null) {
         final shape = state._single!;
         final box = deck.styleOf(shape).bounds!;
         canvas.save();

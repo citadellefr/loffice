@@ -20,6 +20,13 @@
   rows and columns, merged cells growing and shrinking with them, and
   turns the table style options on and off. The shape fill colors a cell,
   the outline its borders.
+- Dart: a drag from one cell to another, or Shift and a click, selects a
+  block of cells, grown to hold the merged cells it cuts; the formatting
+  and fill go to all of them, Delete empties them. Layout > Merge merges
+  them into the first, which takes their text, and splits a merged cell
+  back. The edges of columns and rows are dragged with the mouse: an
+  inner edge shares the width of its two columns, the last widens the
+  table, a row goes no lower than its text.
 
 ## 0.8.0 — 2026-10-04
 

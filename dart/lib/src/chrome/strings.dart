@@ -355,6 +355,9 @@ class LofficeStrings {
   String get insertBelow => 'Insérer en dessous';
   String get insertLeft => 'Insérer à gauche';
   String get insertRight => 'Insérer à droite';
+  String get merge => 'Fusionner';
+  String get mergeCells => 'Fusionner les cellules';
+  String get splitCells => 'Fractionner les cellules';
   String get tableStyleOptions => 'Options de style de tableau';
   String get headerRow => 'Ligne d’en-tête';
   String get totalRow => 'Ligne Total';

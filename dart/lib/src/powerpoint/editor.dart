@@ -145,10 +145,13 @@ class _PresentationEditorState extends State<PresentationEditor> {
       if (n != null) return (n, _selection.start, _selection.end);
     }
     for (final n in _selectedShapes) {
-      if (n.type == 'sp' && n.text != null) return (n, 0, n.text!.length - 1);
+      if (_hasText(n)) return (n, 0, n.text!.length - 1);
     }
     return null;
   }
+
+  /// Whether the formatting of a shape selected goes to its whole text.
+  bool _hasText(Node n) => (n.type == 'sp' || n.type == 'tc') && n.text != null;
 
   /// The properties a paragraph of a level of a shape or cell starts from.
   Props _levelOf(Node node, int lvl) => node.type == 'tc' ? _paint.cellOf(node)?.level(lvl) ?? const {} : _current.styleOf(node).level(lvl);
@@ -200,7 +203,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
     }
     _edit(Edit([
       for (final n in _selectedShapes)
-        if (n.type == 'sp' && n.text != null) Change.text(n.id, FlowEditing(n.text!).formatRuns(0, n.text!.length, attributes)!),
+        if (_hasText(n)) Change.text(n.id, FlowEditing(n.text!).formatRuns(0, n.text!.length, attributes)!),
     ]));
   }
 
@@ -215,7 +218,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
     }
     _edit(Edit([
       for (final n in _selectedShapes)
-        if (n.type == 'sp' && n.text != null) Change.text(n.id, FlowEditing(n.text!).formatParagraphs(0, n.text!.length - 1, attributes)),
+        if (_hasText(n)) Change.text(n.id, FlowEditing(n.text!).formatParagraphs(0, n.text!.length - 1, attributes)),
     ]));
   }
 
@@ -342,17 +345,27 @@ class _PresentationEditorState extends State<PresentationEditor> {
 
   // tables
 
-  /// The table selected, or the one whose cell is selected, with that
-  /// cell.
+  /// The table selected, or the one whose cells are selected, with the
+  /// first of them.
   (Node, CellLayout?)? get _table {
     final shapes = _selectedShapes;
-    if (shapes.length != 1) return null;
-    final n = shapes.single;
+    if (shapes.isEmpty) return null;
+    final n = shapes.first;
     if (n.type == 'tc') {
       final frame = _paint.frameOf(n);
-      return frame == null ? null : (frame, _paint.cellOf(n));
+      if (frame == null || shapes.any((c) => c.type != 'tc' || _paint.frameOf(c)?.id != frame.id)) return null;
+      return (frame, _paint.cellOf(n));
     }
-    return n.attributes['frame'] == 'table' ? (n, null) : null;
+    return shapes.length == 1 && n.attributes['frame'] == 'table' ? (n, null) : null;
+  }
+
+  /// The cells selected, of the table [_table] gives.
+  List<CellLayout> get _cells => _table == null ? const [] : [for (final n in _selectedShapes) ?_paint.cellOf(n)];
+
+  void _merge() {
+    final cells = _cells;
+    _tableEdit((e, _) => e.merge(cells));
+    if (cells.isNotEmpty) _selection.selectShapes([cells.first.node.id]);
   }
 
   /// A new table in the middle of the slide, two thirds of its width, its
@@ -616,6 +629,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
     final shapes = editable && _selection.shapes.isNotEmpty;
     final table = _table;
     final cell = editable ? table?.$2 : null;
+    final cells = editable ? _cells : const <CellLayout>[];
     final options = table?.$1.attributes['tbl'] as Map<String, Object?>? ?? const {};
     Widget option(String label, String key) => RibbonCheck(
       label: label,
@@ -855,6 +869,15 @@ class _PresentationEditorState extends State<PresentationEditor> {
               RibbonButton(icon: const Icon(Icons.border_bottom), label: _s.insertBelow, large: true, onPressed: cell == null ? null : () => _tableEdit((e, c) => e.insertRow(c!.row + c.rowSpan))),
               RibbonButton(icon: const Icon(Icons.border_left), label: _s.insertLeft, large: true, onPressed: cell == null ? null : () => _tableEdit((e, c) => e.insertColumn(c!.col))),
               RibbonButton(icon: const Icon(Icons.border_right), label: _s.insertRight, large: true, onPressed: cell == null ? null : () => _tableEdit((e, c) => e.insertColumn(c!.col + c.colSpan))),
+            ]),
+            RibbonGroup(_s.merge, [
+              RibbonButton(icon: const Icon(Icons.call_merge), label: _s.mergeCells, large: true, onPressed: cells.length > 1 ? _merge : null),
+              RibbonButton(
+                icon: const Icon(Icons.call_split),
+                label: _s.splitCells,
+                large: true,
+                onPressed: cells.length == 1 && (cell!.rowSpan > 1 || cell.colSpan > 1) ? () => _tableEdit((e, c) => e.split(c!)) : null,
+              ),
             ]),
             RibbonGroup(_s.tableStyleOptions, [
               Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [

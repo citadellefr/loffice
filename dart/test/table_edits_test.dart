@@ -89,6 +89,76 @@ void main() {
     expect(tree['s256-2'], isNull);
   });
 
+  test('a range grows to hold the merged cells it cuts', () {
+    final t = layout();
+    final corner = t.cellOver(2, 2)!, below = t.cellOver(2, 0)!;
+    expect(t.range(below, corner), hasLength(3));
+    final right = t.cellOver(0, 2)!;
+    expect(t.range(below, right).map((c) => c.node.id).toSet(), t.cells.keys.toSet());
+  });
+
+  test('cells merged take the text of the others, split back they are empty', () {
+    var t = layout();
+    final row = t.range(t.cellOver(2, 0)!, t.cellOver(2, 2)!);
+    final texts = [for (final c in row) c.node.text!.text];
+    edit((e) => e.merge(row));
+    t = layout();
+    final all = t.cellOver(2, 1)!;
+    expect(all.colSpan, 3);
+    expect(all.node.id, row.first.node.id);
+    expect(all.node.text!.text, '${texts.map((x) => x.substring(0, x.length - 1)).where((x) => x.isNotEmpty).join('\n')}\n');
+    expect(t.cells, hasLength(4));
+
+    edit((e) => e.split(all));
+    t = layout();
+    expect(t.cells, hasLength(6));
+    expect(t.cellOver(2, 0)!.node.text!.text, all.node.text!.text);
+    expect(t.cellOver(2, 2)!.node.text!.text, '\n');
+  });
+
+  test('a merged cell split creates the cells its span covered without one', () {
+    final cell = merged(layout());
+    final row = tree[cell.node.parent]!;
+    for (final n in tree.children(row.id).where((n) => n.attributes['hMerge'] == true).toList()) {
+      expect(tree.apply(Edit([Change.delete(n.id)])), isNotNull);
+    }
+    expect(layout().slots.first.where((n) => n == null), hasLength(1));
+    edit((e) => e.split(merged(layout())));
+    final t = layout();
+    expect(t.cells, hasLength(9));
+    expect(t.slots.every((s) => s.every((n) => n != null)), isTrue);
+  });
+
+  test('an inner edge shares the width of its columns, the last widens the table', () {
+    final grid = [...tree['s256-2']!.attributes['grid']! as List<Object?>];
+    final width = (tree['s256-2']!.attributes['xfrm']! as Map<String, Object?>)['w']! as num;
+    edit((e) => e.resizeColumn(1, 10));
+    var now = tree['s256-2']!.attributes['grid']! as List<Object?>;
+    expect(now[0], (grid[0]! as num) + 127000);
+    expect(now[1], (grid[1]! as num) - 127000);
+    edit((e) => e.resizeColumn(3, -1000));
+    now = tree['s256-2']!.attributes['grid']! as List<Object?>;
+    expect(now[2], 182880);
+    expect((tree['s256-2']!.attributes['xfrm']! as Map<String, Object?>)['w'], width - ((grid[2]! as num) - 182880));
+  });
+
+  test('a row no lower than its text', () {
+    final before = layout();
+    edit((e) => e.resizeRow(3, 20));
+    var t = layout();
+    expect(t.rows[3] - t.rows[2], closeTo(before.rows[3] - before.rows[2] + 20, 0.01));
+    expect((tree['s256-2']!.attributes['xfrm']! as Map<String, Object?>)['h'], ((before.rows.last + 20) * emuPerPoint).round());
+    edit((e) => e.resizeRow(3, -1000));
+    t = layout();
+    expect(t.rows[3] - t.rows[2], closeTo(t.fits[2], 0.01));
+  });
+
+  test('cells cleared keep their marks', () {
+    final t = layout();
+    edit((e) => e.clear(t.cells.values.toList()));
+    expect(layout().cells.values.every((c) => c.node.text!.text == '\n'), isTrue);
+  });
+
   test('a new table in the default style, the options toggled', () {
     final deck = Deck(tree);
     final slide = deck.slides.first;

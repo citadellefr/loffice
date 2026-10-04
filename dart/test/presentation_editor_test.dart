@@ -124,6 +124,48 @@ void main() {
     await finish(tester);
   });
 
+  testWidgets('merges the cells dragged over, splits them, drags an edge', (tester) async {
+    await open(tester, 'tbl-cell');
+    final frame = hub.doc.children(slides()[0].id).firstWhere((n) => n.attributes['frame'] == 'table');
+    final deck = Deck(hub.doc);
+    final painter = SlidePainter(deck);
+    final table = painter.tableOf(frame)!;
+    final rect = tester.getRect(find.byType(SlideCanvas));
+    final scale = math.min((rect.width - 48) / deck.size.width, (rect.height - 48) / deck.size.height);
+    final origin = rect.topLeft + Offset((rect.width - deck.size.width * scale) / 2, (rect.height - deck.size.height * scale) / 2);
+    Offset at(Offset local) => origin + painter.transformOf(frame).apply(local) * scale;
+    Node cell(int r, int c) => hub.doc.children(hub.doc.children(frame.id)[r].id)[c];
+    final from = cell(1, 1), to = cell(2, 2);
+
+    final drag = await tester.startGesture(at(table.cells[from.id]!.rect.center));
+    await drag.moveTo(at(table.cells[to.id]!.rect.center));
+    await drag.up();
+    await tester.pump();
+    await tester.tap(find.text('Disposition'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Fusionner les cellules'));
+    await settle(tester);
+    expect(cell(1, 1).attributes['gridSpan'], 2);
+    expect(cell(1, 1).attributes['rowSpan'], 2);
+    expect(cell(2, 2).attributes['vMerge'], isTrue);
+    expect(cell(2, 2).attributes['hMerge'], isTrue);
+
+    await tester.tap(find.byTooltip('Fractionner les cellules'));
+    await settle(tester);
+    expect(cell(1, 1).attributes['gridSpan'], isNull);
+    expect(cell(2, 2).attributes['vMerge'], isNull);
+
+    final edge = Offset(table.columns[1], table.rows[1] / 2);
+    final pull = await tester.startGesture(at(edge));
+    await pull.moveTo(at(edge + const Offset(20, 0)));
+    await pull.up();
+    await settle(tester);
+    final grid = hub.doc[frame.id]!.attributes['grid']! as List<Object?>;
+    expect(grid[0], closeTo(1524000 + 20 * emuPerPoint, 1));
+    expect(grid[1], closeTo(1524000 - 20 * emuPerPoint, 1));
+    await finish(tester);
+  });
+
   testWidgets('inserts a table, then rows from the ribbon and with Tab', (tester) async {
     await open(tester, 'shp-shapes');
     await tester.tap(find.text('Insertion'));

@@ -3,6 +3,7 @@ import 'dart:ui';
 
 import 'package:trame/trame.dart';
 
+import '../text/editing.dart';
 import 'deck.dart';
 import 'table.dart';
 
@@ -11,6 +12,9 @@ const defaultTableStyle = '{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}';
 
 /// The height PowerPoint gives a new row, in EMU.
 const _rowHeight = 370840;
+
+/// How narrow a column can be dragged, in EMU: its cells' margins.
+const _narrowest = 182880;
 
 /// The keys of a cell that place it in the grid, not copied with its look.
 const _placing = {'xml', 'gridSpan', 'rowSpan', 'hMerge', 'vMerge'};
@@ -200,6 +204,108 @@ class TableEdits {
 
   Edit deleteTable() => Edit([Change.delete(frame.id)]);
 
+  /// Merges [cells], a block as [TableLayout.range] gives, into its first:
+  /// it takes the text of the others, paragraph after paragraph, and the
+  /// others are written as covered by it, as PowerPoint writes them.
+  Edit merge(List<CellLayout> cells) {
+    if (cells.length < 2) return Edit();
+    final first = cells.first;
+    final top = first.row, left = first.col;
+    final rows = cells.map((c) => c.row + c.rowSpan).reduce(math.max) - top;
+    final cols = cells.map((c) => c.col + c.colSpan).reduce(math.max) - left;
+    final changes = <Change>[];
+    final texts = [for (final c in cells.skip(1)) if (c.node.text case final t? when t.length > 1) t];
+    if (texts.isNotEmpty) changes.add(Change.text(first.node.id, _appended(first.node.text ?? Delta([const Op.insert('\n')]), texts)));
+    changes.add(Change.set(first.node.id, attributes: {
+      'gridSpan': cols > 1 ? cols : null,
+      'rowSpan': rows > 1 ? rows : null,
+      'hMerge': null,
+      'vMerge': null,
+    }));
+    for (var r = top; r < top + rows; r++) {
+      for (var c = left; c < left + cols; c++) {
+        final n = layout.slots[r][c];
+        if (n == null || n.id == first.node.id) continue;
+        final length = n.text?.length ?? 1;
+        if (length > 1) changes.add(Change.text(n.id, Delta([Op.delete(length - 1)])));
+        changes.add(Change.set(n.id, attributes: {
+          'hMerge': c > left ? true : null,
+          'vMerge': r > top ? true : null,
+          'gridSpan': c == left && r > top && cols > 1 ? cols : null,
+          'rowSpan': r == top && rows > 1 ? rows : null,
+        }));
+      }
+    }
+    return Edit(changes);
+  }
+
+  /// Splits a merged cell back into the cells it covers, its text left in
+  /// the first; those its span covered without a node are created empty,
+  /// formatted as it.
+  Edit split(CellLayout cell) {
+    if (cell.rowSpan == 1 && cell.colSpan == 1) return Edit();
+    const loose = {'gridSpan': null, 'rowSpan': null, 'hMerge': null, 'vMerge': null};
+    final changes = <Change>[Change.set(cell.node.id, attributes: loose)];
+    final rows = _rows;
+    for (var r = cell.row; r < cell.row + cell.rowSpan; r++) {
+      final slot = layout.slots[r];
+      final kids = tree.children(rows[r].id);
+      var key = '';
+      for (var c = 0; c < slot.length; c++) {
+        final n = slot[c];
+        if (n != null) {
+          key = n.key;
+          if (n.id != cell.node.id && c >= cell.col && c < cell.col + cell.colSpan) changes.add(Change.set(n.id, attributes: loose));
+          continue;
+        }
+        if (c < cell.col || c >= cell.col + cell.colSpan) continue;
+        final i = kids.indexWhere((k) => k.key.compareTo(key) > 0);
+        key = keyBetween(key, i < 0 ? '' : kids[i].key);
+        changes.add(_emptyLike(cell.node, rows[r].id, key));
+      }
+    }
+    return Edit(changes);
+  }
+
+  /// Moves the edge after column [edge] - 1 by [by] points: the columns on
+  /// each side of an inner edge share their width, the last edge widens
+  /// the table.
+  Edit resizeColumn(int edge, double by) {
+    final grid = _grid;
+    if (edge < 1 || edge > grid.length || grid.any((w) => w is! num)) return Edit();
+    final widths = [for (final w in grid) (w! as num).round()];
+    final last = edge == widths.length;
+    var d = (by * emuPerPoint).round();
+    d = math.max(d, math.min(0, _narrowest - widths[edge - 1]));
+    if (!last) d = math.min(d, math.max(0, widths[edge] - _narrowest));
+    if (d == 0) return Edit();
+    widths[edge - 1] += d;
+    if (!last) widths[edge] -= d;
+    return Edit([Change.set(frame.id, attributes: {'grid': widths, if (last) 'xfrm': _wider(d)})]);
+  }
+
+  /// Moves the edge under row [edge] - 1 by [by] points, the row no lower
+  /// than its text needs; the table grows or shrinks with it.
+  Edit resizeRow(int edge, double by) {
+    final rows = _rows;
+    if (edge < 1 || edge > rows.length) return Edit();
+    final now = layout.rows[edge] - layout.rows[edge - 1];
+    final height = math.max(now + by, layout.fits[edge - 1]);
+    if ((height - now).abs() < 0.01) return Edit();
+    final x = {...?(frame.attributes['xfrm'] as Map<String, Object?>?)};
+    x['h'] = ((layout.rows.last + height - now) * emuPerPoint).round();
+    return Edit([
+      Change.set(rows[edge - 1].id, attributes: {'h': (height * emuPerPoint).round()}),
+      Change.set(frame.id, attributes: {'xfrm': x}),
+    ]);
+  }
+
+  /// Empties the text of [cells], keeping the formatting of their marks.
+  Edit clear(List<CellLayout> cells) => Edit([
+    for (final c in cells)
+      if (c.node.text case final t? when t.length > 1) Change.text(c.node.id, Delta([Op.delete(t.length - 1)])),
+  ]);
+
   /// Turns an option of the table style on or off: "firstRow", "bandRow"…
   Edit toggle(String option) {
     final tbl = {...?(frame.attributes['tbl'] as Map<String, Object?>?)};
@@ -217,6 +323,24 @@ class TableEdits {
     for (var c = cell.col; c < cell.col + cell.colSpan; c++)
       if (layout.slots[cell.row][c] case final n?) Change.set(n.id, attributes: {'rowSpan': span > 1 ? span : null}),
   ];
+
+  /// The delta appending the paragraphs of [texts] to [into], each after
+  /// a new mark formatted as the last of [into].
+  static Delta _appended(Delta into, List<Delta> texts) {
+    final out = Delta()..retain(into.length - 1);
+    final mark = FlowEditing(into).markAt(into.length - 1);
+    var empty = into.length == 1;
+    for (final t in texts) {
+      if (!empty) out.insert('\n', mark.isEmpty ? null : mark);
+      empty = false;
+      final ops = t.ops;
+      for (var i = 0; i < ops.length; i++) {
+        final text = i == ops.length - 1 ? ops[i].insert!.substring(0, ops[i].insert!.length - 1) : ops[i].insert!;
+        if (text.isNotEmpty) out.insert(text, ops[i].attributes);
+      }
+    }
+    return out;
+  }
 
   /// The frame's place, [by] EMU wider.
   Map<String, Object?> _wider(num by) {
