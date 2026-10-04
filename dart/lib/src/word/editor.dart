@@ -1255,7 +1255,7 @@ class _WordEditorState extends State<WordEditor> {
               items: [
                 PopupMenuItem(
                   enabled: false,
-                  child: Builder(builder: (context) => _TableGrid(
+                  child: Builder(builder: (context) => TableSizeGrid(
                     strings: _s,
                     onSelected: (cols, rows) {
                       Navigator.of(context).pop();
@@ -1499,56 +1499,6 @@ class _StyleGallery extends StatelessWidget {
             ),
         ],
       ),
-    );
-  }
-}
-
-/// The grid Word offers to pick the size of a new table.
-class _TableGrid extends StatefulWidget {
-  const _TableGrid({required this.strings, required this.onSelected});
-
-  final LofficeStrings strings;
-  final void Function(int columns, int rows) onSelected;
-
-  @override
-  State<_TableGrid> createState() => _TableGridState();
-}
-
-class _TableGridState extends State<_TableGrid> {
-  var _columns = 1, _rows = 1;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(widget.strings.tableSize(_columns, _rows), style: Theme.of(context).textTheme.labelMedium),
-        const SizedBox(height: 6),
-        for (var r = 1; r <= 8; r++)
-          Row(mainAxisSize: MainAxisSize.min, children: [
-            for (var c = 1; c <= 10; c++)
-              MouseRegion(
-                onEnter: (_) => setState(() {
-                  _columns = c;
-                  _rows = r;
-                }),
-                child: GestureDetector(
-                  onTap: () => widget.onSelected(c, r),
-                  child: Container(
-                    width: 18,
-                    height: 18,
-                    margin: const EdgeInsets.all(1),
-                    decoration: BoxDecoration(
-                      color: c <= _columns && r <= _rows ? scheme.primaryContainer : null,
-                      border: Border.all(color: c <= _columns && r <= _rows ? scheme.primary : scheme.outlineVariant),
-                    ),
-                  ),
-                ),
-              ),
-          ]),
-      ],
     );
   }
 }

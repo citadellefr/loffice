@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'strings.dart';
+
 /// A tab of the ribbon: its groups of commands, in order.
 class RibbonTab {
   const RibbonTab(this.label, this.groups);
@@ -478,6 +480,89 @@ class ColorPalette extends StatelessWidget {
             TextButton(onPressed: () => onSelected(null), child: Text(noneLabel!)),
         ],
       ),
+    );
+  }
+}
+
+/// An option of the ribbon that is on or off, as the table style options
+/// of Office.
+class RibbonCheck extends StatelessWidget {
+  const RibbonCheck({super.key, required this.label, required this.value, this.onChanged});
+
+  final String label;
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = onChanged == null ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.38) : null;
+    return InkWell(
+      onTap: onChanged == null ? null : () => onChanged!(!value),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        SizedBox(
+          width: 22,
+          height: 20,
+          child: Checkbox(
+            value: value,
+            onChanged: onChanged == null ? null : (v) => onChanged!(v ?? false),
+            visualDensity: VisualDensity.compact,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+        const SizedBox(width: 4),
+        Text(label, style: TextStyle(fontSize: 12, color: color)),
+        const SizedBox(width: 6),
+      ]),
+    );
+  }
+}
+
+/// The grid Office offers to pick the size of a new table.
+class TableSizeGrid extends StatefulWidget {
+  const TableSizeGrid({super.key, required this.strings, required this.onSelected});
+
+  final LofficeStrings strings;
+  final void Function(int columns, int rows) onSelected;
+
+  @override
+  State<TableSizeGrid> createState() => _TableSizeGridState();
+}
+
+class _TableSizeGridState extends State<TableSizeGrid> {
+  var _columns = 1, _rows = 1;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(widget.strings.tableSize(_columns, _rows), style: Theme.of(context).textTheme.labelMedium),
+        const SizedBox(height: 6),
+        for (var r = 1; r <= 8; r++)
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            for (var c = 1; c <= 10; c++)
+              MouseRegion(
+                onEnter: (_) => setState(() {
+                  _columns = c;
+                  _rows = r;
+                }),
+                child: GestureDetector(
+                  onTap: () => widget.onSelected(c, r),
+                  child: Container(
+                    width: 18,
+                    height: 18,
+                    margin: const EdgeInsets.all(1),
+                    decoration: BoxDecoration(
+                      color: c <= _columns && r <= _rows ? scheme.primaryContainer : null,
+                      border: Border.all(color: c <= _columns && r <= _rows ? scheme.primary : scheme.outlineVariant),
+                    ),
+                  ),
+                ),
+              ),
+          ]),
+      ],
     );
   }
 }

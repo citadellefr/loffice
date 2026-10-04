@@ -11,6 +11,7 @@ import '../text/editing.dart';
 import 'deck.dart';
 import 'edits.dart';
 import 'slide_painter.dart';
+import 'table_edits.dart';
 
 /// What is selected on a slide: shapes, or a range of the text of one.
 class SlideSelection extends ChangeNotifier {
@@ -618,15 +619,21 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
     return false;
   }
 
-  /// Selects the text of the cell after [cell], or before it.
+  /// Selects the text of the cell after [cell], or before it; after the
+  /// last, as PowerPoint, a new row.
   void _nextCell(Node cell, {required bool back}) {
     final frame = widget.painter.frameOf(cell);
-    final cells = frame == null ? null : widget.painter.tableOf(frame)?.cells.values.toList();
-    if (cells == null) return;
+    final table = frame == null ? null : widget.painter.tableOf(frame);
+    if (frame == null || table == null) return;
+    final cells = table.cells.values.toList();
     final i = cells.indexWhere((c) => c.node.id == cell.id) + (back ? -1 : 1);
-    if (i < 0 || i >= cells.length) return;
-    final next = _session.document[cells[i].node.id];
-    if (next != null) _selection.edit(next.id, 0, next.text!.length - 1);
+    if (i == cells.length && !_session.readOnly) {
+      final edit = TableEdits(_session.document, frame, table).insertRow(table.rows.length - 1);
+      if (_session.edit(edit)) _selection.edit(edit.changes.firstWhere((c) => c.type == 'tc').id, 0);
+    } else if (i >= 0 && i < cells.length) {
+      final next = _session.document[cells[i].node.id];
+      if (next != null) _selection.edit(next.id, 0, next.text!.length - 1);
+    }
     _input?.setEditingState(currentTextEditingValue);
   }
 

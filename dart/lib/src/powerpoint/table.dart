@@ -17,7 +17,7 @@ typedef Styled = (Map<String, Object?>, ColorContext);
 /// corner of its frame, and its cells as they are drawn. Rows grow to hold
 /// their text, as PowerPoint grows them.
 class TableLayout {
-  TableLayout._(this.columns, this.rows, this.cells, this.fill, this._nodes);
+  TableLayout._(this.columns, this.rows, this.cells, this.slots, this.fill, this._nodes);
 
   /// Lays out the table of a frame, in the colors and theme of its slide.
   factory TableLayout.of(Deck deck, Node table, {required ColorContext colors, required DeckTheme theme, String? fonts}) {
@@ -28,21 +28,36 @@ class TableLayout {
         if (w is num) w / emuPerPoint,
     ];
     final placed = <_Placed>[];
+    final slots = <List<Node?>>[];
     var cols = widths.length;
     for (var r = 0; r < rowNodes.length; r++) {
-      var col = 0, covered = 0;
+      final slot = <Node?>[];
+      var covered = 0;
       for (final tc in tree.children(rowNodes[r].id)) {
         if (tc.type != 'tc') continue;
         if (covered > 0 && tc.attributes['hMerge'] == true) {
           covered--;
+          slot.add(tc);
           continue;
         }
+        for (; covered > 0; covered--) {
+          slot.add(null);
+        }
         final span = _count(tc.attributes['gridSpan']);
-        if (tc.attributes['vMerge'] != true) placed.add(_Placed(tc, r, col, _count(tc.attributes['rowSpan']), span));
-        col += span;
+        if (tc.attributes['vMerge'] != true) placed.add(_Placed(tc, r, slot.length, _count(tc.attributes['rowSpan']), span));
+        slot.add(tc);
         covered = span - 1;
       }
-      cols = math.max(cols, col);
+      for (; covered > 0; covered--) {
+        slot.add(null);
+      }
+      slots.add(slot);
+      cols = math.max(cols, slot.length);
+    }
+    for (final slot in slots) {
+      while (slot.length < cols) {
+        slot.add(null);
+      }
     }
     while (widths.length < cols) {
       widths.add(widths.isEmpty ? 72 : widths.last);
@@ -81,17 +96,19 @@ class TableLayout {
     }
 
     final rtl = options['rtl'] == true;
-    final cells = <String, TableCell>{};
+    final cells = <String, CellLayout>{};
     for (var i = 0; i < placed.length; i++) {
       final p = placed[i];
       var left = columns[p.col], right = columns[p.col + p.colSpan];
       if (rtl) (left, right) = (columns.last - right, columns.last - left);
       final rect = Rect.fromLTRB(left, rows[p.row], right, rows[p.row + p.rowSpan]);
       final anchored = _anchor(p.node) != 't';
-      cells[p.node.id] = TableCell._(
+      cells[p.node.id] = CellLayout._(
         p.node,
         p.row,
         p.col,
+        p.rowSpan,
+        p.colSpan,
         rect,
         anchored ? _layout(p.node, levels[i], face, colors, rect.size) : texts[i],
         levels[i],
@@ -100,7 +117,7 @@ class TableLayout {
       );
     }
     final tableFill = options['fill'] is Map<String, Object?> ? (options['fill']! as Map<String, Object?>, colors) : null;
-    return TableLayout._(columns, rows, cells, tableFill, nodesOf(tree, table));
+    return TableLayout._(columns, rows, cells, slots, tableFill, nodesOf(tree, table));
   }
 
   /// The edges of the columns and of the rows, the first at 0.
@@ -108,7 +125,11 @@ class TableLayout {
   final List<double> rows;
 
   /// The cells drawn, those merged into another left out, by node id.
-  final Map<String, TableCell> cells;
+  final Map<String, CellLayout> cells;
+
+  /// The cell node of each row at each column, those a span covers
+  /// included; null where a row lacks one.
+  final List<List<Node?>> slots;
 
   /// The fill under all the cells.
   final Styled? fill;
@@ -132,8 +153,16 @@ class TableLayout {
     return true;
   }
 
+  /// The cell drawn over a row and column.
+  CellLayout? cellOver(int row, int col) {
+    for (final c in cells.values) {
+      if (row >= c.row && row < c.row + c.rowSpan && col >= c.col && col < c.col + c.colSpan) return c;
+    }
+    return null;
+  }
+
   /// The cell at a point, null outside the table.
-  TableCell? cellAt(Offset p) {
+  CellLayout? cellAt(Offset p) {
     for (final c in cells.values) {
       if (c.rect.contains(p)) return c;
     }
@@ -201,12 +230,14 @@ class TableLayout {
 }
 
 /// A cell of a table as it is drawn.
-class TableCell {
-  TableCell._(this.node, this.row, this.col, this.rect, this.text, this.level, this.fill, this.lines);
+class CellLayout {
+  CellLayout._(this.node, this.row, this.col, this.rowSpan, this.colSpan, this.rect, this.text, this.level, this.fill, this.lines);
 
   final Node node;
   final int row;
   final int col;
+  final int rowSpan;
+  final int colSpan;
 
   /// Where the cell is, in points from the corner of the table, its spans
   /// included.

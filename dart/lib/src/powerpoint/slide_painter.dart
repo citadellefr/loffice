@@ -238,7 +238,7 @@ class SlidePainter {
   }
 
   /// A cell of a table as it is drawn.
-  TableCell? cellOf(Node cell) {
+  CellLayout? cellOf(Node cell) {
     final frame = frameOf(cell);
     return frame == null ? null : tableOf(frame)?.cells[cell.id];
   }

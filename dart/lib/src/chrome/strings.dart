@@ -350,6 +350,18 @@ class LofficeStrings {
     _ => 'Cliquez pour ajouter du texte',
   };
   String get table => 'Tableau';
+  String get rowsAndColumns => 'Lignes et colonnes';
+  String get insertAbove => 'Insérer au-dessus';
+  String get insertBelow => 'Insérer en dessous';
+  String get insertLeft => 'Insérer à gauche';
+  String get insertRight => 'Insérer à droite';
+  String get tableStyleOptions => 'Options de style de tableau';
+  String get headerRow => 'Ligne d’en-tête';
+  String get totalRow => 'Ligne Total';
+  String get bandedRows => 'Lignes à bandes';
+  String get firstColumn => 'Première colonne';
+  String get lastColumn => 'Dernière colonne';
+  String get bandedColumns => 'Colonnes à bandes';
   String get chart => 'Graphique';
   String get diagram => 'SmartArt';
   String get object => 'Objet';

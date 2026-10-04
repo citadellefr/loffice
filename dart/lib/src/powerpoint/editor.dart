@@ -16,6 +16,8 @@ import 'edits.dart';
 import 'slide_canvas.dart';
 import 'slide_painter.dart';
 import 'slideshow.dart';
+import 'table.dart';
+import 'table_edits.dart';
 
 /// A PowerPoint editor on a session whose document is a presentation: the
 /// ribbon, the slides at the left, the slide being edited with its notes,
@@ -338,6 +340,45 @@ class _PresentationEditorState extends State<PresentationEditor> {
     }
   }
 
+  // tables
+
+  /// The table selected, or the one whose cell is selected, with that
+  /// cell.
+  (Node, CellLayout?)? get _table {
+    final shapes = _selectedShapes;
+    if (shapes.length != 1) return null;
+    final n = shapes.single;
+    if (n.type == 'tc') {
+      final frame = _paint.frameOf(n);
+      return frame == null ? null : (frame, _paint.cellOf(n));
+    }
+    return n.attributes['frame'] == 'table' ? (n, null) : null;
+  }
+
+  /// A new table in the middle of the slide, two thirds of its width, its
+  /// first cell ready for typing.
+  void _insertTable(int rows, int columns) {
+    final slide = _slide;
+    if (slide == null) return;
+    final size = _current.size;
+    final width = size.width * 2 / 3, height = rows * 370840 / emuPerPoint;
+    final box = Rect.fromLTWH((size.width - width) / 2, (size.height - height) / 2, width, height);
+    final name = '${_s.table} ${_current.shapesOf(slide).length + 1}';
+    final edit = newTable(_current, slide, rows, columns, box, name: name, key: DeckEdits(_current).keyAfter(slide.id));
+    if (_edit(edit)) {
+      _selection.edit(edit.changes.firstWhere((c) => c.type == 'tc').id, 0);
+      _canvasFocus.requestFocus();
+    }
+  }
+
+  void _tableEdit(Edit Function(TableEdits edits, CellLayout? cell) make) {
+    final table = _table;
+    final layout = table == null ? null : _paint.tableOf(table.$1);
+    if (table == null || layout == null) return;
+    _edit(make(TableEdits(_session.document, table.$1, layout), table.$2));
+    if (_session.document[table.$1.id] == null) _selection.clear();
+  }
+
   void _copy({bool cut = false}) {
     final shapes = _selectedShapes.where((n) => n.parent == _slide?.id).toList();
     if (shapes.isEmpty) return;
@@ -573,6 +614,14 @@ class _PresentationEditorState extends State<PresentationEditor> {
     final editable = !_session.readOnly;
     final hasText = editable && _textTarget != null;
     final shapes = editable && _selection.shapes.isNotEmpty;
+    final table = _table;
+    final cell = editable ? table?.$2 : null;
+    final options = table?.$1.attributes['tbl'] as Map<String, Object?>? ?? const {};
+    Widget option(String label, String key) => RibbonCheck(
+      label: label,
+      value: options[key] == true,
+      onChanged: editable ? (_) => _tableEdit((e, _) => e.toggle(key)) : null,
+    );
     final run = _runProps;
     final para = _paraProps;
     final colors = _slide == null ? const <String, Color>{} : deck.themeOf(_slide!).colors;
@@ -755,11 +804,73 @@ class _PresentationEditorState extends State<PresentationEditor> {
               onSelected: _newSlide,
             ),
           ]),
+          RibbonGroup(_s.tables, [
+            RibbonMenu<(int, int)>(
+              icon: const Icon(Icons.table_chart_outlined),
+              label: _s.table,
+              large: true,
+              enabled: editable,
+              items: [
+                PopupMenuItem(
+                  enabled: false,
+                  child: Builder(builder: (context) => TableSizeGrid(
+                    strings: _s,
+                    onSelected: (cols, rows) {
+                      Navigator.of(context).pop();
+                      _insertTable(rows, cols);
+                    },
+                  )),
+                ),
+              ],
+              onSelected: (_) {},
+            ),
+          ]),
           RibbonGroup(_s.drawing, [
             _shapesMenu(editable, large: true),
             RibbonButton(icon: const Icon(Icons.text_fields), label: _s.textBox, large: true, onPressed: editable ? _insertTextBox : null),
           ]),
         ]),
+        if (table != null)
+          RibbonTab(_s.layout, [
+            RibbonGroup(_s.rowsAndColumns, [
+              RibbonMenu<String>(
+                icon: const Icon(Icons.delete_outline),
+                label: _s.delete,
+                large: true,
+                enabled: editable,
+                items: [
+                  if (cell != null) ...[
+                    PopupMenuItem(value: 'row', child: Text(_s.deleteRow)),
+                    PopupMenuItem(value: 'column', child: Text(_s.deleteColumn)),
+                  ],
+                  PopupMenuItem(value: 'table', child: Text(_s.deleteTable)),
+                ],
+                onSelected: (what) => _tableEdit((e, c) => switch (what) {
+                  'row' => e.deleteRow(c!.row),
+                  'column' => e.deleteColumn(c!.col),
+                  _ => e.deleteTable(),
+                }),
+              ),
+              RibbonButton(icon: const Icon(Icons.border_top), label: _s.insertAbove, large: true, onPressed: cell == null ? null : () => _tableEdit((e, c) => e.insertRow(c!.row))),
+              RibbonButton(icon: const Icon(Icons.border_bottom), label: _s.insertBelow, large: true, onPressed: cell == null ? null : () => _tableEdit((e, c) => e.insertRow(c!.row + c.rowSpan))),
+              RibbonButton(icon: const Icon(Icons.border_left), label: _s.insertLeft, large: true, onPressed: cell == null ? null : () => _tableEdit((e, c) => e.insertColumn(c!.col))),
+              RibbonButton(icon: const Icon(Icons.border_right), label: _s.insertRight, large: true, onPressed: cell == null ? null : () => _tableEdit((e, c) => e.insertColumn(c!.col + c.colSpan))),
+            ]),
+            RibbonGroup(_s.tableStyleOptions, [
+              Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  option(_s.headerRow, 'firstRow'),
+                  option(_s.totalRow, 'lastRow'),
+                  option(_s.bandedRows, 'bandRow'),
+                ]),
+                Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  option(_s.firstColumn, 'firstCol'),
+                  option(_s.lastColumn, 'lastCol'),
+                  option(_s.bandedColumns, 'bandCol'),
+                ]),
+              ]),
+            ]),
+          ]),
         RibbonTab(_s.slideShow, [
           RibbonGroup(_s.startSlideShow, [
             RibbonButton(icon: const Icon(Icons.slideshow), label: _s.fromBeginning, large: true, shortcut: 'F5', onPressed: _slideshow),

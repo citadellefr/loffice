@@ -85,6 +85,18 @@ func TestTableEdits(t *testing.T) {
 		{Op: ot.OpNew, ID: "made-r1-c2", Type: "tc", Parent: "made-r1", Key: "k", Text: ot.Delta{{Insert: "Valeur\n"}}},
 	})
 
+	// a row across the cell merged over two rows and two columns
+	merged := tree.Node("s256-2")
+	mrows := tree.Children(merged.ID)
+	apply(t, d, tree, ot.Edit{
+		{Op: ot.OpSet, ID: "s256-2-r1-c1", Attrs: ot.Values{"rowSpan": json.RawMessage(`3`)}},
+		{Op: ot.OpSet, ID: "s256-2-r1-c2", Attrs: ot.Values{"rowSpan": json.RawMessage(`3`)}},
+		{Op: ot.OpNew, ID: "across", Type: "tr", Parent: merged.ID, Key: ot.KeyBetween(mrows[0].Key, mrows[1].Key), Attrs: ot.Values{"h": json.RawMessage(`370840`)}},
+		{Op: ot.OpNew, ID: "across-1", Type: "tc", Parent: "across", Key: "F", Attrs: ot.Values{"vMerge": json.RawMessage(`true`), "gridSpan": json.RawMessage(`2`)}, Text: ot.Delta{{Insert: "\n"}}},
+		{Op: ot.OpNew, ID: "across-2", Type: "tc", Parent: "across", Key: "V", Attrs: ot.Values{"vMerge": json.RawMessage(`true`), "hMerge": json.RawMessage(`true`)}, Text: ot.Delta{{Insert: "\n"}}},
+		{Op: ot.OpNew, ID: "across-3", Type: "tc", Parent: "across", Key: "k", Text: ot.Delta{{Insert: "Traversée\n"}}},
+	})
+
 	for _, e := range []ot.Edit{
 		{{Op: ot.OpNew, ID: "x", Type: "tc", Parent: table.ID, Key: "V"}},
 		{{Op: ot.OpNew, ID: "x", Type: "tr", Parent: slide.ID, Key: "V"}},
@@ -134,6 +146,9 @@ func TestTableEdits(t *testing.T) {
 	}
 	if string(grid[2][0].Attrs["gridSpan"]) != "2" || string(grid[2][1].Attrs["hMerge"]) != "true" {
 		t.Fatalf("spans %s %s", grid[2][0].Attrs["gridSpan"], grid[2][1].Attrs["hMerge"])
+	}
+	if m := cells(again, tableOn(again, "s256")); len(m) != 4 || string(m[0][0].Attrs["rowSpan"]) != "3" || string(m[1][0].Attrs["vMerge"]) != "true" || text(m[1][2]) != "Traversée\n" {
+		t.Fatalf("merged table %v", m)
 	}
 	var made *ot.Node
 	for _, n := range again.Children(slide.ID) {

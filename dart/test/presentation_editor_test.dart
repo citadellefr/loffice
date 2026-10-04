@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:loffice/loffice.dart';
+import 'package:loffice/src/chrome/ribbon.dart';
 import 'package:loffice/src/powerpoint/deck.dart';
 import 'package:loffice/src/powerpoint/slide_canvas.dart';
 import 'package:loffice/src/powerpoint/slide_painter.dart';
@@ -120,6 +121,44 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.delete);
     await settle(tester);
     expect(hub.doc[frame.id], isNull);
+    await finish(tester);
+  });
+
+  testWidgets('inserts a table, then rows from the ribbon and with Tab', (tester) async {
+    await open(tester, 'shp-shapes');
+    await tester.tap(find.text('Insertion'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Tableau').first);
+    await tester.pumpAndSettle();
+    // three columns, two rows
+    await tester.tap(find.descendant(of: find.byType(TableSizeGrid), matching: find.byType(GestureDetector)).at(12));
+    await settle(tester);
+    final frame = hub.doc.children(slides()[0].id).last;
+    expect(frame.attributes['frame'], 'table');
+    List<Node> rows() => hub.doc.children(frame.id);
+    expect(rows(), hasLength(2));
+    expect(hub.doc.children(rows()[0].id), hasLength(3));
+
+    tester.testTextInput.updateEditingValue(const TextEditingValue(text: 'Nom', selection: TextSelection.collapsed(offset: 3)));
+    await settle(tester);
+    expect(hub.doc.children(rows()[0].id).first.text!.text, 'Nom\n');
+
+    await tester.tap(find.text('Disposition'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Insérer en dessous'));
+    await settle(tester);
+    expect(rows(), hasLength(3));
+    await tester.tap(find.text('Ligne d’en-tête'));
+    await settle(tester);
+    expect((hub.doc[frame.id]!.attributes['tbl']! as Map<String, Object?>)['firstRow'], isNull);
+
+    // Tab from the first cell to the last, and once more: a fourth row
+    for (var i = 0; i < 9; i++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+    }
+    await settle(tester);
+    expect(rows(), hasLength(4));
     await finish(tester);
   });
 
