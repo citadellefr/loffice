@@ -30,6 +30,8 @@ import (
 	"errors"
 	"fmt"
 	"hash/maphash"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -110,7 +112,7 @@ func Open(data []byte) (*Document, *ot.Tree, error) {
 	if d.presName == "" {
 		return nil, nil, ErrNotPresentation
 	}
-	r := &reader{d: d, ids: map[string]bool{}}
+	r := &reader{d: d, ids: map[string]bool{}, tableStyles: map[string]bool{}}
 	if err := r.presentation(); err != nil {
 		return nil, nil, err
 	}
@@ -127,6 +129,8 @@ type reader struct {
 	d     *Document
 	nodes ot.Edit
 	ids   map[string]bool
+	// tableStyles are the styles the tables name.
+	tableStyles map[string]bool
 }
 
 func (r *reader) add(id, typ, parent, key string, attrs ot.Values, text ot.Delta) {
@@ -225,7 +229,6 @@ func (r *reader) presentation() error {
 		}
 	}
 	styles, def := tableStyles(lst, r.d.media)
-	putJSON(deck, "tblStyles", styles)
 	putString(deck, "tblStyleDef", def)
 
 	masters := elements(pres.Child(pNS, "sldMasterIdLst"), pNS, "sldMasterId")
@@ -255,6 +258,8 @@ func (r *reader) presentation() error {
 			return err
 		}
 	}
+	addBuiltin(styles, append(slices.Sorted(maps.Keys(r.tableStyles)), def, mediumStyle2)...)
+	putJSON(deck, "tblStyles", styles)
 	return nil
 }
 

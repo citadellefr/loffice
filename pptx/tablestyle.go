@@ -1,6 +1,10 @@
 package pptx
 
 import (
+	_ "embed"
+	"encoding/json"
+	"sync"
+
 	"github.com/citadellefr/loffice/drawingml"
 	"github.com/citadellefr/loffice/internal/xmldom"
 )
@@ -36,24 +40,18 @@ type Border struct {
 var tableParts = []string{"wholeTbl", "band1H", "band2H", "band1V", "band2V", "lastCol", "firstCol", "lastRow", "firstRow", "seCell", "swCell", "neCell", "nwCell"}
 
 // tableStyles reads the styles of a tableStyles part, by id, and the
-// default one; Office's default style is there even when the part lacks
-// it.
+// default one.
 func tableStyles(lst *xmldom.Element, media func(string) string) (map[string]TableStyle, string) {
 	out := map[string]TableStyle{}
-	var def string
-	if lst != nil {
-		def = lst.Get("def")
-		for _, s := range elements(lst, aNS, "tblStyle") {
-			if id := s.Get("styleId"); id != "" {
-				out[id] = readTableStyle(s, media)
-			}
+	if lst == nil {
+		return out, ""
+	}
+	for _, s := range elements(lst, aNS, "tblStyle") {
+		if id := s.Get("styleId"); id != "" {
+			out[id] = readTableStyle(s, media)
 		}
 	}
-	if _, ok := out[mediumStyle2]; !ok {
-		e, _ := xmldom.ParseFragment([]byte(mediumStyle2XML), map[string]string{"a": aNS})
-		out[mediumStyle2] = readTableStyle(e, media)
-	}
-	return out, def
+	return out, lst.Get("def")
 }
 
 func readTableStyle(s *xmldom.Element, media func(string) string) TableStyle {
@@ -126,21 +124,27 @@ func onOff(s string) string {
 // mediumStyle2 is Office's default table style, Medium Style 2 - Accent 1.
 const mediumStyle2 = "{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}"
 
-const mediumStyle2XML = `<a:tblStyle xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" styleId="{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}" styleName="Medium Style 2 - Accent 1">` +
-	`<a:wholeTbl><a:tcTxStyle><a:fontRef idx="minor"><a:prstClr val="black"/></a:fontRef><a:schemeClr val="dk1"/></a:tcTxStyle><a:tcStyle><a:tcBdr>` +
-	`<a:left><a:ln w="12700" cmpd="sng"><a:solidFill><a:schemeClr val="lt1"/></a:solidFill></a:ln></a:left>` +
-	`<a:right><a:ln w="12700" cmpd="sng"><a:solidFill><a:schemeClr val="lt1"/></a:solidFill></a:ln></a:right>` +
-	`<a:top><a:ln w="12700" cmpd="sng"><a:solidFill><a:schemeClr val="lt1"/></a:solidFill></a:ln></a:top>` +
-	`<a:bottom><a:ln w="12700" cmpd="sng"><a:solidFill><a:schemeClr val="lt1"/></a:solidFill></a:ln></a:bottom>` +
-	`<a:insideH><a:ln w="12700" cmpd="sng"><a:solidFill><a:schemeClr val="lt1"/></a:solidFill></a:ln></a:insideH>` +
-	`<a:insideV><a:ln w="12700" cmpd="sng"><a:solidFill><a:schemeClr val="lt1"/></a:solidFill></a:ln></a:insideV>` +
-	`</a:tcBdr><a:fill><a:solidFill><a:schemeClr val="accent1"><a:tint val="20000"/></a:schemeClr></a:solidFill></a:fill></a:tcStyle></a:wholeTbl>` +
-	`<a:band1H><a:tcStyle><a:tcBdr/><a:fill><a:solidFill><a:schemeClr val="accent1"><a:tint val="40000"/></a:schemeClr></a:solidFill></a:fill></a:tcStyle></a:band1H>` +
-	`<a:band2H><a:tcStyle><a:tcBdr/></a:tcStyle></a:band2H>` +
-	`<a:band1V><a:tcStyle><a:tcBdr/><a:fill><a:solidFill><a:schemeClr val="accent1"><a:tint val="40000"/></a:schemeClr></a:solidFill></a:fill></a:tcStyle></a:band1V>` +
-	`<a:band2V><a:tcStyle><a:tcBdr/></a:tcStyle></a:band2V>` +
-	`<a:lastCol><a:tcTxStyle b="on"><a:fontRef idx="minor"><a:prstClr val="black"/></a:fontRef><a:schemeClr val="lt1"/></a:tcTxStyle><a:tcStyle><a:tcBdr/><a:fill><a:solidFill><a:schemeClr val="accent1"/></a:solidFill></a:fill></a:tcStyle></a:lastCol>` +
-	`<a:firstCol><a:tcTxStyle b="on"><a:fontRef idx="minor"><a:prstClr val="black"/></a:fontRef><a:schemeClr val="lt1"/></a:tcTxStyle><a:tcStyle><a:tcBdr/><a:fill><a:solidFill><a:schemeClr val="accent1"/></a:solidFill></a:fill></a:tcStyle></a:firstCol>` +
-	`<a:lastRow><a:tcTxStyle b="on"><a:fontRef idx="minor"><a:prstClr val="black"/></a:fontRef><a:schemeClr val="lt1"/></a:tcTxStyle><a:tcStyle><a:tcBdr><a:top><a:ln w="38100" cmpd="sng"><a:solidFill><a:schemeClr val="lt1"/></a:solidFill></a:ln></a:top></a:tcBdr><a:fill><a:solidFill><a:schemeClr val="accent1"/></a:solidFill></a:fill></a:tcStyle></a:lastRow>` +
-	`<a:firstRow><a:tcTxStyle b="on"><a:fontRef idx="minor"><a:prstClr val="black"/></a:fontRef><a:schemeClr val="lt1"/></a:tcTxStyle><a:tcStyle><a:tcBdr><a:bottom><a:ln w="38100" cmpd="sng"><a:solidFill><a:schemeClr val="lt1"/></a:solidFill></a:ln></a:bottom></a:tcBdr><a:fill><a:solidFill><a:schemeClr val="accent1"/></a:solidFill></a:fill></a:tcStyle></a:firstRow>` +
-	`</a:tblStyle>`
+// builtinJSON are Office's built-in table styles, which a presentation
+// may name without holding them; see TestBuiltinStyles.
+//
+//go:embed tablestyles.json
+var builtinJSON []byte
+
+var builtin = sync.OnceValue(func() map[string]json.RawMessage {
+	var m map[string]json.RawMessage
+	_ = json.Unmarshal(builtinJSON, &m)
+	return m
+})
+
+// addBuiltin adds to styles the built-in styles of ids it lacks.
+func addBuiltin(styles map[string]TableStyle, ids ...string) {
+	for _, id := range ids {
+		if _, ok := styles[id]; ok {
+			continue
+		}
+		var style TableStyle
+		if json.Unmarshal(builtin()[id], &style) == nil {
+			styles[id] = style
+		}
+	}
+}

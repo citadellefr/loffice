@@ -91,7 +91,11 @@ func readGrid(tbl *xmldom.Element) []int64 {
 // table reads the rows and cells of a table frame under it, and takes
 // them out of its XML.
 func (r *reader) table(tbl *xmldom.Element, frame string, attrs ot.Values) {
-	putJSON(attrs, "tbl", readTable(tbl.Child(aNS, "tblPr"), r.d.media))
+	t := readTable(tbl.Child(aNS, "tblPr"), r.d.media)
+	if t != nil && t.Style != "" {
+		r.tableStyles[t.Style] = true
+	}
+	putJSON(attrs, "tbl", t)
 	putJSON(attrs, "grid", readGrid(tbl))
 	rows := elements(tbl, aNS, "tr")
 	keys := ot.Keys(len(rows))
