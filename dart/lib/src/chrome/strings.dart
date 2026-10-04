@@ -359,6 +359,26 @@ class LofficeStrings {
   String get mergeCells => 'Fusionner les cellules';
   String get splitCells => 'Fractionner les cellules';
   String get tableStyleOptions => 'Options de style de tableau';
+  String get tableDesign => 'Création de tableau';
+  String get tableStyles => 'Styles de tableau';
+  String get shading => 'Trame de fond';
+  String get drawBorders => 'Dessiner des bordures';
+  String get penWeight => 'Épaisseur du stylo';
+  String get penColor => 'Couleur du stylo';
+  String border(String which) => switch (which) {
+    'bottom' => 'Bordure inférieure',
+    'top' => 'Bordure supérieure',
+    'left' => 'Bordure gauche',
+    'right' => 'Bordure droite',
+    'none' => 'Aucune bordure',
+    'all' => 'Toutes les bordures',
+    'outside' => 'Bordures extérieures',
+    'inside' => 'Bordures intérieures',
+    'insideH' => 'Bordure horizontale intérieure',
+    'insideV' => 'Bordure verticale intérieure',
+    'tl2br' => 'Bordure diagonale descendante',
+    _ => 'Bordure diagonale montante',
+  };
   String get headerRow => 'Ligne d’en-tête';
   String get totalRow => 'Ligne Total';
   String get bandedRows => 'Lignes à bandes';

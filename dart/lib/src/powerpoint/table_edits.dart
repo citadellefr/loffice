@@ -300,6 +300,48 @@ class TableEdits {
     ]);
   }
 
+  /// Draws [line] on the edges of the block [cells] covers that [which]
+  /// names, as the Borders menu of PowerPoint: "all", "outside",
+  /// "inside", "top", "bottom", "left", "right", "insideH", "insideV",
+  /// "tl2br", "tr2bl", or "none" for no line on any edge. The cells
+  /// across an outer edge take the line on their side of it.
+  Edit borders(List<CellLayout> cells, String which, Map<String, Object?> line) {
+    if (cells.isEmpty) return Edit();
+    final top = cells.map((c) => c.row).reduce(math.min), left = cells.map((c) => c.col).reduce(math.min);
+    final bottom = cells.map((c) => c.row + c.rowSpan).reduce(math.max), right = cells.map((c) => c.col + c.colSpan).reduce(math.max);
+    final none = which == 'none';
+    final value = none ? const {'fill': {'none': true}} : line;
+    final set = <String, Map<String, Object?>>{};
+    void draw(CellLayout? c, String key) => (set[c?.node.id ?? ''] ??= {})[key] = value;
+    bool on(String edge) => none || which == edge || which == 'all' ||
+        which == 'outside' && const {'top', 'bottom', 'left', 'right'}.contains(edge) ||
+        which == 'inside' && (edge == 'insideH' || edge == 'insideV');
+    for (final c in cells) {
+      final (atTop, atBottom) = (c.row == top, c.row + c.rowSpan == bottom);
+      final (atLeft, atRight) = (c.col == left, c.col + c.colSpan == right);
+      if (on(atTop ? 'top' : 'insideH')) draw(c, 'lnT');
+      if (on(atBottom ? 'bottom' : 'insideH')) draw(c, 'lnB');
+      if (on(atLeft ? 'left' : 'insideV')) draw(c, 'lnL');
+      if (on(atRight ? 'right' : 'insideV')) draw(c, 'lnR');
+      if (which == 'tl2br') draw(c, 'lnTlToBr');
+      if (which == 'tr2bl') draw(c, 'lnBlToTr');
+      if (none) {
+        set[c.node.id]!['lnTlToBr'] = null;
+        set[c.node.id]!['lnBlToTr'] = null;
+      }
+    }
+    for (var col = left; col < right; col++) {
+      if (on('top') && top > 0) draw(layout.cellOver(top - 1, col), 'lnB');
+      if (on('bottom') && bottom < layout.rows.length - 1) draw(layout.cellOver(bottom, col), 'lnT');
+    }
+    for (var row = top; row < bottom; row++) {
+      if (on('left') && left > 0) draw(layout.cellOver(row, left - 1), 'lnR');
+      if (on('right') && right < layout.columns.length - 1) draw(layout.cellOver(row, right), 'lnL');
+    }
+    set.remove('');
+    return Edit([for (final e in set.entries) Change.set(e.key, attributes: e.value)]);
+  }
+
   /// Empties the text of [cells], keeping the formatting of their marks.
   Edit clear(List<CellLayout> cells) => Edit([
     for (final c in cells)

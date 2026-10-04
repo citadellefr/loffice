@@ -238,8 +238,17 @@ class _PresentationEditorState extends State<PresentationEditor> {
     _setSize(next.toDouble());
   }
 
+  /// Fills the shapes selected, or draws their outline, in [color]; a
+  /// table selected, its cells.
   void _fillShapes(String key, Map<String, Object?>? color) {
-    final shapes = _selectedShapes.where((n) => n.type != 'grp' || key == 'fill');
+    const fills = {'sp', 'pic', 'grp', 'tc'}, lines = {'sp', 'pic', 'cxn', 'tc'};
+    final shapes = [
+      for (final n in _selectedShapes)
+        if (n.attributes['frame'] == 'table')
+          for (final c in _paint.tableOf(n)?.cells.values ?? const <CellLayout>[]) c.node
+        else if ((key == 'fill' ? fills : lines).contains(n.type))
+          n,
+    ];
     Map<String, Object?> line(Object? old) => color == null
         ? {'fill': {'none': true}}
         : {...?(old as Map<String, Object?>?), 'fill': {'solid': color}};
@@ -361,6 +370,26 @@ class _PresentationEditorState extends State<PresentationEditor> {
 
   /// The cells selected, of the table [_table] gives.
   List<CellLayout> get _cells => _table == null ? const [] : [for (final n in _selectedShapes) ?_paint.cellOf(n)];
+
+  /// The cells selected, or all those of the table selected.
+  List<CellLayout> get _tableCells {
+    final table = _table;
+    if (table == null) return const [];
+    return table.$2 == null ? [...?_paint.tableOf(table.$1)?.cells.values] : _cells;
+  }
+
+  /// The line the Borders menu draws.
+  var _pen = <String, Object?>{'w': 12700, 'fill': {'solid': {'rgb': '000000'}}};
+
+  static const _penWeights = [3175, 6350, 9525, 12700, 19050, 28575, 38100, 57150, 76200];
+
+  /// A width in EMU as PowerPoint writes it in points: "¼", "1½"…
+  static String _points(int emu) {
+    final quarters = (emu / 3175).round();
+    const fractions = ['', '¼', '½', '¾'];
+    final whole = quarters ~/ 4;
+    return '${whole == 0 && quarters % 4 != 0 ? '' : whole}${fractions[quarters % 4]}';
+  }
 
   void _merge() {
     final cells = _cells;
@@ -845,6 +874,66 @@ class _PresentationEditorState extends State<PresentationEditor> {
           ]),
         ]),
         if (table != null)
+          RibbonTab(_s.tableDesign, [
+            RibbonGroup(_s.tableStyleOptions, [
+              Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  option(_s.headerRow, 'firstRow'),
+                  option(_s.totalRow, 'lastRow'),
+                  option(_s.bandedRows, 'bandRow'),
+                ]),
+                Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  option(_s.firstColumn, 'firstCol'),
+                  option(_s.lastColumn, 'lastCol'),
+                  option(_s.bandedColumns, 'bandCol'),
+                ]),
+              ]),
+            ]),
+            RibbonGroup(_s.tableStyles, [
+              RibbonMenu<Map<String, Object?>?>(
+                icon: const Icon(Icons.format_color_fill),
+                label: _s.shading,
+                large: true,
+                enabled: editable,
+                items: [palette((c) => _fillShapes('fill', c), none: _s.noFill)],
+                onSelected: (_) {},
+              ),
+              RibbonMenu<String>(
+                icon: const Icon(Icons.border_all),
+                label: _s.borders,
+                large: true,
+                enabled: editable,
+                items: [
+                  for (final which in ['bottom', 'top', 'left', 'right', 'none', 'all', 'outside', 'inside', 'insideH', 'insideV', 'tl2br', 'tr2bl'])
+                    PopupMenuItem(value: which, child: Text(_s.border(which))),
+                ],
+                onSelected: (which) {
+                  final cells = _tableCells;
+                  _tableEdit((e, _) => e.borders(cells, which, _pen));
+                },
+              ),
+            ]),
+            RibbonGroup(_s.drawBorders, [
+              RibbonMenu<int>(
+                icon: const Icon(Icons.line_weight),
+                label: _s.penWeight,
+                enabled: editable,
+                items: [
+                  for (final w in _penWeights)
+                    CheckedPopupMenuItem(value: w, checked: _pen['w'] == w, child: Text('${_points(w)} pt')),
+                ],
+                onSelected: (w) => setState(() => _pen = {..._pen, 'w': w}),
+              ),
+              RibbonMenu<Map<String, Object?>?>(
+                icon: const Icon(Icons.border_color),
+                label: _s.penColor,
+                enabled: editable,
+                items: [palette((c) => setState(() => _pen = {..._pen, 'fill': {'solid': c ?? {'rgb': '000000'}}}))],
+                onSelected: (_) {},
+              ),
+            ]),
+          ]),
+        if (table != null)
           RibbonTab(_s.layout, [
             RibbonGroup(_s.rowsAndColumns, [
               RibbonMenu<String>(
@@ -878,20 +967,6 @@ class _PresentationEditorState extends State<PresentationEditor> {
                 large: true,
                 onPressed: cells.length == 1 && (cell!.rowSpan > 1 || cell.colSpan > 1) ? () => _tableEdit((e, c) => e.split(c!)) : null,
               ),
-            ]),
-            RibbonGroup(_s.tableStyleOptions, [
-              Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  option(_s.headerRow, 'firstRow'),
-                  option(_s.totalRow, 'lastRow'),
-                  option(_s.bandedRows, 'bandRow'),
-                ]),
-                Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  option(_s.firstColumn, 'firstCol'),
-                  option(_s.lastColumn, 'lastCol'),
-                  option(_s.bandedColumns, 'bandCol'),
-                ]),
-              ]),
             ]),
           ]),
         RibbonTab(_s.slideShow, [

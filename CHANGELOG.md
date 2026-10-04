@@ -27,6 +27,12 @@
   back. The edges of columns and rows are dragged with the mouse: an
   inner edge shares the width of its two columns, the last widens the
   table, a row goes no lower than its text.
+- Dart: the Table Design tab holds the table style options, Shading and
+  Borders, and the pen Borders draws with, its weight and color: on the
+  edges named of the cells selected, or of the whole table, the cells
+  across an outer edge taking the line on their side. Filling or
+  outlining a table selected goes to its cells, where the server took
+  neither for the table itself.
 
 ## 0.8.0 — 2026-10-04
 

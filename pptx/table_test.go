@@ -52,7 +52,7 @@ func TestTableEdits(t *testing.T) {
 
 	apply(t, d, tree, ot.Edit{
 		{Op: ot.OpTxt, ID: grid[1][1].ID, Text: ot.Delta{{Insert: "Cellule"}}},
-		{Op: ot.OpSet, ID: grid[1][2].ID, Attrs: ot.Values{"fill": json.RawMessage(`{"solid":{"scheme":"accent2"}}`), "lnB": json.RawMessage(`{"w":25400,"fill":{"solid":{"rgb":"FF0000"}}}`)}},
+		{Op: ot.OpSet, ID: grid[1][2].ID, Attrs: ot.Values{"fill": json.RawMessage(`{"solid":{"scheme":"accent2"}}`), "lnB": json.RawMessage(`{"w":25400,"fill":{"solid":{"rgb":"FF0000"}}}`), "lnT": json.RawMessage(`{"fill":{"none":true}}`)}},
 		{Op: ot.OpSet, ID: grid[2][0].ID, Attrs: ot.Values{"gridSpan": json.RawMessage(`2`)}},
 		{Op: ot.OpSet, ID: grid[2][1].ID, Attrs: ot.Values{"hMerge": json.RawMessage(`true`)}},
 	})
@@ -141,8 +141,8 @@ func TestTableEdits(t *testing.T) {
 	if text(grid[1][1]) != "Cellule\n" || text(grid[1][4]) != "Colonne\n" || text(grid[3][0]) != "Ligne\n" || text(grid[3][4]) != "\n" {
 		t.Fatalf("texts %q %q %q %q", text(grid[1][1]), text(grid[1][4]), text(grid[3][0]), text(grid[3][4]))
 	}
-	if string(grid[1][2].Attrs["fill"]) != `{"solid":{"scheme":"accent2"}}` || !strings.Contains(string(grid[1][2].Attrs["lnB"]), "FF0000") {
-		t.Fatalf("cell %s %s", grid[1][2].Attrs["fill"], grid[1][2].Attrs["lnB"])
+	if string(grid[1][2].Attrs["fill"]) != `{"solid":{"scheme":"accent2"}}` || !strings.Contains(string(grid[1][2].Attrs["lnB"]), "FF0000") || string(grid[1][2].Attrs["lnT"]) != `{"fill":{"none":true}}` {
+		t.Fatalf("cell %s %s %s", grid[1][2].Attrs["fill"], grid[1][2].Attrs["lnB"], grid[1][2].Attrs["lnT"])
 	}
 	if string(grid[2][0].Attrs["gridSpan"]) != "2" || string(grid[2][1].Attrs["hMerge"]) != "true" {
 		t.Fatalf("spans %s %s", grid[2][0].Attrs["gridSpan"], grid[2][1].Attrs["hMerge"])

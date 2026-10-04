@@ -166,6 +166,36 @@ void main() {
     await finish(tester);
   });
 
+  testWidgets('a table selected is shaded and bordered through its cells', (tester) async {
+    await open(tester, 'tbl-cell');
+    final frame = hub.doc.children(slides()[0].id).firstWhere((n) => n.attributes['frame'] == 'table');
+    final deck = Deck(hub.doc);
+    final painter = SlidePainter(deck);
+    final rect = tester.getRect(find.byType(SlideCanvas));
+    final scale = math.min((rect.width - 48) / deck.size.width, (rect.height - 48) / deck.size.height);
+    final origin = rect.topLeft + Offset((rect.width - deck.size.width * scale) / 2, (rect.height - deck.size.height * scale) / 2);
+    // the edge of the table takes the table
+    await tester.tapAt(origin + painter.transformOf(frame).apply(const Offset(1, 1)) * scale);
+    await tester.pump();
+    await tester.tap(find.text('Création de tableau'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Trame de fond').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.descendant(of: find.byType(ColorPalette), matching: find.byType(InkWell)).first);
+    await settle(tester);
+    final cells = [for (final r in hub.doc.children(frame.id)) ...hub.doc.children(r.id)];
+    expect(cells.every((c) => (c.attributes['fill']! as Map<String, Object?>)['solid'] is Map), isTrue);
+
+    await tester.tap(find.byTooltip('Bordures').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Bordures extérieures'));
+    await settle(tester);
+    final first = hub.doc.children(hub.doc.children(frame.id).first.id).first;
+    expect((first.attributes['lnT']! as Map<String, Object?>)['w'], 12700);
+    expect(first.attributes['lnR'], isNull);
+    await finish(tester);
+  });
+
   testWidgets('inserts a table, then rows from the ribbon and with Tab', (tester) async {
     await open(tester, 'shp-shapes');
     await tester.tap(find.text('Insertion'));
@@ -190,6 +220,8 @@ void main() {
     await tester.tap(find.byTooltip('Insérer en dessous'));
     await settle(tester);
     expect(rows(), hasLength(3));
+    await tester.tap(find.text('Création de tableau'));
+    await tester.pump();
     await tester.tap(find.text('Ligne d’en-tête'));
     await settle(tester);
     expect((hub.doc[frame.id]!.attributes['tbl']! as Map<String, Object?>)['firstRow'], isNull);
