@@ -6,7 +6,8 @@
 // the masters with their layouts, which are read only. A slide holds its
 // shapes, and its notes if it has any:
 //
-//	deck                         size, notesSize, lst (default text style)
+//	deck                         size, notesSize, lst (default text style),
+//	                             tblStyles and tblStyleDef (tablestyle.go)
 //	master "M1"                  theme, clrMap, bg, title body other (text styles)
 //	  layout "L1"                name, type, bg, clrMapOvr, showMasterSp
 //	    shapes…                  the placeholders slides inherit from
@@ -215,6 +216,17 @@ func (r *reader) presentation() error {
 		deck["notesSize"] = size(sz)
 	}
 	putJSON(deck, "lst", drawingml.ListStyle(pres.Child(pNS, "defaultTextStyle")))
+	var lst *xmldom.Element
+	if name := rels.OfType(r.d.presName, relTableStyles); name != "" {
+		if data, err := r.d.pkg.Read(name); err == nil {
+			if doc, err := xmldom.Parse(data); err == nil {
+				lst = doc.Root
+			}
+		}
+	}
+	styles, def := tableStyles(lst, r.d.media)
+	putJSON(deck, "tblStyles", styles)
+	putString(deck, "tblStyleDef", def)
 
 	masters := elements(pres.Child(pNS, "sldMasterIdLst"), pNS, "sldMasterId")
 	keys := ot.Keys(1 + len(masters))
@@ -536,8 +548,17 @@ func (r *reader) shape(e *xmldom.Element, parent, prefix, key string, spaces map
 				attrs["chart"] = c.JSON()
 			}
 		}
+		tbl := tableOf(e)
+		if tbl == nil {
+			attrs["xml"] = r.d.raw(e)
+			r.add(id, "frame", parent, key, attrs, nil)
+			return
+		}
+		at := len(r.nodes)
+		r.add(id, "frame", parent, key, nil, nil)
+		r.table(tbl, id, attrs)
 		attrs["xml"] = r.d.raw(e)
-		r.add(id, "frame", parent, key, attrs, nil)
+		r.nodes[at].Attrs = attrs
 	default:
 		r.add(id, "other", parent, key, ot.Values{"xml": r.d.raw(e)}, nil)
 	}

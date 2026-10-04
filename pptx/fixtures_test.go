@@ -16,7 +16,7 @@ var update = flag.Bool("update", false, "rewrite the trees in testdata/pptx")
 
 // fixtures are presentations of python-pptx (MIT) whose trees the Dart
 // package draws in its tests.
-var fixtures = []string{"shp-shapes.pptx", "ph-populated-placeholders.pptx", "txt-text.pptx", "dml-fill.pptx", "cht-chart-type.pptx"}
+var fixtures = []string{"shp-shapes.pptx", "ph-populated-placeholders.pptx", "txt-text.pptx", "dml-fill.pptx", "cht-chart-type.pptx", "tbl-cell.pptx"}
 
 func TestFixtures(t *testing.T) {
 	for _, name := range fixtures {

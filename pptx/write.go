@@ -328,6 +328,9 @@ func (w *writer) element(n *ot.Node) *xmldom.Element {
 	case "alt", "other":
 		return base
 	case "frame":
+		if base == nil && str(n, "frame") == "table" {
+			base = newTableFrame()
+		}
 		if base != nil {
 			if x := base.Child(pNS, "xfrm"); x != nil && changed(ot.Values{"xfrm": mustJSON(drawingml.ReadXfrm(x))}, n.Attrs, "xfrm") {
 				var xfrm drawingml.Xfrm
@@ -336,6 +339,7 @@ func (w *writer) element(n *ot.Node) *xmldom.Element {
 				}
 			}
 			w.setNames(base, nvAttrs(base), n.Attrs)
+			w.table(base, n)
 		}
 		return base
 	case "sp", "pic", "cxn", "grp":

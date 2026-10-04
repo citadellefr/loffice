@@ -22,8 +22,15 @@ var editable = map[string]map[string]bool{
 	"pic":   {"name": true, "descr": true, "hidden": true, "xfrm": true, "geom": true, "fill": true, "line": true, "blip": true},
 	"cxn":   {"name": true, "descr": true, "hidden": true, "xfrm": true, "geom": true, "line": true},
 	"grp":   {"name": true, "descr": true, "hidden": true, "xfrm": true, "fill": true},
-	"frame": {"name": true, "descr": true, "hidden": true, "xfrm": true},
+	"frame": {"name": true, "descr": true, "hidden": true, "xfrm": true, "tbl": true, "grid": true},
+	"tr":    {"h": true},
+	"tc": {"gridSpan": true, "rowSpan": true, "hMerge": true, "vMerge": true, "fill": true, "mar": true, "anchor": true,
+		"lnL": true, "lnR": true, "lnT": true, "lnB": true, "lnTlToBr": true, "lnBlToTr": true},
 }
+
+// tableTypes are the rows of a table and their cells, by the type of node
+// they are under.
+var tableTypes = map[string]string{"tr": "frame", "tc": "tr"}
 
 // Check tells whether an edit only changes what can be edited: the slides,
 // their shapes and the text of their notes, not the masters and layouts.
@@ -43,13 +50,14 @@ func (d *Document) Check(tree *ot.Tree, e ot.Edit) error {
 		case ot.OpNew:
 			parent := typeOf(c.Parent)
 			ok := c.Type == "slide" && c.Parent == "deck" ||
-				shapeTypes[c.Type] && (parent == "slide" || parent == "grp")
+				shapeTypes[c.Type] && (parent == "slide" || parent == "grp") ||
+				tableTypes[c.Type] != "" && tableTypes[c.Type] == parent
 			if !ok {
 				return ErrReadOnly
 			}
 			created[c.ID] = c.Type
 		case ot.OpDel:
-			if t := typeOf(c.ID); t != "" && t != "slide" && !shapeTypes[t] {
+			if t := typeOf(c.ID); t != "" && t != "slide" && !shapeTypes[t] && tableTypes[t] == "" {
 				return ErrReadOnly
 			}
 		case ot.OpSet:
@@ -57,7 +65,7 @@ func (d *Document) Check(tree *ot.Tree, e ot.Edit) error {
 			if t == "" {
 				continue
 			}
-			if t != "slide" && !shapeTypes[t] {
+			if t != "slide" && !shapeTypes[t] && tableTypes[t] == "" {
 				return ErrReadOnly
 			}
 			for k := range c.Attrs {
@@ -69,7 +77,7 @@ func (d *Document) Check(tree *ot.Tree, e ot.Edit) error {
 				return ErrReadOnly
 			}
 		case ot.OpTxt:
-			if t := typeOf(c.ID); t != "" && t != "sp" && t != "notes" {
+			if t := typeOf(c.ID); t != "" && t != "sp" && t != "tc" && t != "notes" {
 				return ErrReadOnly
 			}
 		}
