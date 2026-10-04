@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:loffice/src/drawing/paint.dart';
 import 'package:loffice/src/powerpoint/deck.dart';
 import 'package:loffice/src/powerpoint/slide_painter.dart';
 import 'package:trame/trame.dart';
@@ -14,7 +15,7 @@ Deck _fixture(String name) {
 }
 
 void main() {
-  const fixtures = ['shp-shapes', 'ph-populated-placeholders', 'txt-text', 'dml-fill'];
+  const fixtures = ['shp-shapes', 'ph-populated-placeholders', 'txt-text', 'dml-fill', 'tbl-cell'];
 
   test('placeholders inherit where they stand and how their text looks', () {
     final deck = _fixture('ph-populated-placeholders');
@@ -57,6 +58,38 @@ void main() {
       expect(frame.offsetAt(caret.center + const Offset(0.1, 0)), i, reason: 'offset $i at $caret');
     }
     expect(frame.selection(0, 5), isNotEmpty);
+  });
+
+  test('lays out tables: rows grow with their text, cells take their style', () {
+    final deck = _fixture('tbl-cell');
+    final painter = SlidePainter(deck);
+    final frame = deck.tree['s257-2']!;
+    final table = painter.tableOf(frame)!;
+    expect(table.cells, hasLength(16));
+    expect(table.size.width, closeTo(4 * 1524000 / emuPerPoint, 1e-6));
+    // "unladen swallows" takes two lines: more than the 29.2 points asked
+    expect(table.rows[2] - table.rows[1], greaterThan(370840 / emuPerPoint + 10));
+    expect(table.rows[3] - table.rows[2], closeTo(370840 / emuPerPoint, 0.5));
+
+    Color? fill(String id) {
+      final f = table.cells[id]!.fill;
+      return f == null ? null : DrawingPainter(f.$2).color(f.$1);
+    }
+
+    // a header, then bands: the first darker than the second
+    expect(fill('s257-2-r2-c1'), isNot(fill('s257-2-r3-c1')));
+    expect(fill('s257-2-r1-c1'), fill('s257-2-r3-c1'));
+    expect(table.cells['s257-2-r1-c1']!.lines.keys, containsAll(['l', 'r', 't', 'b']));
+
+    final cell = deck.tree['s257-2-r2-c1']!;
+    expect(painter.textOf(cell), same(table.cells[cell.id]!.text));
+    final corner = painter.transformOf(frame).apply(Offset.zero);
+    expect(painter.transformOf(cell).apply(Offset.zero), corner + Offset(0, table.rows[1]));
+
+    deck.tree.apply(Edit([Change.text(cell.id, Delta([Op.insert('Encore '), Op.retain(cell.text!.length)]))]));
+    final again = painter.tableOf(frame)!;
+    expect(again, isNot(same(table)));
+    expect(again.cells[cell.id]!.text.length, cell.text!.length + 7);
   });
 
   test('paints every slide of the fixtures', () {

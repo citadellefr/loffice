@@ -1,10 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:loffice/loffice.dart';
+import 'package:loffice/src/powerpoint/deck.dart';
+import 'package:loffice/src/powerpoint/slide_canvas.dart';
+import 'package:loffice/src/powerpoint/slide_painter.dart';
 import 'package:trame/testing.dart';
 
 void main() {
@@ -82,6 +86,40 @@ void main() {
     expect(fresh.attributes['layout'], 'L5');
     final placeholders = [for (final n in hub.doc.children(fresh.id)) n.attributes['ph']];
     expect(placeholders, [{'idx': '10', 'sz': 'quarter', 'type': 'tbl'}]);
+    await finish(tester);
+  });
+
+  testWidgets('types into the cells of a table, from one to the next', (tester) async {
+    await open(tester, 'tbl-cell');
+    final slide = slides()[0];
+    final frame = hub.doc.children(slide.id).firstWhere((n) => n.attributes['frame'] == 'table');
+    final deck = Deck(hub.doc);
+    final painter = SlidePainter(deck);
+    final table = painter.tableOf(frame)!;
+    final row = hub.doc.children(frame.id)[1];
+    final cells = hub.doc.children(row.id);
+    final rect = tester.getRect(find.byType(SlideCanvas));
+    final scale = math.min((rect.width - 48) / deck.size.width, (rect.height - 48) / deck.size.height);
+    final origin = rect.topLeft + Offset((rect.width - deck.size.width * scale) / 2, (rect.height - deck.size.height * scale) / 2);
+    final center = painter.transformOf(frame).apply(table.cells[cells[1].id]!.rect.center);
+
+    await tester.tapAt(origin + center * scale);
+    await tester.pump();
+    tester.testTextInput.updateEditingValue(const TextEditingValue(text: 'Bonjour', selection: TextSelection.collapsed(offset: 7)));
+    await settle(tester);
+    expect(hub.doc[cells[1].id]!.text!.text, 'Bonjour\n');
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
+    tester.testTextInput.updateEditingValue(const TextEditingValue(text: 'Salut', selection: TextSelection.collapsed(offset: 5)));
+    await settle(tester);
+    expect(hub.doc[cells[2].id]!.text!.text, 'Salut\n');
+
+    // Escape takes the table, which Delete deletes
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.sendKeyEvent(LogicalKeyboardKey.delete);
+    await settle(tester);
+    expect(hub.doc[frame.id], isNull);
     await finish(tester);
   });
 

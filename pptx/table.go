@@ -201,9 +201,16 @@ func (w *writer) table(frame *xmldom.Element, n *ot.Node) {
 			g = xmldom.New(aNS, "a:tblGrid")
 			tbl.Insert(g, []string{"tblPr", "tblGrid"})
 		}
-		g.Content = nil
-		for _, width := range want {
-			g.Append(xmldom.New(aNS, "a:gridCol", "w", strconv.FormatInt(max(width, 0), 10)))
+		have := elements(g, aNS, "gridCol")
+		for i, width := range want {
+			if i == len(have) {
+				have = append(have, xmldom.New(aNS, "a:gridCol"))
+				g.Append(have[i])
+			}
+			have[i].Set("w", strconv.FormatInt(max(width, 0), 10))
+		}
+		for _, c := range have[len(want):] {
+			g.Remove(c)
 		}
 	}
 	for i, row := range rows {

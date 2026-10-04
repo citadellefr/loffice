@@ -148,6 +148,9 @@ class _PresentationEditorState extends State<PresentationEditor> {
     return null;
   }
 
+  /// The properties a paragraph of a level of a shape or cell starts from.
+  Props _levelOf(Node node, int lvl) => node.type == 'tc' ? _paint.cellOf(node)?.level(lvl) ?? const {} : _current.styleOf(node).level(lvl);
+
   /// The run formatting in effect where the selection starts, what is
   /// inherited included.
   Props get _runProps {
@@ -156,7 +159,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
     final (node, start, _) = target;
     final editor = FlowEditing(node.text!);
     final lvl = int.tryParse(editor.markAt(start)['lvl'] ?? '') ?? 0;
-    final level = _current.styleOf(node).level(lvl);
+    final level = _levelOf(node, lvl);
     final own = _selection.editing == node.id && _selection.collapsed
         ? (_selection.typing ?? editor.typingAttributes(start))
         : (editor.attributesAt(start) ?? const <String, String>{});
@@ -172,7 +175,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
     final (node, start, _) = target;
     final mark = FlowEditing(node.text!).markAt(start);
     final lvl = int.tryParse(mark['lvl'] ?? '') ?? 0;
-    return {..._current.styleOf(node).level(lvl), ...mark};
+    return {..._levelOf(node, lvl), ...mark};
   }
 
   /// Sets run attributes ("" removes) on the selection, or on the text of
@@ -232,16 +235,17 @@ class _PresentationEditorState extends State<PresentationEditor> {
 
   void _fillShapes(String key, Map<String, Object?>? color) {
     final shapes = _selectedShapes.where((n) => n.type != 'grp' || key == 'fill');
+    Map<String, Object?> line(Object? old) => color == null
+        ? {'fill': {'none': true}}
+        : {...?(old as Map<String, Object?>?), 'fill': {'solid': color}};
     _edit(Edit([
       for (final n in shapes)
         if (key == 'fill')
           Change.set(n.id, attributes: {'fill': color == null ? {'none': true} : {'solid': color}})
+        else if (n.type == 'tc')
+          Change.set(n.id, attributes: {for (final k in ['lnL', 'lnR', 'lnT', 'lnB']) k: line(n.attributes[k])})
         else
-          Change.set(n.id, attributes: {
-            'line': color == null
-                ? {'fill': {'none': true}}
-                : {...?(n.attributes['line'] as Map<String, Object?>?), 'fill': {'solid': color}},
-          }),
+          Change.set(n.id, attributes: {'line': line(n.attributes['line'])}),
     ]));
   }
 

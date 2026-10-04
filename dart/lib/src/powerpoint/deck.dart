@@ -98,6 +98,29 @@ class Deck {
     return n;
   }
 
+  /// The parts of the style a table names, by name: "wholeTbl",
+  /// "firstRow"…
+  Map<String, Map<String, Object?>> tableStyleOf(Node table) {
+    final id = _map(table.attributes['tbl'])?['style'];
+    final style = _map(_map(tree['deck']?.attributes['tblStyles'])?[id]);
+    return {
+      for (final e in (style ?? const {}).entries)
+        if (e.value is Map<String, Object?>) e.key: e.value! as Map<String, Object?>,
+    };
+  }
+
+  /// The list styles the text of a cell inherits, from the most general:
+  /// those of the text that is neither title nor body.
+  List<Map<String, Props>> cellLevels(Node cell) {
+    final page = pageOf(cell);
+    final master = page == null ? null : (page.type == 'master' ? page : masterOf(page));
+    return [
+      _levels(tree['deck']?.attributes['lst']),
+      if (master != null) _levels(master.attributes['other']),
+      _levels(cell.attributes['lst']),
+    ];
+  }
+
   /// What a shape looks like once it inherited from its placeholders.
   ShapeStyle styleOf(Node shape) => _shapes[shape] ??= _resolve(shape);
 

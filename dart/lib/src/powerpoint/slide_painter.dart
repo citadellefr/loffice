@@ -12,6 +12,7 @@ import '../drawing/geometry.dart';
 import '../drawing/paint.dart';
 import '../text/text_frame.dart';
 import 'deck.dart';
+import 'table.dart';
 
 /// Fetches the bytes of a picture of the document by its name.
 typedef MediaFetcher = Future<Uint8List> Function(String media);
@@ -65,6 +66,7 @@ class SlidePainter {
 
   final _frames = Expando<TextFrame>();
   final _charts = Expando<ChartSpec>();
+  final _tables = Expando<TableLayout>();
 
   void paint(Canvas canvas, Node slide) {
     final size = deck.size;
@@ -114,6 +116,11 @@ class SlidePainter {
   }
 
   Matrix4Like _placement(Node n) {
+    if (n.type == 'tr') return Matrix4Like.identity();
+    if (n.type == 'tc') {
+      final cell = cellOf(n);
+      return cell == null ? Matrix4Like.identity() : Matrix4Like.translation(cell.rect.left, cell.rect.top);
+    }
     final style = deck.styleOf(n);
     final box = style.bounds;
     if (box == null) return Matrix4Like.identity();
@@ -161,6 +168,12 @@ class SlidePainter {
     canvas.save();
     canvas.transform(_placement(shape).storage);
     final size = box.size;
+    final table = tableOf(shape);
+    if (table != null) {
+      table.paint(canvas, images: images);
+      canvas.restore();
+      return;
+    }
     if (shape.type == 'frame' || shape.type == 'other') {
       final chart = shape.type == 'frame' ? _charts[shape] ??= ChartSpec.fromJson(shape.attributes['chart']) : null;
       if (chart != null) {
@@ -202,8 +215,42 @@ class SlidePainter {
     canvas.restore();
   }
 
-  /// What stands for a table or other object the editor does not draw
-  /// yet.
+  /// The table of a frame laid out, null for a frame that shows none.
+  TableLayout? tableOf(Node frame) {
+    if (frame.type != 'frame' || frame.attributes['frame'] != 'table') return null;
+    final nodes = TableLayout.nodesOf(deck.tree, frame);
+    final kept = _tables[frame];
+    if (kept != null && kept.isOf(nodes)) return kept;
+    final page = deck.pageOf(frame);
+    return _tables[frame] = TableLayout.of(
+      deck,
+      frame,
+      colors: page == null ? const ColorContext() : deck.colorsOf(page),
+      theme: page == null ? DeckTheme(null) : deck.themeOf(page),
+      fonts: fonts,
+    );
+  }
+
+  /// The table frame a cell is in.
+  Node? frameOf(Node cell) {
+    final row = deck.tree[cell.parent];
+    return row == null ? null : deck.tree[row.parent];
+  }
+
+  /// A cell of a table as it is drawn.
+  TableCell? cellOf(Node cell) {
+    final frame = frameOf(cell);
+    return frame == null ? null : tableOf(frame)?.cells[cell.id];
+  }
+
+  /// The size a shape is drawn at, in its own coordinates: a table's as
+  /// its rows and columns lay it out.
+  Size? sizeOf(Node shape) => switch (shape.type) {
+    'tc' => cellOf(shape)?.rect.size,
+    _ => tableOf(shape)?.size ?? deck.styleOf(shape).bounds?.size,
+  };
+
+  /// What stands for an object the editor does not draw yet.
   void _stand(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
     canvas.drawRect(rect, Paint()..color = const Color(0x14000000));
@@ -262,6 +309,7 @@ class SlidePainter {
 
   /// The text of a shape laid out in its box, null for one without text.
   TextFrame? textOf(Node shape) {
+    if (shape.type == 'tc') return cellOf(shape)?.text;
     final text = shape.text;
     if (shape.type != 'sp' || text == null) return null;
     return _frames[shape] ??= layout(shape, text);

@@ -215,17 +215,28 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
     if (shape.type == 'grp' || shape.type == 'alt') {
       return _deck.shapesOf(shape).any((c) => _contains(c, p));
     }
-    final box = _deck.styleOf(shape).bounds;
-    if (box == null) return false;
+    final size = widget.painter.sizeOf(shape);
+    if (size == null) return false;
     final local = widget.painter.transformOf(shape).invert().apply(p);
     final slack = 4 / _scale;
-    return Rect.fromLTWH(-slack, -slack, box.width + 2 * slack, box.height + 2 * slack).contains(local);
+    return Rect.fromLTWH(-slack, -slack, size.width + 2 * slack, size.height + 2 * slack).contains(local);
+  }
+
+  /// The cell of a table at a point, null on the edge of the table, where
+  /// a click takes the table itself.
+  Node? _cellAt(Node frame, Offset p) {
+    final table = widget.painter.tableOf(frame);
+    if (table == null) return null;
+    final local = widget.painter.transformOf(frame).invert().apply(p);
+    if (!(Offset.zero & table.size).deflate(4 / _scale).contains(local)) return null;
+    final cell = table.cellAt(local);
+    return cell == null ? null : _session.document[cell.node.id];
   }
 
   /// Where the handles of a shape are, on the slide.
   Map<_Handle, Offset> _handles(Node shape) {
     final box = _deck.styleOf(shape).bounds;
-    if (box == null) return const {};
+    if (box == null || shape.attributes['frame'] == 'table') return const {};
     final t = widget.painter.transformOf(shape);
     final w = box.width, h = box.height;
     return {
@@ -302,6 +313,12 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
     }
     if (_clicks >= 2 && hit.type == 'sp' && hit.text != null) {
       _startEditing(hit, at: p, word: true);
+      _drag = _Drag.text;
+      return;
+    }
+    final cell = shift || _session.readOnly ? null : _cellAt(hit, p);
+    if (cell != null) {
+      _startEditing(cell, at: p, word: _clicks >= 2);
       _drag = _Drag.text;
       return;
     }
@@ -525,7 +542,7 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
     final frame = widget.painter.textOf(shape);
     switch (key) {
       case LogicalKeyboardKey.escape:
-        _selection.selectShapes([shape.id]);
+        _selection.selectShapes([shape.type == 'tc' ? widget.painter.frameOf(shape)?.id ?? shape.id : shape.id]);
         return true;
       case LogicalKeyboardKey.arrowLeft:
         caret(!_shift && !s.collapsed ? s.start : editor.previous(s.extent, word: _ctrl));
@@ -583,6 +600,9 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
       case LogicalKeyboardKey.enter || LogicalKeyboardKey.numpadEnter:
         _replace(shape, s.start, s.end, _shift ? '\v' : '\n');
         return true;
+      case LogicalKeyboardKey.tab when shape.type == 'tc':
+        _nextCell(shape, back: _shift);
+        return true;
       case LogicalKeyboardKey.tab:
         final paragraphs = editor.paragraphsIn(s.start, s.end);
         final atStart = s.collapsed && editor.paragraphAt(s.start).$1 == s.start;
@@ -596,6 +616,18 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
         return true;
     }
     return false;
+  }
+
+  /// Selects the text of the cell after [cell], or before it.
+  void _nextCell(Node cell, {required bool back}) {
+    final frame = widget.painter.frameOf(cell);
+    final cells = frame == null ? null : widget.painter.tableOf(frame)?.cells.values.toList();
+    if (cells == null) return;
+    final i = cells.indexWhere((c) => c.node.id == cell.id) + (back ? -1 : 1);
+    if (i < 0 || i >= cells.length) return;
+    final next = _session.document[cells[i].node.id];
+    if (next != null) _selection.edit(next.id, 0, next.text!.length - 1);
+    _input?.setEditingState(currentTextEditingValue);
   }
 
   /// Replaces a range of a shape's text by what was typed.
@@ -870,9 +902,10 @@ class _CanvasPainter extends CustomPainter {
 
     // selected shapes, their handles, and where a drag takes them
     for (final id in selection.shapes) {
-      final shape = w.session.document[id];
-      final box = shape == null ? null : deck.styleOf(shape).bounds;
-      if (shape == null || box == null) continue;
+      final node = w.session.document[id];
+      final shape = node?.type == 'tc' ? painter.frameOf(node!) : node;
+      final size = shape == null ? null : painter.sizeOf(shape);
+      if (shape == null || size == null) continue;
       canvas.save();
       canvas.transform(painter.transformOf(shape).storage);
       final outline = Paint()
@@ -880,9 +913,9 @@ class _CanvasPainter extends CustomPainter {
         ..strokeWidth = 1 / scale
         ..color = colors.primary;
       if (selection.editing == id) {
-        _dashed(canvas, Offset.zero & box.size, colors.primary, 1 / scale);
+        _dashed(canvas, Offset.zero & size, colors.primary, 1 / scale);
       } else {
-        canvas.drawRect(Offset.zero & box.size, outline);
+        canvas.drawRect(Offset.zero & size, outline);
       }
       canvas.restore();
       if (selection.shapes.length == 1 && selection.editing == null && shape.parent == w.slide.id) {
