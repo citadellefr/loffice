@@ -24,7 +24,7 @@ var editable = map[string]map[string]bool{
 	"grp":   {"name": true, "descr": true, "hidden": true, "xfrm": true, "fill": true},
 	"frame": {"name": true, "descr": true, "hidden": true, "xfrm": true, "tbl": true, "grid": true},
 	"tr":    {"h": true},
-	"tc": {"gridSpan": true, "rowSpan": true, "hMerge": true, "vMerge": true, "fill": true, "mar": true, "anchor": true,
+	"tc": {"gridSpan": true, "rowSpan": true, "hMerge": true, "vMerge": true, "fill": true, "mar": true, "anchor": true, "vert": true,
 		"lnL": true, "lnR": true, "lnT": true, "lnB": true, "lnTlToBr": true, "lnBlToTr": true},
 }
 

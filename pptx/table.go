@@ -20,8 +20,8 @@ import (
 //
 // A cell holds "gridSpan" and "rowSpan" when it spans columns or rows,
 // "hMerge" or "vMerge" when another's span covers it; "fill", the borders
-// "lnL" "lnR" "lnT" "lnB" "lnTlToBr" "lnBlToTr", "mar" (l, r, t, b) and
-// "anchor" from its tcPr.
+// "lnL" "lnR" "lnT" "lnB" "lnTlToBr" "lnBlToTr", "mar" (l, r, t, b),
+// "anchor" and "vert", the direction of its text, from its tcPr.
 
 const tableURI = "http://schemas.openxmlformats.org/drawingml/2006/table"
 
@@ -43,6 +43,7 @@ var (
 	tcPrOrder  = []string{"lnL", "lnR", "lnT", "lnB", "lnTlToBr", "lnBlToTr", "cell3D", "noFill", "solidFill", "gradFill", "blipFill", "pattFill", "grpFill", "headers", "extLst"}
 	cellLines  = []string{"lnL", "lnR", "lnT", "lnB", "lnTlToBr", "lnBlToTr"}
 	margins    = map[string]string{"l": "marL", "r": "marR", "t": "marT", "b": "marB"}
+	verts      = []string{"horz", "vert", "vert270", "wordArtVert", "eaVert", "mongolianVert", "wordArtVertRtl"}
 )
 
 func readTable(tblPr *xmldom.Element, media func(string) string) *Table {
@@ -160,6 +161,7 @@ func cellProps(tc *xmldom.Element, media func(string) string) ot.Values {
 	}
 	putJSON(v, "mar", mar)
 	putString(v, "anchor", pr.Get("anchor"))
+	putString(v, "vert", pr.Get("vert"))
 	return v
 }
 
@@ -403,6 +405,15 @@ func (w *writer) setCellProps(pr *xmldom.Element, old, values ot.Values) {
 			pr.Set("anchor", a)
 		default:
 			pr.Unset("anchor")
+		}
+	}
+	if changed(old, values, "vert") {
+		var v string
+		_ = json.Unmarshal(values["vert"], &v)
+		if slices.Contains(verts, v) && v != "horz" {
+			pr.Set("vert", v)
+		} else {
+			pr.Unset("vert")
 		}
 	}
 }

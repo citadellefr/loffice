@@ -360,6 +360,13 @@ class LofficeStrings {
   String get splitCells => 'Fractionner les cellules';
   String get tableStyleOptions => 'Options de style de tableau';
   String get tableDesign => 'Création de tableau';
+  String get centerVertically => 'Centrer verticalement';
+  String get textDirection => 'Orientation du texte';
+  String direction(String vert) => switch (vert) {
+    'vert' => 'Rotation de 90° de tout le texte',
+    'vert270' => 'Rotation de 270° de tout le texte',
+    _ => 'Horizontal',
+  };
   String get tableStyles => 'Styles de tableau';
   String get shading => 'Trame de fond';
   String get drawBorders => 'Dessiner des bordures';

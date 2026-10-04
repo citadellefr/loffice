@@ -79,7 +79,7 @@ class TableLayout {
       final width = columns[p.col + p.colSpan] - columns[p.col];
       final inherited = ShapeStyle(levels: deck.cellLevels(p.node)), own = style.text(p);
       levels.add((lvl) => {...inherited.level(lvl), ...own});
-      final text = _layout(p.node, levels.last, face, colors, Size(width, 0));
+      final text = _layout(p.node, levels.last, face, colors, Size(width, 0), measure: true);
       texts.add(text);
       if (p.rowSpan == 1) fits[p.row] = math.max(fits[p.row], _needed(text, p.node));
     }
@@ -103,7 +103,7 @@ class TableLayout {
       var left = columns[p.col], right = columns[p.col + p.colSpan];
       if (rtl) (left, right) = (columns.last - right, columns.last - left);
       final rect = Rect.fromLTRB(left, rows[p.row], right, rows[p.row + p.rowSpan]);
-      final anchored = _anchor(p.node) != 't';
+      final anchored = _anchor(p.node) != 't' || _vertical(p.node);
       cells[p.node.id] = CellLayout._(
         p.node,
         p.row,
@@ -228,8 +228,11 @@ class TableLayout {
 
   static List<Node> _rows(Tree tree, Node table) => [for (final n in tree.children(table.id)) if (n.type == 'tr') n];
 
-  static TextFrame _layout(Node cell, Props Function(int) levels, Fonts fonts, ColorContext colors, Size size) {
+  /// The text of a cell laid out in [size]; to [measure] the height it
+  /// needs, vertical text is laid out on one line.
+  static TextFrame _layout(Node cell, Props Function(int) levels, Fonts fonts, ColorContext colors, Size size, {bool measure = false}) {
     final mar = _map(cell.attributes['mar']);
+    final vertical = _vertical(cell);
     return TextFrame.layout(
       cell.text ?? Delta([Op.insert('\n')]),
       box: Offset.zero & size,
@@ -239,6 +242,8 @@ class TableLayout {
         'tIns': '${mar['t'] ?? 45720}',
         'bIns': '${mar['b'] ?? 45720}',
         'anchor': _anchor(cell),
+        if (vertical && !measure) 'vert': cell.attributes['vert']! as String,
+        if (vertical && measure) 'wrap': 'none',
       },
       levels: levels,
       colors: colors,
@@ -246,12 +251,15 @@ class TableLayout {
     );
   }
 
+  static bool _vertical(Node cell) => TextFrame.turns(cell.attributes['vert'] is String ? cell.attributes['vert']! as String : null) != 0;
+
   static String _anchor(Node cell) => cell.attributes['anchor'] is String ? cell.attributes['anchor']! as String : 't';
 
-  /// The height a cell needs for its text and margins.
+  /// The height a cell needs for its text and margins: vertical text, its
+  /// longest line.
   static double _needed(TextFrame text, Node cell) {
     final mar = _map(cell.attributes['mar']);
-    return text.height + (_number(mar['t'] ?? 45720) + _number(mar['b'] ?? 45720)) / emuPerPoint;
+    return (_vertical(cell) ? text.width : text.height) + (_number(mar['t'] ?? 45720) + _number(mar['b'] ?? 45720)) / emuPerPoint;
   }
 }
 

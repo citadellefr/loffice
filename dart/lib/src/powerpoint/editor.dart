@@ -391,6 +391,43 @@ class _PresentationEditorState extends State<PresentationEditor> {
     return '${whole == 0 && quarters % 4 != 0 ? '' : whole}${fractions[quarters % 4]}';
   }
 
+  /// The shapes and cells the direction of text goes to: the one being
+  /// edited, or those selected.
+  List<Node> get _textBoxes => [
+    for (final n in _selectedShapes)
+      if (n.attributes['frame'] == 'table') ...[for (final c in _paint.tableOf(n)?.cells.values ?? const <CellLayout>[]) c.node] else if (_hasText(n)) n,
+  ];
+
+  /// The direction of the text of the first of them: "horz", "vert"…
+  String get _direction {
+    final n = _textBoxes.firstOrNull;
+    if (n == null) return 'horz';
+    final vert = n.type == 'tc' ? n.attributes['vert'] : _current.styleOf(n).body['vert'];
+    return vert is String ? vert : 'horz';
+  }
+
+  /// Sets the direction of the text; a placeholder is set horizontal
+  /// explicitly, against what its layout may give it.
+  void _setDirection(String vert) {
+    _edit(Edit([
+      for (final n in _textBoxes)
+        if (n.type == 'tc')
+          Change.set(n.id, attributes: {'vert': vert == 'horz' ? null : vert})
+        else
+          Change.set(n.id, attributes: {
+            'body': {
+              ...?(n.attributes['body'] as Map<String, Object?>?),
+              'vert': vert,
+            }..removeWhere((k, v) => k == 'vert' && v == 'horz' && n.attributes['ph'] == null),
+          }),
+    ]));
+  }
+
+  /// Anchors the text of the cells selected, or of all the table's.
+  void _anchorCells(String anchor) {
+    _edit(Edit([for (final c in _tableCells) Change.set(c.node.id, attributes: {'anchor': anchor})]));
+  }
+
   void _merge() {
     final cells = _cells;
     _tableEdit((e, _) => e.merge(cells));
@@ -696,6 +733,18 @@ class _PresentationEditorState extends State<PresentationEditor> {
           ),
         );
 
+    Widget direction({bool large = false}) => RibbonMenu<String>(
+      icon: const Icon(Icons.text_rotate_vertical),
+      label: _s.textDirection,
+      large: large,
+      enabled: editable && _textBoxes.isNotEmpty,
+      items: [
+        for (final v in ['horz', 'vert', 'vert270'])
+          CheckedPopupMenuItem(value: v, checked: _direction == v, child: Text(_s.direction(v))),
+      ],
+      onSelected: _setDirection,
+    );
+
     final layouts = _layouts;
     return Ribbon(
       fileLabel: _s.file,
@@ -810,6 +859,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
                 ('just', Icons.format_align_justify, _s.justify, 'Ctrl+J'),
               ])
                 RibbonButton(icon: Icon(icon), label: label, shortcut: key, selected: (para['algn'] ?? 'l') == algn, onPressed: hasText ? () => _formatParagraphs({'algn': algn}) : null),
+              direction(),
             ]),
           ]),
           RibbonGroup(_s.drawing, [
@@ -958,6 +1008,30 @@ class _PresentationEditorState extends State<PresentationEditor> {
               RibbonButton(icon: const Icon(Icons.border_bottom), label: _s.insertBelow, large: true, onPressed: cell == null ? null : () => _tableEdit((e, c) => e.insertRow(c!.row + c.rowSpan))),
               RibbonButton(icon: const Icon(Icons.border_left), label: _s.insertLeft, large: true, onPressed: cell == null ? null : () => _tableEdit((e, c) => e.insertColumn(c!.col))),
               RibbonButton(icon: const Icon(Icons.border_right), label: _s.insertRight, large: true, onPressed: cell == null ? null : () => _tableEdit((e, c) => e.insertColumn(c!.col + c.colSpan))),
+            ]),
+            RibbonGroup(_s.alignment, [
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                for (final (algn, icon, label) in [
+                  ('l', Icons.format_align_left, _s.alignLeft),
+                  ('ctr', Icons.format_align_center, _s.center),
+                  ('r', Icons.format_align_right, _s.alignRight),
+                ])
+                  RibbonButton(icon: Icon(icon), label: label, selected: (para['algn'] ?? 'l') == algn, onPressed: hasText ? () => _formatParagraphs({'algn': algn}) : null),
+              ]),
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                for (final (anchor, icon, label) in [
+                  ('t', Icons.vertical_align_top, _s.alignTop),
+                  ('ctr', Icons.vertical_align_center, _s.centerVertically),
+                  ('b', Icons.vertical_align_bottom, _s.alignBottom),
+                ])
+                  RibbonButton(
+                    icon: Icon(icon),
+                    label: label,
+                    selected: (table.$2?.node.attributes['anchor'] ?? 't') == anchor,
+                    onPressed: editable ? () => _anchorCells(anchor) : null,
+                  ),
+              ]),
+              direction(large: true),
             ]),
             RibbonGroup(_s.merge, [
               RibbonButton(icon: const Icon(Icons.call_merge), label: _s.mergeCells, large: true, onPressed: cells.length > 1 ? _merge : null),

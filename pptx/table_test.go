@@ -53,7 +53,7 @@ func TestTableEdits(t *testing.T) {
 	apply(t, d, tree, ot.Edit{
 		{Op: ot.OpTxt, ID: grid[1][1].ID, Text: ot.Delta{{Insert: "Cellule"}}},
 		{Op: ot.OpSet, ID: grid[1][2].ID, Attrs: ot.Values{"fill": json.RawMessage(`{"solid":{"scheme":"accent2"}}`), "lnB": json.RawMessage(`{"w":25400,"fill":{"solid":{"rgb":"FF0000"}}}`), "lnT": json.RawMessage(`{"fill":{"none":true}}`)}},
-		{Op: ot.OpSet, ID: grid[2][0].ID, Attrs: ot.Values{"gridSpan": json.RawMessage(`2`)}},
+		{Op: ot.OpSet, ID: grid[2][0].ID, Attrs: ot.Values{"gridSpan": json.RawMessage(`2`), "vert": json.RawMessage(`"vert270"`)}},
 		{Op: ot.OpSet, ID: grid[2][1].ID, Attrs: ot.Values{"hMerge": json.RawMessage(`true`)}},
 	})
 	// a row, and at the same time a column the row does not have
@@ -144,8 +144,8 @@ func TestTableEdits(t *testing.T) {
 	if string(grid[1][2].Attrs["fill"]) != `{"solid":{"scheme":"accent2"}}` || !strings.Contains(string(grid[1][2].Attrs["lnB"]), "FF0000") || string(grid[1][2].Attrs["lnT"]) != `{"fill":{"none":true}}` {
 		t.Fatalf("cell %s %s %s", grid[1][2].Attrs["fill"], grid[1][2].Attrs["lnB"], grid[1][2].Attrs["lnT"])
 	}
-	if string(grid[2][0].Attrs["gridSpan"]) != "2" || string(grid[2][1].Attrs["hMerge"]) != "true" {
-		t.Fatalf("spans %s %s", grid[2][0].Attrs["gridSpan"], grid[2][1].Attrs["hMerge"])
+	if string(grid[2][0].Attrs["gridSpan"]) != "2" || string(grid[2][1].Attrs["hMerge"]) != "true" || str(grid[2][0], "vert") != "vert270" {
+		t.Fatalf("spans %s %s %s", grid[2][0].Attrs["gridSpan"], grid[2][1].Attrs["hMerge"], grid[2][0].Attrs["vert"])
 	}
 	if m := cells(again, tableOn(again, "s256")); len(m) != 4 || string(m[0][0].Attrs["rowSpan"]) != "3" || string(m[1][0].Attrs["vMerge"]) != "true" || text(m[1][2]) != "Traversée\n" {
 		t.Fatalf("merged table %v", m)

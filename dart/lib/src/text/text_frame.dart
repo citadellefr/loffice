@@ -66,9 +66,11 @@ double lineHeight(String typeface) => switch (typeface) {
 };
 
 /// The text of a shape laid out in the box of its text, in points: each
-/// paragraph with its style, bullet and spacing.
+/// paragraph with its style, bullet and spacing. Vertical text is laid out
+/// across the box, then turned a quarter: what the frame gives, carets and
+/// selections, is in the shape's coordinates.
 class TextFrame {
-  TextFrame._(this.paragraphs, this.box, this.height, this._top);
+  TextFrame._(this.paragraphs, this.box, this.height, this._top, this._inset, this._turn);
 
   /// Lays out a flow. [levels] are the paragraph and run properties each
   /// level starts from; [body] the properties of the text body; [box] where
@@ -89,6 +91,8 @@ class TextFrame {
       box.right - emu('rIns', 91440),
       box.bottom - emu('bIns', 45720),
     );
+    final turn = turns(body['vert']);
+    final across = turn == 0 ? inset : Rect.fromLTWH(0, 0, inset.height, inset.width);
     final wrap = body['wrap'] != 'none';
     final fit = body['fit'] == 'norm';
     final scale = fit ? (double.tryParse(body['fontScale'] ?? '') ?? 100000) / 100000 : 1.0;
@@ -121,7 +125,7 @@ class TextFrame {
         para,
         runBase,
         ctx,
-        width: inset.width,
+        width: across.width,
         wrap: wrap,
         number: number,
         first: paragraphs.isEmpty,
@@ -133,17 +137,48 @@ class TextFrame {
     }
     final height = y;
     final top = switch (body['anchor']) {
-      'ctr' => inset.top + (inset.height - height) / 2,
-      'b' => inset.bottom - height,
-      _ => inset.top,
+      'ctr' => across.top + (across.height - height) / 2,
+      'b' => across.bottom - height,
+      _ => across.top,
     };
-    return TextFrame._(paragraphs, inset, height, top);
+    return TextFrame._(paragraphs, across, height, top, inset, turn);
   }
+
+  /// The quarter turns clockwise text of a direction, "vert"…, is drawn
+  /// at; stacked letters are left horizontal.
+  static int turns(String? vert) => switch (vert) {
+    'vert' || 'eaVert' || 'mongolianVert' => 1,
+    'vert270' => 3,
+    _ => 0,
+  };
 
   final List<ParagraphLayout> paragraphs;
 
-  /// The box the text is laid out in, insets taken off.
+  /// The box the text is laid out in, insets taken off, across the text
+  /// when it is vertical.
   final Rect box;
+
+  /// The box in the shape, and the quarter turns clockwise the text is
+  /// drawn at: 1 for "vert", 3 for "vert270".
+  final Rect _inset;
+  final int _turn;
+
+  /// The length of the longest line, as laid out without wrapping.
+  double get width => paragraphs.fold(0, (w, p) => math.max(w, p.width));
+
+  Offset _toShape(Offset p) => switch (_turn) {
+    1 => Offset(_inset.right - p.dy, _inset.top + p.dx),
+    3 => Offset(_inset.left + p.dy, _inset.bottom - p.dx),
+    _ => p,
+  };
+
+  Offset _fromShape(Offset p) => switch (_turn) {
+    1 => Offset(p.dy - _inset.top, _inset.right - p.dx),
+    3 => Offset(_inset.bottom - p.dy, p.dx - _inset.left),
+    _ => p,
+  };
+
+  Rect _rectToShape(Rect r) => _turn == 0 ? r : Rect.fromPoints(_toShape(r.topLeft), _toShape(r.bottomRight));
 
   /// The height of the text.
   final double height;
@@ -154,9 +189,16 @@ class TextFrame {
   int get length => paragraphs.fold(0, (n, p) => n + p.length + 1);
 
   void paint(Canvas canvas) {
+    if (_turn != 0) {
+      canvas.save();
+      final corner = _toShape(Offset.zero);
+      canvas.translate(corner.dx, corner.dy);
+      canvas.rotate(_turn * math.pi / 2);
+    }
     for (final p in paragraphs) {
       p.paint(canvas, Offset(box.left, _top + p.top));
     }
+    if (_turn != 0) canvas.restore();
   }
 
   /// The paragraph holding an offset of the flow, the mark ending it
@@ -169,7 +211,9 @@ class TextFrame {
   }
 
   /// The offset of the flow nearest to a point.
-  int offsetAt(Offset point) {
+  int offsetAt(Offset point) => _offsetAt(_fromShape(point));
+
+  int _offsetAt(Offset point) {
     var p = paragraphs.first;
     for (final q in paragraphs) {
       if (point.dy >= _top + q.top - q.spaceBefore) p = q;
@@ -177,8 +221,11 @@ class TextFrame {
     return p.start + p.offsetAt(point - Offset(box.left, _top + p.top));
   }
 
-  /// The caret before an offset of the flow.
-  Rect caretAt(int offset) {
+  /// The caret before an offset of the flow: a rectangle of no width, or
+  /// of no height in vertical text.
+  Rect caretAt(int offset) => _rectToShape(_caretAt(offset));
+
+  Rect _caretAt(int offset) {
     final p = paragraphAt(offset);
     return p.caretAt(offset - p.start).shift(Offset(box.left, _top + p.top));
   }
@@ -190,14 +237,19 @@ class TextFrame {
     return (p.start + start, p.start + end);
   }
 
+  /// Where the caret at an offset is along its line, which a move to the
+  /// line above or below keeps.
+  double lineX(int offset) => _caretAt(offset).left;
+
   /// The offset a line above (negative [lines]) or below the one at
-  /// [offset], at the same distance from the left, or [x] when given.
+  /// [offset], at the same distance from the start of the line, or [x]
+  /// when given.
   int verticalMove(int offset, int lines, {double? x}) {
-    final caret = caretAt(offset);
+    final caret = _caretAt(offset);
     final target = Offset(x ?? caret.left, caret.center.dy + lines * caret.height);
     if (target.dy < _top) return 0;
     if (target.dy > _top + height) return length - 1;
-    return offsetAt(target);
+    return _offsetAt(target);
   }
 
   /// The boxes of a range of the flow.
@@ -207,7 +259,7 @@ class TextFrame {
       final from = math.max(start, p.start), to = math.min(end, p.start + p.length + 1);
       if (from >= to) continue;
       final origin = Offset(box.left, _top + p.top);
-      out.addAll(p.selection(from - p.start, to - p.start).map((r) => r.shift(origin)));
+      out.addAll(p.selection(from - p.start, to - p.start).map((r) => _rectToShape(r.shift(origin))));
     }
     return out;
   }
@@ -306,6 +358,7 @@ class ParagraphLayout {
     this._x,
     this._bulletX,
     this.height,
+    this.width,
     this.spaceBefore,
     this.spaceAfter,
   );
@@ -392,6 +445,7 @@ class ParagraphLayout {
       textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
       strutStyle: exact > 0 ? StrutStyle(fontSize: exact, height: 1, forceStrutHeight: true) : null,
     )..layout(maxWidth: wrap ? available : double.infinity);
+    final extent = textX + painter.width + marR;
     if (!wrap) {
       final slack = available - painter.width;
       textX += switch (align) {
@@ -418,6 +472,7 @@ class ParagraphLayout {
       textX,
       bulletX,
       painter.height,
+      extent,
       first ? 0 : space('spcBef'),
       space('spcAft'),
     );
@@ -433,6 +488,11 @@ class ParagraphLayout {
   final double _x;
   final double _bulletX;
   final double height;
+
+  /// Where its longest line ends, its margins included, as laid out from
+  /// the start of the line.
+  final double width;
+
   final double spaceBefore;
   final double spaceAfter;
 

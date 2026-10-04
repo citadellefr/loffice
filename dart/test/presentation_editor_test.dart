@@ -193,6 +193,17 @@ void main() {
     final first = hub.doc.children(hub.doc.children(frame.id).first.id).first;
     expect((first.attributes['lnT']! as Map<String, Object?>)['w'], 12700);
     expect(first.attributes['lnR'], isNull);
+
+    await tester.tap(find.text('Disposition'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Orientation du texte').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Rotation de 270° de tout le texte'));
+    await settle(tester);
+    await tester.tap(find.byTooltip('Aligner en bas').first);
+    await settle(tester);
+    final all = [for (final r in hub.doc.children(frame.id)) ...hub.doc.children(r.id)];
+    expect(all.where((c) => c.attributes['hMerge'] != true && c.attributes['vMerge'] != true).every((c) => c.attributes['vert'] == 'vert270' && c.attributes['anchor'] == 'b'), isTrue);
     await finish(tester);
   });
 

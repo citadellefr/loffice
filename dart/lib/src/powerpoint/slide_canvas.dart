@@ -683,7 +683,7 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
         return true;
       case LogicalKeyboardKey.arrowUp || LogicalKeyboardKey.arrowDown:
         if (frame == null) return true;
-        _goalX ??= frame.caretAt(s.extent).left;
+        _goalX ??= frame.lineX(s.extent);
         caret(frame.verticalMove(s.extent, key == LogicalKeyboardKey.arrowUp ? -1 : 1, x: _goalX), keepGoal: true);
         return true;
       case LogicalKeyboardKey.home:
@@ -1011,7 +1011,7 @@ class _CanvasPainter extends CustomPainter {
         canvas.drawRect(r, Paint()..color = color.withValues(alpha: 0.25));
       }
       final caret = frame.caretAt(s.extent);
-      canvas.drawRect(Rect.fromLTWH(caret.left - 0.75 / scale, caret.top, 1.5 / scale, caret.height), Paint()..color = color);
+      canvas.drawRect(_bar(caret, 1.5 / scale), Paint()..color = color);
       final label = TextPainter(
         text: TextSpan(text: peer.name, style: TextStyle(fontSize: 10 / scale, color: Colors.white)),
         textDirection: TextDirection.ltr,
@@ -1034,7 +1034,7 @@ class _CanvasPainter extends CustomPainter {
         }
         if (selection.collapsed && state._caretOn) {
           final c = frame.caretAt(selection.extent);
-          canvas.drawRect(Rect.fromLTWH(c.left - 0.5 / scale, c.top, 1.2 / scale, c.height), Paint()..color = Colors.black);
+          canvas.drawRect(_bar(c, 1.2 / scale), Paint()..color = Colors.black);
         }
         canvas.restore();
       }
@@ -1113,6 +1113,12 @@ class _CanvasPainter extends CustomPainter {
     }
     canvas.restore();
   }
+
+  /// A caret drawn [width] thick, across the line of the text: upright in
+  /// a horizontal text, lying in a vertical one.
+  Rect _bar(Rect caret, double width) => caret.width == 0
+      ? Rect.fromLTWH(caret.left - width / 2, caret.top, width, caret.height)
+      : Rect.fromLTWH(caret.left, caret.top - width / 2, caret.width, width);
 
   void _dashed(Canvas canvas, Rect r, Color color, double width) {
     final paint = Paint()

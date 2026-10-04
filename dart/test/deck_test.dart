@@ -4,9 +4,11 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:loffice/src/drawing/color.dart';
 import 'package:loffice/src/drawing/paint.dart';
 import 'package:loffice/src/powerpoint/deck.dart';
 import 'package:loffice/src/powerpoint/slide_painter.dart';
+import 'package:loffice/src/text/text_frame.dart';
 import 'package:trame/trame.dart';
 
 Deck _fixture(String name) {
@@ -90,6 +92,47 @@ void main() {
     final again = painter.tableOf(frame)!;
     expect(again, isNot(same(table)));
     expect(again.cells[cell.id]!.text.length, cell.text!.length + 7);
+  });
+
+  test('vertical text runs down the box, its lines from right to left', () {
+    final flow = Delta([const Op.insert('Un texte assez long pour tenir sur plusieurs lignes\n')]);
+    TextFrame layout(String vert) => TextFrame.layout(
+      flow,
+      box: const Rect.fromLTWH(0, 0, 60, 200),
+      body: {'vert': vert},
+      levels: (_) => const {'sz': '1200'},
+      colors: const ColorContext(),
+    );
+    final down = layout('vert'), up = layout('vert270');
+    // across the 200 points of the box: few lines, which stack leftward
+    expect(down.box.width, closeTo(200 - 7.2, 1e-9));
+    expect(down.box.height, closeTo(60 - 14.4, 1e-9));
+    final first = down.caretAt(0), last = down.caretAt(flow.length - 1);
+    expect(first.height, 0);
+    expect(first.width, greaterThan(0));
+    expect(first.right, closeTo(60 - 7.2, 1));
+    expect(last.left, lessThan(first.left));
+    expect(up.caretAt(0).left, closeTo(7.2, 1));
+    for (final frame in [down, up]) {
+      for (var i = 0; i < flow.length; i += 7) {
+        final caret = frame.caretAt(i);
+        final across = frame == down ? const Offset(0, 0.1) : const Offset(0, -0.1);
+        expect(frame.offsetAt(caret.center + across), i, reason: 'offset $i at $caret');
+      }
+    }
+  });
+
+  test('a cell of vertical text is as high as its line is long', () {
+    final deck = _fixture('tbl-cell');
+    final painter = SlidePainter(deck);
+    final frame = deck.tree['s257-2']!;
+    final before = painter.tableOf(frame)!;
+    final cell = deck.tree['s257-2-r2-c1']!;
+    deck.tree.apply(Edit([Change.set(cell.id, attributes: {'vert': 'vert270'})]));
+    final after = painter.tableOf(frame)!;
+    final text = after.cells[cell.id]!.text;
+    expect(after.rows[2] - after.rows[1], greaterThan(before.rows[2] - before.rows[1]));
+    expect(text.caretAt(0).height, 0);
   });
 
   test('paints every slide of the fixtures', () {

@@ -33,6 +33,15 @@
   across an outer edge taking the line on their side. Filling or
   outlining a table selected goes to its cells, where the server took
   neither for the table itself.
+- `pptx` gives a cell "vert", the direction of its text, and writes it
+  back.
+- Dart: vertical text ("vert", "vert270", and East Asian and Mongolian
+  vertical text as "vert") is drawn turned a quarter, in shapes and cells,
+  and edited as drawn: clicks, carets and selections. A cell of vertical
+  text is as high as its longest line. Text Direction, in Home >
+  Paragraph and in the Layout tab, turns the text of shapes and cells;
+  the Layout tab aligns the text of cells left, center and right, and to
+  their top, middle and bottom.
 
 ## 0.8.0 — 2026-10-04
 
