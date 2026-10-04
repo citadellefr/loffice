@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+- PowerPoint tables are read, drawn and edited. `pptx` gives a table's
+  frame "tbl" (its style and options) and "grid" (the widths of its
+  columns), and nodes for its rows ("tr", "h") and cells ("tc"): their
+  text as a shape's, their spans and merges, fill, borders, margins and
+  anchor. Rows and cells created or deleted by clients are written back,
+  a row short of the grid's columns filled with empty cells. The deck
+  carries the table styles of the presentation in "tblStyles" and
+  "tblStyleDef", and Office's 74 built-in styles those it names without
+  holding them (`tablestyles.json`, made from the corpus by
+  `go test ./pptx -run BuiltinStyles -update`).
+- Dart: tables are drawn as PowerPoint lays them out, rows growing with
+  their text, cells taking the parts of their style in Office's order;
+  a click in a cell types into it, Tab and Shift+Tab go from cell to
+  cell, Tab in the last adds a row, Escape selects the table. Insert >
+  Table picks the size of a new table; the Layout tab inserts and deletes
+  rows and columns, merged cells growing and shrinking with them, and
+  turns the table style options on and off. The shape fill colors a cell,
+  the outline its borders.
+
 ## 0.8.0 — 2026-10-04
 
 - The hub, `ot` and the Dart session moved to
