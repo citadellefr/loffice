@@ -8,8 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/citadellefr/loffice/ot"
 	"github.com/citadellefr/loffice/pptx"
+	"github.com/citadellefr/trame/ot"
+	"github.com/citadellefr/trame/trametest"
 )
 
 func TestPresentationsAreEditedAndSaved(t *testing.T) {
@@ -17,8 +18,8 @@ func TestPresentationsAreEditedAndSaved(t *testing.T) {
 	if err != nil {
 		t.Skip("no corpus: corpus/fetch.sh")
 	}
-	store := newMemStore()
-	store.data["deck.pptx"] = data
+	store := trametest.NewStore()
+	store.Data["deck.pptx"] = data
 	h := NewHub(store, fastOptions())
 
 	c, _, doc := join(t, h, "deck.pptx", Peer{ID: "1"})
@@ -38,16 +39,16 @@ func TestPresentationsAreEditedAndSaved(t *testing.T) {
 		}
 	}
 
-	c.send(`{"t":"op","n":1,"v":0,"d":[{"o":"txt","id":"` + shape + `","x":[{"i":"Bref "}]}]}`)
-	c.expect("ack")
-	c.send(`{"t":"op","n":2,"v":1,"d":[{"o":"set","id":"L1","a":{"name":"x"}}]}`)
-	if f := c.expect("nack"); f.Error != pptx.ErrReadOnly.Error() {
+	c.Send(`{"t":"op","n":1,"v":0,"d":[{"o":"txt","id":"` + shape + `","x":[{"i":"Bref "}]}]}`)
+	c.Expect("ack")
+	c.Send(`{"t":"op","n":2,"v":1,"d":[{"o":"set","id":"L1","a":{"name":"x"}}]}`)
+	if f := c.Expect("nack"); f.Error != pptx.ErrReadOnly.Error() {
 		t.Fatalf("nack = %+v", f)
 	}
-	<-store.saves
-	c.expect("saved")
+	<-store.Saves
+	c.Expect("saved")
 
-	_, tree, err := pptx.Open([]byte(store.file("deck.pptx")))
+	_, tree, err := pptx.Open([]byte(store.File("deck.pptx")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,5 +63,5 @@ func TestPresentationsAreEditedAndSaved(t *testing.T) {
 	if _, _, err := h.Media(context.Background(), "deck.pptx", "nothing"); !errors.Is(err, ErrNoMedia) {
 		t.Fatalf("unknown media: %v", err)
 	}
-	c.leave()
+	c.Leave()
 }

@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"github.com/citadellefr/loffice/internal/xmldom"
-	"github.com/citadellefr/loffice/ot"
+	"github.com/citadellefr/trame/ot"
 )
 
 // Section is the layout of the pages of a section, in twentieths of a

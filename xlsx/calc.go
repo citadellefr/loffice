@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/citadellefr/loffice/formula"
-	"github.com/citadellefr/loffice/ot"
+	"github.com/citadellefr/trame/ot"
 )
 
 // Calc keeps the formulas of a workbook calculated while it is edited. It

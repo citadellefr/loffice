@@ -1,10 +1,9 @@
 import 'dart:math' as math;
 
 import 'package:flutter/painting.dart';
+import 'package:trame/trame.dart';
 
 import '../drawing/color.dart';
-import '../ot/grid.dart';
-import '../ot/tree.dart';
 import 'conditional.dart';
 import 'formula_text.dart';
 import 'lists.dart';

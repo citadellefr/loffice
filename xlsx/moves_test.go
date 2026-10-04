@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/citadellefr/loffice/opc"
-	"github.com/citadellefr/loffice/ot"
+	"github.com/citadellefr/trame/ot"
 )
 
 // move applies rows or columns inserted or removed as the hub does, the

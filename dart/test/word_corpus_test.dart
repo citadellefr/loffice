@@ -2,12 +2,12 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:loffice/src/ot/tree.dart';
 import 'package:loffice/src/word/blocks.dart';
 import 'package:loffice/src/word/document.dart';
 import 'package:loffice/src/word/edits.dart';
 import 'package:loffice/src/word/layout.dart';
 import 'package:loffice/src/word/paragraph.dart';
+import 'package:trame/trame.dart';
 
 /// Lays out every tree of $LOFFICE_WORD_CORPUS, as the Go package docx dumps
 /// them, and puts a caret in each flow: none may throw.

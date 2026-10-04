@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/citadellefr/loffice/internal/xmldom"
-	"github.com/citadellefr/loffice/ot"
+	"github.com/citadellefr/trame/ot"
 )
 
 // Attributes of tables, rows and cells, each a JSON value; widths are in

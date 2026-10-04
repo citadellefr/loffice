@@ -2,8 +2,8 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/widgets.dart';
+import 'package:trame/trame.dart';
 
-import '../ot/delta.dart';
 import '../text/text_frame.dart';
 import 'document.dart';
 

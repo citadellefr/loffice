@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:loffice/src/ot/delta.dart';
 import 'package:loffice/src/text/editing.dart';
+import 'package:trame/trame.dart';
 
 /// "Un deux\n" in bold then "trois\n", centered and bulleted.
 final _flow = Delta([

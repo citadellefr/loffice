@@ -15,7 +15,7 @@ import (
 	"github.com/citadellefr/loffice/internal/xmldom"
 	"github.com/citadellefr/loffice/internal/xmltok"
 	"github.com/citadellefr/loffice/opc"
-	"github.com/citadellefr/loffice/ot"
+	"github.com/citadellefr/trame/ot"
 )
 
 // Tail are the fields of the columns from From on, up to To.

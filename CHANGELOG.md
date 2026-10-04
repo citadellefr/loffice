@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.8.0 — 2026-10-04
+
+- The hub, `ot` and the Dart session moved to
+  [trame](https://github.com/citadellefr/trame), shared with Bref. The API of
+  `loffice` is unchanged: `Peer`, `Options`, `Store` and the errors are
+  trame's, `Hub` adds `Media` and `AddPicture` to trame's. `ot` is now
+  `github.com/citadellefr/trame/ot`.
+- Dart: `ot` and `DocSession` come from `package:trame`, still exported by
+  `package:loffice/loffice.dart`. The package depends on trame by git and is
+  no longer publishable (`publish_to: none`).
+
 ## 0.7.0 — 2026-10-02
 
 - Renamed L'Office: the module is `github.com/citadellefr/loffice`, its

@@ -10,7 +10,7 @@ import (
 
 	"github.com/citadellefr/loffice/formula"
 	"github.com/citadellefr/loffice/internal/charset"
-	"github.com/citadellefr/loffice/ot"
+	"github.com/citadellefr/trame/ot"
 )
 
 func ansi(s string) string {

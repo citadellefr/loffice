@@ -1,8 +1,7 @@
 import 'dart:ui';
 
-import '../ot/delta.dart';
-import '../ot/tree.dart';
-import '../session.dart';
+import 'package:trame/trame.dart';
+
 import 'deck.dart';
 
 /// The edits the presentation editor makes on the tree of a deck.

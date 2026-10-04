@@ -8,7 +8,7 @@ import (
 
 	"github.com/citadellefr/loffice/formula"
 	"github.com/citadellefr/loffice/internal/xmldom"
-	"github.com/citadellefr/loffice/ot"
+	"github.com/citadellefr/trame/ot"
 )
 
 // worksheetOrder is the order of the children of a worksheet.

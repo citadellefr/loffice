@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/citadellefr/loffice/opc"
-	"github.com/citadellefr/loffice/ot"
+	"github.com/citadellefr/trame/ot"
 )
 
 func workbooks(t *testing.T) []string {

@@ -4,8 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:loffice/loffice.dart';
 import 'package:loffice/src/excel/sheet_view.dart';
-
-import 'fakes.dart';
+import 'package:trame/testing.dart';
 
 Edit workbook({bool csv = false}) => Edit([
   Change.create(Node(id: 'book', type: 'book', key: 'V', attributes: {if (csv) 'csv': true})),

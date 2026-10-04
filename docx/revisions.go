@@ -7,7 +7,7 @@ import (
 	"unicode"
 
 	"github.com/citadellefr/loffice/internal/xmldom"
-	"github.com/citadellefr/loffice/ot"
+	"github.com/citadellefr/trame/ot"
 )
 
 // Tracked changes: text and paragraph marks inserted or deleted carry

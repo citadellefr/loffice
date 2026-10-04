@@ -5,7 +5,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/citadellefr/loffice/internal/xmldom"
-	"github.com/citadellefr/loffice/ot"
+	"github.com/citadellefr/trame/ot"
 )
 
 // Characters of a flow that stand for something other than text.

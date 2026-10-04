@@ -1,8 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:trame/trame.dart';
 
-import '../ot/tree.dart';
 import '../text/text_frame.dart' show Props;
 
 /// The keys of paragraphs in the flows of a Word document, see the Go

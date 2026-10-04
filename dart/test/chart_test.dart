@@ -8,7 +8,7 @@ import 'package:loffice/src/chart/chart.dart';
 import 'package:loffice/src/chart/chart_painter.dart';
 import 'package:loffice/src/chart/scale.dart';
 import 'package:loffice/src/drawing/color.dart';
-import 'package:loffice/src/ot/tree.dart';
+import 'package:trame/trame.dart';
 
 void main() {
   test('value axes take the bounds and steps Excel takes', () {

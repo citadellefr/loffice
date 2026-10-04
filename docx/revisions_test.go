@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/citadellefr/loffice/ot"
+	"github.com/citadellefr/trame/ot"
 )
 
 const revised = `<w:p><w:pPr><w:rPr><w:ins w:id="5" w:author="Alice" w:date="2026-09-01T10:00:00Z"/></w:rPr></w:pPr>` +

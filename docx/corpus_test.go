@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/citadellefr/loffice/opc"
-	"github.com/citadellefr/loffice/ot"
+	"github.com/citadellefr/trame/ot"
 )
 
 func documents(t *testing.T) []string {

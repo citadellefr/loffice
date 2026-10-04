@@ -6,7 +6,7 @@ import (
 
 	"github.com/citadellefr/loffice/internal/partrel"
 	"github.com/citadellefr/loffice/internal/xmldom"
-	"github.com/citadellefr/loffice/ot"
+	"github.com/citadellefr/trame/ot"
 )
 
 // Style is a style of styles.xml, its formatting as the keys of Props for

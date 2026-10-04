@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:trame/trame.dart';
 
 import '../chrome/strings.dart';
-import '../ot/tree.dart';
 import 'deck.dart';
 import 'slide_painter.dart';
 

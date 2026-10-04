@@ -1,6 +1,7 @@
 name: loffice
 description: Collaborative editor for Office documents in Flutter, with real-time co-editing and offline edits. Client of the L'Office Go server.
 version: 0.3.0
+publish_to: none
 repository: https://github.com/citadellefr/loffice
 issue_tracker: https://github.com/citadellefr/loffice/issues
 topics: [office, editor, collaboration, xlsx, websocket]
@@ -13,7 +14,11 @@ dependencies:
   characters: ^1.4.0
   flutter:
     sdk: flutter
-  web_socket_channel: ^3.0.3
+  trame:
+    git:
+      url: https://github.com/citadellefr/trame.git
+      path: dart
+      ref: v0.1.0
 
 dev_dependencies:
   fake_async: ^1.3.0

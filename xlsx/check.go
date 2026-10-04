@@ -9,7 +9,7 @@ import (
 	"unicode/utf16"
 
 	"github.com/citadellefr/loffice/formula"
-	"github.com/citadellefr/loffice/ot"
+	"github.com/citadellefr/trame/ot"
 )
 
 var ErrReadOnly = errors.New("xlsx: this part of the workbook cannot be edited")

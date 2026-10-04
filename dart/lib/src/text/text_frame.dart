@@ -2,10 +2,10 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/painting.dart';
+import 'package:trame/trame.dart';
 
 import '../drawing/color.dart';
 import '../drawing/paint.dart';
-import '../ot/delta.dart';
 
 /// Text properties as the flow's attributes have them, see the Go package
 /// drawingml.

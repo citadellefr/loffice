@@ -17,16 +17,15 @@ license.
   gives back the same document.
 - **The server owns the file.** The Go package reads and writes Office Open
   XML; the Flutter package only ever sees a document model.
-- **Small servers.** No dependency outside the Go standard library, and budgets
-  measured in benchmarks.
+- **Small servers.** No dependency outside the Go standard library and
+  trame, and budgets measured in benchmarks.
 
 ## Packages
 
 | Package | Role |
 |---|---|
-| [`loffice`](.) | The hub: one room per open document, edits rebased and relayed to everyone connected, saves after a pause. Serves Word documents (`.docx`, `.docm`, `.dotx`), presentations (`.pptx`, `.pptm`, `.ppsx`), workbooks (`.xlsx`, `.xlsm`, `.xltx`) and CSV files (`.csv`), whose formulas it calculates, plain text files (`.txt`), and the pictures of documents. |
-| [`dart`](dart) | The Flutter package: the session with the hub, the same `ot` algorithms, and the editors of Word, Excel and PowerPoint documents, Word's with its own page layout. |
-| [`ot`](ot) | Edits and how concurrent edits are reconciled. A document is a tree of nodes (slides, shapes, the body of a text file), each with a type, attributes and possibly text; text is a flow of characters and paragraph marks, changed by deltas. The Dart package runs the same algorithms, checked against shared vectors. |
+| [`loffice`](.) | The hub, [trame](https://github.com/citadellefr/trame)'s: one room per open document, edits rebased and relayed to everyone connected, saves after a pause. Serves Word documents (`.docx`, `.docm`, `.dotx`), presentations (`.pptx`, `.pptm`, `.ppsx`), workbooks (`.xlsx`, `.xlsm`, `.xltx`) and CSV files (`.csv`), whose formulas it calculates, plain text files (`.txt`), and the pictures of documents. |
+| [`dart`](dart) | The Flutter package: the editors of Word, Excel and PowerPoint documents, Word's with its own page layout. |
 | [`drawingml`](drawingml) | The DrawingML of all three formats: colors, fills, lines, geometries, positions and text bodies, read as JSON and text flows, written back as patches of the XML they came from. |
 | [`pptx`](pptx) | Presentations as trees: masters, layouts, slides, shapes and notes. Only what changed is written back; a copied shape keeps its pictures and links. |
 | [`xlsx`](xlsx) | Workbooks as trees: sheets, grids of cells and cell formats. Only the sheets that changed are written back; what the file keeps as XML moves with the rows and columns inserted and removed. CSV files are read as workbooks of one sheet and written back as they were read. |
@@ -41,34 +40,10 @@ license.
 
 ## Protocol
 
-A client connects over a WebSocket the host application has authorized, and
-exchanges JSON frames with the hub:
-
-| From | Frame | Meaning |
-|---|---|---|
-| hub | `hello` | who the client is (`sid`), who else is there, which stay in memory of the document (`epoch`) |
-| client | `sync` | the `epoch` and revision `v` of the document it holds, if any |
-| hub | `doc` | the whole document at revision `v`, as the edit `d` that creates its nodes, and `ack`, the last edit of this client applied |
-| hub | `op`, `ack` … `ready` | or else the edits it missed since `v`, its own acknowledged |
-| client | `op` | an edit `d`, numbered `n`, made on revision `v` |
-| hub | `op` | someone's edit, rebased, with the revision `v` it made |
-| hub | `ack`, `nack` | the client's edit `n` applied as revision `v`, or refused and why |
-| both | `eph` | cursors and selections, relayed as they are |
-| hub | `join`, `leave`, `saved`, `error` | people coming and going, saves and why one failed |
-
-An edit is a list of changes applied together:
-
-```json
-[{"o":"new","id":"s2","t":"slide","k":"V","a":{"hidden":true}},
- {"o":"set","id":"s1","k":"F","a":{"hidden":null}},
- {"o":"txt","id":"title","x":[{"r":5},{"i":"!"}]},
- {"o":"del","id":"s3"}]
-```
-
-Nodes are ordered among their siblings by key (`k`), then id. A change to a
-node that no longer exists does nothing, and an id is never used again once
-its node is deleted. A client keeps one edit in flight and holds the next ones
-until it is acknowledged.
+Edits and how they are reconciled are those of
+[trame](https://github.com/citadellefr/trame#protocol), which also holds the
+session of the Dart package. A document is a tree of nodes; what each format
+makes of its file is described by the package that reads it.
 
 ## Tests
 
@@ -76,8 +51,7 @@ until it is acknowledged.
 corpus/fetch.sh   # test files from Apache POI, LibreOffice, python-docx and python-pptx
 go test -race -short ./...        # without the corpus
 go test ./...
-go test ./ot -run Vectors -update   # after changing the ot algorithms
-(cd dart && flutter test)          # replays the same vectors
+(cd dart && flutter test)
 go test ./opc -run '^$' -fuzz FuzzOpen
 go test ./internal/xmltok -run '^$' -fuzz FuzzSameAsEncodingXML
 ```

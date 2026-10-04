@@ -2,9 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-
-import 'ot/tree.dart';
-import 'session.dart';
+import 'package:trame/trame.dart';
 
 /// A plain text editor of the text of [node] in a [DocSession], one line per
 /// paragraph, where the selections of others show in the theme's accent.

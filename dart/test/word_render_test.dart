@@ -3,12 +3,12 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:loffice/src/ot/tree.dart';
 import 'package:loffice/src/word/blocks.dart';
 import 'package:loffice/src/word/document.dart';
 import 'package:loffice/src/word/layout.dart';
 import 'package:loffice/src/word/page_painter.dart';
 import 'package:loffice/src/word/paragraph.dart';
+import 'package:trame/trame.dart';
 
 import 'fonts.dart';
 

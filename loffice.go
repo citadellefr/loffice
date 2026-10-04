@@ -1,108 +1,78 @@
-// Package loffice is the server half of a collaborative document editor. It
-// keeps every open document in memory, orders the edits of the people
-// connected to it, relays their cursors and saves the document through a
-// Store.
-//
-// Edits are operational transforms (package ot): a client sends an edit
-// with the revision it was made on, the hub rebases it over the edits
-// received since, applies it and hands it to everyone with the next
-// revision. Clients show their own edits at once and rebase them over what
-// arrives, so nobody waits for the server and everybody converges.
+// Package loffice serves Word, Excel and PowerPoint documents, CSV and plain
+// text files to collaborative editors. The hub is trame's: this package is
+// the format that reads those files into documents, checks their edits,
+// calculates their formulas and writes them back.
 package loffice
 
 import (
 	"context"
 	"errors"
-	"time"
+
+	"github.com/citadellefr/trame"
 )
 
-// Conn is the part of a WebSocket connection the hub uses. The Conn types of
-// github.com/gorilla/websocket and github.com/fasthttp/websocket satisfy it.
-type Conn interface {
-	ReadMessage() (messageType int, p []byte, err error)
-	WriteMessage(messageType int, data []byte) error
-	WriteControl(messageType int, data []byte, deadline time.Time) error
-	SetReadLimit(limit int64)
-	SetReadDeadline(t time.Time) error
-	SetWriteDeadline(t time.Time) error
-	SetPongHandler(h func(appData string) error)
-	Close() error
-}
-
-// Store reads and writes the files behind documents. The key a document is
-// served under ends with the file's extension, which picks its format.
-type Store interface {
-	Load(ctx context.Context, key string) ([]byte, error)
-	Save(ctx context.Context, key string, data []byte) error
-}
-
-// Peer describes the person behind a connection.
-type Peer struct {
-	ID   string
-	Name string
-	// Client names the application instance across reconnections, so that
-	// an edit it sends again after a drop is not applied twice.
-	Client   string
-	ReadOnly bool
-}
-
-// Options tunes a Hub. Zero fields take the defaults.
-type Options struct {
-	// SaveDelay is the quiet time after an edit before the document is saved.
-	SaveDelay time.Duration
-	// SaveMaxDelay bounds how long an edit stays unsaved while edits keep
-	// coming, and spaces the retries of a failed save.
-	SaveMaxDelay time.Duration
-	// MaxLength bounds a document: its nodes and the UTF-16 code units of
-	// their text.
-	MaxLength       int
-	MaxMessageBytes int64
-	// History is how many past edits are kept to rebase late ones and to
-	// catch up a client that reconnects.
-	History int
-	// PresenceRate is how many cursor frames a peer may send per second.
-	PresenceRate int
-}
+type (
+	Conn    = trame.Conn
+	Store   = trame.Store
+	Peer    = trame.Peer
+	Options = trame.Options
+)
 
 // Close codes sent to a client whose connection the hub ends.
 const (
-	CloseLoadFailed = 4000
-	CloseRevoked    = 4001
-	CloseTooSlow    = 4002
-	CloseShutdown   = 4003
+	CloseLoadFailed = trame.CloseLoadFailed
+	CloseRevoked    = trame.CloseRevoked
+	CloseTooSlow    = trame.CloseTooSlow
+	CloseShutdown   = trame.CloseShutdown
 )
 
 var (
-	ErrClosed  = errors.New("loffice: hub closed")
+	ErrClosed = trame.ErrClosed
+	// ErrGone is returned (possibly wrapped) by Store.Save when the file no
+	// longer exists: see trame.ErrGone.
+	ErrGone    = trame.ErrGone
 	ErrNoMedia = errors.New("loffice: no such picture")
 	// ErrPicture is a picture a document does not take: not a PNG, JPEG or
 	// GIF file, too large, or a format without pictures.
 	ErrPicture = errors.New("loffice: this picture cannot be added")
 )
 
-// ErrGone is returned (possibly wrapped) by Store.Save when the file no
-// longer exists, e.g. it was deleted: everyone connected to it is
-// disconnected with the error as the reason, and its unsaved edits dropped.
-var ErrGone = errors.New("loffice: document no longer exists")
+// Hub serves any number of documents. Each one is loaded when its first peer
+// connects and leaves memory once the last one is gone and it is saved. The
+// key a document is served under ends with the file's extension, which
+// picks its format.
+type Hub struct {
+	*trame.Hub
+}
 
-func (o Options) withDefaults() Options {
-	if o.SaveDelay <= 0 {
-		o.SaveDelay = 2 * time.Second
-	}
-	if o.SaveMaxDelay <= 0 {
-		o.SaveMaxDelay = 10 * time.Second
-	}
-	if o.MaxLength <= 0 {
-		o.MaxLength = 16 << 20
-	}
-	if o.MaxMessageBytes <= 0 {
-		o.MaxMessageBytes = 2 << 20
-	}
-	if o.History <= 0 {
-		o.History = 1000
-	}
-	if o.PresenceRate <= 0 {
-		o.PresenceRate = 40
-	}
-	return o
+func NewHub(store Store, opt Options) *Hub {
+	return &Hub{trame.NewHub(store, open, opt)}
+}
+
+// Media is a picture of a document, by the name its nodes give it, and its
+// content type. The document is read if nobody has it open.
+func (h *Hub) Media(ctx context.Context, key, name string) (data []byte, typ string, err error) {
+	err = h.Use(ctx, key, func(f trame.File) error {
+		m, ok := f.(mediaFile)
+		if !ok {
+			return ErrNoMedia
+		}
+		data, typ, err = m.media(name)
+		return err
+	})
+	return data, typ, err
+}
+
+// AddPicture keeps a picture for the drawings of a document, and gives the
+// name a client shows it by. Pictures never travel through the socket.
+func (h *Hub) AddPicture(ctx context.Context, key string, data []byte) (name string, err error) {
+	err = h.Use(ctx, key, func(f trame.File) error {
+		adder, ok := f.(pictureAdder)
+		if !ok {
+			return ErrPicture
+		}
+		name, err = adder.addPicture(data)
+		return err
+	})
+	return name, err
 }

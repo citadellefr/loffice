@@ -4,13 +4,11 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:trame/trame.dart';
 
 import '../chrome/ribbon.dart';
 import '../chrome/strings.dart';
-import '../ot/delta.dart';
-import '../ot/tree.dart';
 import '../powerpoint/slide_painter.dart' show MediaCache, MediaFetcher;
-import '../session.dart';
 import '../text/text_frame.dart' show Fonts, Props;
 import 'blocks.dart';
 import 'comments.dart';

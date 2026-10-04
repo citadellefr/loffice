@@ -14,7 +14,7 @@ import (
 
 	"github.com/citadellefr/loffice/drawingml"
 	"github.com/citadellefr/loffice/internal/xmldom"
-	"github.com/citadellefr/loffice/ot"
+	"github.com/citadellefr/trame/ot"
 )
 
 const NS = "http://schemas.openxmlformats.org/drawingml/2006/chart"

@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/citadellefr/loffice/opc"
-	"github.com/citadellefr/loffice/ot"
+	"github.com/citadellefr/trame/ot"
 )
 
 // withComments is a document of that body with a comment and its answer,

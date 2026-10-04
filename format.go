@@ -9,24 +9,15 @@ import (
 
 	"github.com/citadellefr/loffice/docx"
 	"github.com/citadellefr/loffice/formula"
-	"github.com/citadellefr/loffice/ot"
 	"github.com/citadellefr/loffice/pptx"
 	"github.com/citadellefr/loffice/xlsx"
+	"github.com/citadellefr/trame"
+	"github.com/citadellefr/trame/ot"
 )
 
-// format writes a document back into the kind of file it was read from,
-// tells which edits it can take, and serves its pictures.
-type format interface {
-	check(doc *ot.Tree, e ot.Edit, by Peer) error
-	encode(doc *ot.Tree) ([]byte, error)
+// mediaFile is a document that serves its pictures.
+type mediaFile interface {
 	media(name string) ([]byte, string, error)
-}
-
-// follower is a format that follows an edit with changes of its own,
-// which every peer receives as the server's: the formulas of a workbook
-// calculated again. since are the edits the edit was rebased over.
-type follower interface {
-	follow(doc *ot.Tree, e ot.Edit, since []ot.Edit) ot.Edit
 }
 
 // pictureAdder is a format a client adds pictures to, for its drawings.
@@ -35,8 +26,8 @@ type pictureAdder interface {
 }
 
 // formats read files into documents, by extension; name is the file's.
-var formats = map[string]func(name string, data []byte) (*ot.Tree, format, error){
-	".txt":  openText,
+var formats = map[string]trame.Format{
+	".txt":  trame.Text,
 	".csv":  openCSV,
 	".pptx": openPresentation,
 	".pptm": openPresentation,
@@ -54,7 +45,7 @@ type document struct {
 	doc *docx.Document
 }
 
-func openDocument(_ string, data []byte) (*ot.Tree, format, error) {
+func openDocument(_ string, data []byte) (*ot.Tree, trame.File, error) {
 	doc, tree, err := docx.Open(data)
 	if err != nil {
 		return nil, nil, err
@@ -62,11 +53,11 @@ func openDocument(_ string, data []byte) (*ot.Tree, format, error) {
 	return tree, document{doc}, nil
 }
 
-func (d document) check(doc *ot.Tree, e ot.Edit, by Peer) error {
+func (d document) Check(doc *ot.Tree, e ot.Edit, by Peer) error {
 	return d.doc.Check(doc, e, by.Name)
 }
 
-func (d document) encode(doc *ot.Tree) ([]byte, error) {
+func (d document) Encode(doc *ot.Tree) ([]byte, error) {
 	return d.doc.Save(doc)
 }
 
@@ -91,7 +82,7 @@ type presentation struct {
 	doc *pptx.Document
 }
 
-func openPresentation(_ string, data []byte) (*ot.Tree, format, error) {
+func openPresentation(_ string, data []byte) (*ot.Tree, trame.File, error) {
 	doc, tree, err := pptx.Open(data)
 	if err != nil {
 		return nil, nil, err
@@ -99,11 +90,11 @@ func openPresentation(_ string, data []byte) (*ot.Tree, format, error) {
 	return tree, presentation{doc}, nil
 }
 
-func (p presentation) check(doc *ot.Tree, e ot.Edit, _ Peer) error {
+func (p presentation) Check(doc *ot.Tree, e ot.Edit, _ Peer) error {
 	return p.doc.Check(doc, e)
 }
 
-func (p presentation) encode(doc *ot.Tree) ([]byte, error) {
+func (p presentation) Encode(doc *ot.Tree) ([]byte, error) {
 	return p.doc.Save(doc)
 }
 
@@ -124,7 +115,7 @@ type workbook struct {
 	calc *xlsx.Calc
 }
 
-func openWorkbook(_ string, data []byte) (*ot.Tree, format, error) {
+func openWorkbook(_ string, data []byte) (*ot.Tree, trame.File, error) {
 	doc, tree, err := xlsx.Open(data)
 	if err != nil {
 		return nil, nil, err
@@ -132,7 +123,7 @@ func openWorkbook(_ string, data []byte) (*ot.Tree, format, error) {
 	return tree, &workbook{doc: doc, calc: xlsx.NewCalc(tree, formula.Options{})}, nil
 }
 
-func openCSV(name string, data []byte) (*ot.Tree, format, error) {
+func openCSV(name string, data []byte) (*ot.Tree, trame.File, error) {
 	doc, tree, err := xlsx.OpenCSV(data, name)
 	if err != nil {
 		return nil, nil, err
@@ -140,21 +131,17 @@ func openCSV(name string, data []byte) (*ot.Tree, format, error) {
 	return tree, &workbook{doc: doc, calc: xlsx.NewCalc(tree, formula.Options{})}, nil
 }
 
-func (w *workbook) check(doc *ot.Tree, e ot.Edit, _ Peer) error {
+func (w *workbook) Check(doc *ot.Tree, e ot.Edit, _ Peer) error {
 	return w.doc.Check(doc, e)
 }
 
-func (w *workbook) encode(doc *ot.Tree) ([]byte, error) {
+func (w *workbook) Encode(doc *ot.Tree) ([]byte, error) {
 	return w.doc.Save(doc)
 }
 
-func (w *workbook) media(string) ([]byte, string, error) {
-	return nil, "", ErrNoMedia
-}
-
-// follow calculates again what the edit reaches. A failure of the
+// Follow calculates again what the edit reaches. A failure of the
 // calculation leaves the values as they are rather than the hub down.
-func (w *workbook) follow(doc *ot.Tree, e ot.Edit, since []ot.Edit) (out ot.Edit) {
+func (w *workbook) Follow(doc *ot.Tree, e ot.Edit, since []ot.Edit) (out ot.Edit) {
 	defer func() {
 		if recover() != nil {
 			out = nil
@@ -179,7 +166,7 @@ func (w *workbook) follow(doc *ot.Tree, e ot.Edit, since []ot.Edit) (out ot.Edit
 
 // open reads a file into a document, in the format its key's extension
 // names.
-func open(key string, data []byte) (*ot.Tree, format, error) {
+func open(key string, data []byte) (*ot.Tree, trame.File, error) {
 	ext := strings.ToLower(path.Ext(key))
 	read := formats[ext]
 	if read == nil {

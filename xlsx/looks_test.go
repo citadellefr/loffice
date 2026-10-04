@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/citadellefr/loffice/formula"
-	"github.com/citadellefr/loffice/ot"
+	"github.com/citadellefr/trame/ot"
 )
 
 func looksTree(t *testing.T) (*ot.Tree, *Calc) {

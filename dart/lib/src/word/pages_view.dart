@@ -4,10 +4,8 @@ import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:trame/trame.dart';
 
-import '../ot/delta.dart';
-import '../ot/tree.dart';
-import '../session.dart';
 import 'edits.dart';
 import 'layout.dart';
 import 'page_painter.dart';

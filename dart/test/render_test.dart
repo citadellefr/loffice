@@ -4,9 +4,9 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:loffice/src/ot/tree.dart';
 import 'package:loffice/src/powerpoint/deck.dart';
 import 'package:loffice/src/powerpoint/slide_painter.dart';
+import 'package:trame/trame.dart';
 
 import 'fonts.dart';
 

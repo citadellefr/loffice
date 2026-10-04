@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/citadellefr/loffice/internal/xmldom"
-	"github.com/citadellefr/loffice/ot"
+	"github.com/citadellefr/trame/ot"
 )
 
 const typeStyles = "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"

@@ -9,7 +9,8 @@ import (
 	"testing"
 
 	"github.com/citadellefr/loffice/docx"
-	"github.com/citadellefr/loffice/ot"
+	"github.com/citadellefr/trame/ot"
+	"github.com/citadellefr/trame/trametest"
 )
 
 func TestDocumentsAreEditedAndSaved(t *testing.T) {
@@ -17,8 +18,8 @@ func TestDocumentsAreEditedAndSaved(t *testing.T) {
 	if err != nil {
 		t.Skip("no corpus: corpus/fetch.sh")
 	}
-	store := newMemStore()
-	store.data["letter.docx"] = data
+	store := trametest.NewStore()
+	store.Data["letter.docx"] = data
 	h := NewHub(store, fastOptions())
 
 	c, _, doc := join(t, h, "letter.docx", Peer{ID: "1"})
@@ -39,16 +40,16 @@ func TestDocumentsAreEditedAndSaved(t *testing.T) {
 		}
 	}
 
-	c.send(`{"t":"op","n":1,"v":0,"d":[{"o":"txt","id":"` + text + `","x":[{"i":"Bref ","a":{"b":"1"}}]}]}`)
-	c.expect("ack")
-	c.send(`{"t":"op","n":2,"v":1,"d":[{"o":"set","id":"doc","a":{"styles":{}}}]}`)
-	if f := c.expect("nack"); f.Error != docx.ErrReadOnly.Error() {
+	c.Send(`{"t":"op","n":1,"v":0,"d":[{"o":"txt","id":"` + text + `","x":[{"i":"Bref ","a":{"b":"1"}}]}]}`)
+	c.Expect("ack")
+	c.Send(`{"t":"op","n":2,"v":1,"d":[{"o":"set","id":"doc","a":{"styles":{}}}]}`)
+	if f := c.Expect("nack"); f.Error != docx.ErrReadOnly.Error() {
 		t.Fatalf("nack = %+v", f)
 	}
-	<-store.saves
-	c.expect("saved")
+	<-store.Saves
+	c.Expect("saved")
 
-	_, tree, err := docx.Open([]byte(store.file("letter.docx")))
+	_, tree, err := docx.Open([]byte(store.File("letter.docx")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,5 +67,5 @@ func TestDocumentsAreEditedAndSaved(t *testing.T) {
 	if err != nil || len(picture) == 0 || !strings.HasPrefix(typ, "image/") {
 		t.Fatalf("media %q: %d bytes, %q, %v", media, len(picture), typ, err)
 	}
-	c.leave()
+	c.Leave()
 }

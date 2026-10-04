@@ -1,5 +1,5 @@
-import '../ot/grid.dart';
-import '../ot/tree.dart';
+import 'package:trame/trame.dart';
+
 import 'number_format.dart';
 import 'workbook.dart';
 

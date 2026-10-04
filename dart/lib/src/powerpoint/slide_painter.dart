@@ -3,14 +3,13 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
+import 'package:trame/trame.dart';
 
 import '../chart/chart.dart';
 import '../chart/chart_painter.dart';
 import '../drawing/color.dart';
 import '../drawing/geometry.dart';
 import '../drawing/paint.dart';
-import '../ot/delta.dart';
-import '../ot/tree.dart';
 import '../text/text_frame.dart';
 import 'deck.dart';
 

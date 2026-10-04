@@ -1,12 +1,11 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:loffice/src/ot/delta.dart';
-import 'package:loffice/src/ot/tree.dart';
 import 'package:loffice/src/word/blocks.dart';
 import 'package:loffice/src/word/document.dart';
 import 'package:loffice/src/word/layout.dart';
 import 'package:loffice/src/word/paragraph.dart';
+import 'package:trame/trame.dart';
 
 /// How long laying out a long document takes, at first and after a
 /// keystroke: a measure, not a test, run when $LOFFICE_BENCH is set.

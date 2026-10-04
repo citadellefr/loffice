@@ -7,8 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:loffice/loffice.dart';
 import 'package:loffice/src/word/document.dart';
 import 'package:loffice/src/word/edits.dart';
-
-import 'fakes.dart';
+import 'package:trame/testing.dart';
 
 void main() {
   late FakeHub hub;

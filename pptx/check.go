@@ -4,7 +4,7 @@ import (
 	"errors"
 
 	"github.com/citadellefr/loffice/internal/partrel"
-	"github.com/citadellefr/loffice/ot"
+	"github.com/citadellefr/trame/ot"
 )
 
 var (

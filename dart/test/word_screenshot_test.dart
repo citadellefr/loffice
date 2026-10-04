@@ -7,8 +7,8 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:loffice/loffice.dart';
+import 'package:trame/testing.dart';
 
-import 'fakes.dart';
 import 'fonts.dart';
 
 /// The Word editor on a fixture of testdata/docx, drawn into

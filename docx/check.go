@@ -9,7 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/citadellefr/loffice/internal/partrel"
-	"github.com/citadellefr/loffice/ot"
+	"github.com/citadellefr/trame/ot"
 )
 
 var (

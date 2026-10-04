@@ -8,7 +8,7 @@ import (
 
 	"github.com/citadellefr/loffice/formula"
 	"github.com/citadellefr/loffice/opc"
-	"github.com/citadellefr/loffice/ot"
+	"github.com/citadellefr/trame/ot"
 )
 
 func openCorpus(t *testing.T, name string) (*Document, *ot.Tree) {

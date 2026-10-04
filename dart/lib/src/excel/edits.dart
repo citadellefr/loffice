@@ -1,8 +1,7 @@
 import 'dart:convert';
 
-import '../ot/grid.dart';
-import '../ot/tree.dart';
-import '../session.dart';
+import 'package:trame/trame.dart';
+
 import 'workbook.dart';
 
 /// A change made to the format of a cell, at [row] and [col] of the area

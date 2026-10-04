@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/citadellefr/loffice/ot"
+	"github.com/citadellefr/trame/ot"
 )
 
 // BenchmarkOpenLarge opens a sheet of 100 000 rows and 20 columns, half

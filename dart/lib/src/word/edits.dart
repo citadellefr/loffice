@@ -1,10 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:trame/trame.dart';
 
-import '../ot/delta.dart';
-import '../ot/tree.dart';
-import '../session.dart';
 import '../text/editing.dart';
 import 'document.dart';
 import 'layout.dart';

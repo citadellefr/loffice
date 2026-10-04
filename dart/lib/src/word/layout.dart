@@ -1,9 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:flutter/painting.dart';
+import 'package:trame/trame.dart';
 
-import '../ot/delta.dart';
-import '../ot/tree.dart';
 import 'blocks.dart';
 import 'document.dart';
 import 'paragraph.dart';

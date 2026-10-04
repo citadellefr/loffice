@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/citadellefr/loffice/formula"
-	"github.com/citadellefr/loffice/ot"
+	"github.com/citadellefr/trame/ot"
 )
 
 // looksType is the node under a sheet whose grid holds the looks its

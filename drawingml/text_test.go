@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/citadellefr/loffice/internal/xmldom"
-	"github.com/citadellefr/loffice/ot"
+	"github.com/citadellefr/trame/ot"
 )
 
 const body = `<p:txBody xmlns:a="` + NS + `" xmlns:p="urn:p"><a:bodyPr/><a:lstStyle/>` +

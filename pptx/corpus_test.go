@@ -12,7 +12,7 @@ import (
 	"github.com/citadellefr/loffice/internal/xmlcanon"
 	"github.com/citadellefr/loffice/internal/xmldom"
 	"github.com/citadellefr/loffice/opc"
-	"github.com/citadellefr/loffice/ot"
+	"github.com/citadellefr/trame/ot"
 )
 
 func presentations(t *testing.T) []string {

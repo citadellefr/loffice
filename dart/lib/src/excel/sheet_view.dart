@@ -3,9 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:trame/trame.dart';
 
-import '../ot/grid.dart';
-import '../ot/tree.dart';
 import 'charts.dart';
 import 'conditional.dart';
 import 'filter.dart';

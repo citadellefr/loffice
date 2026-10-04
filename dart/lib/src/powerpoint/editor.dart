@@ -3,14 +3,12 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:trame/trame.dart';
 
 import '../chrome/ribbon.dart';
 import '../chrome/strings.dart';
 import '../drawing/geometry.dart';
-import '../ot/delta.dart';
-import '../ot/tree.dart';
 import '../plain_text_editor.dart';
-import '../session.dart';
 import '../text/editing.dart';
 import '../text/text_frame.dart';
 import 'deck.dart';

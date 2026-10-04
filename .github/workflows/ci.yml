@@ -52,8 +52,8 @@ jobs:
       - run: LOFFICE_EDITED=$RUNNER_TEMP/docx-edited go test ./docx -run CorpusEdit
       - run: LOFFICE_EDITED=1 dotnet run --project tools/validate -c Release -- corpus/files $RUNNER_TEMP/docx-edited
 
-  # The targets of the plan, measured: relaying a keystroke, calculating
-  # 10 000 dependents again, opening a sheet of 100 000 × 20.
+  # The targets of the plan, measured: calculating 10 000 dependents
+  # again, opening a sheet of 100 000 × 20. Relaying a keystroke is trame's.
   bench:
     runs-on: ubuntu-latest
     steps:
@@ -61,7 +61,6 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - run: go test -run '^$' -bench Relay .
       - run: go test -run '^$' -bench 'Recalc|Follow|OpenLarge' -benchtime 5x ./formula ./xlsx
 
   flutter:

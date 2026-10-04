@@ -1,7 +1,8 @@
 import 'dart:ui';
 
+import 'package:trame/trame.dart';
+
 import '../drawing/color.dart';
-import '../ot/tree.dart';
 import '../text/text_frame.dart';
 
 /// EMU in a point: the positions and sizes of a document are in EMU,

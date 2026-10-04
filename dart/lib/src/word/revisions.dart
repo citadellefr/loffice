@@ -1,5 +1,4 @@
-import '../ot/delta.dart';
-import '../ot/tree.dart';
+import 'package:trame/trame.dart';
 
 /// The keys of tracked changes: who inserted or deleted text, and when.
 const revisionKeys = {'ins', 'insd', 'del', 'deld'};

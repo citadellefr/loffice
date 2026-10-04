@@ -15,7 +15,7 @@ import (
 
 	"github.com/citadellefr/loffice/formula"
 	"github.com/citadellefr/loffice/internal/charset"
-	"github.com/citadellefr/loffice/ot"
+	"github.com/citadellefr/trame/ot"
 )
 
 // CSV is a file of values separated by semicolons, commas or tabs, read as

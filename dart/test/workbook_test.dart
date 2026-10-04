@@ -6,8 +6,7 @@ import 'package:loffice/src/excel/conditional.dart';
 import 'package:loffice/src/excel/input.dart';
 import 'package:loffice/src/excel/number_format.dart';
 import 'package:loffice/src/excel/workbook.dart';
-import 'package:loffice/src/ot/grid.dart';
-import 'package:loffice/src/ot/tree.dart';
+import 'package:trame/trame.dart';
 
 Tree book(List<Cell> cells, {Map<String, Object?> attributes = const {}}) => Tree.fromEdit(Edit([
   Change.create(const Node(id: 'book', type: 'book', key: 'V', attributes: {

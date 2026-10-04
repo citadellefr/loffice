@@ -1,7 +1,5 @@
-import '../ot/delta.dart';
-import '../ot/diff.dart';
-import '../ot/tree.dart';
-import '../session.dart';
+import 'package:trame/trame.dart';
+
 import 'edits.dart';
 
 /// A comment of a Word document: a "comment" node under "doc", its blocks

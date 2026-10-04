@@ -3,13 +3,11 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:trame/trame.dart';
 
 import '../chart/chart.dart';
 import '../chrome/ribbon.dart';
 import '../chrome/strings.dart';
-import '../ot/grid.dart';
-import '../ot/tree.dart';
-import '../session.dart';
 import 'charts.dart';
 import 'edits.dart';
 import 'filter.dart';

@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/citadellefr/loffice/internal/xmldom"
-	"github.com/citadellefr/loffice/ot"
+	"github.com/citadellefr/trame/ot"
 )
 
 // workbook writes the list of sheets, the names defined, the active

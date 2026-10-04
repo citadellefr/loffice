@@ -1,6 +1,6 @@
 import 'package:characters/characters.dart';
+import 'package:trame/trame.dart';
 
-import '../ot/delta.dart';
 import 'text_frame.dart';
 
 /// The keys of a kind of flow: those of paragraphs, those a mark keeps to

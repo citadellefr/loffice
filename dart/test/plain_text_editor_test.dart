@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:loffice/loffice.dart';
-
-import 'fakes.dart';
+import 'package:trame/testing.dart';
 
 void main() {
   late FakeHub hub;

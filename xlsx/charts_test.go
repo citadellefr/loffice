@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/citadellefr/loffice/formula"
-	"github.com/citadellefr/loffice/ot"
+	"github.com/citadellefr/trame/ot"
 )
 
 func TestChartsFollow(t *testing.T) {

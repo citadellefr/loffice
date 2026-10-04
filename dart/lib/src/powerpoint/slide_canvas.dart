@@ -4,11 +4,9 @@ import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:trame/trame.dart';
 
 import '../chrome/strings.dart';
-import '../ot/delta.dart';
-import '../ot/tree.dart';
-import '../session.dart';
 import '../text/editing.dart';
 import 'deck.dart';
 import 'edits.dart';
