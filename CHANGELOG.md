@@ -42,6 +42,13 @@
   Paragraph and in the Layout tab, turns the text of shapes and cells;
   the Layout tab aligns the text of cells left, center and right, and to
   their top, middle and bottom.
+- Dart: a click on a group selected, or on another shape of the group
+  whose shape is selected, selects the shape of the group under it, which
+  then moves, resizes, rotates and nudges in its group, and takes text
+  typed; the group is outlined around it. Its order among the shapes of
+  the group changes as on a slide.
+- Fixed: shapes moved or resized with the mouse went back where they were
+  when the button was released; only rotations were kept (since 0.2.0).
 
 ## 0.8.0 — 2026-10-04
 

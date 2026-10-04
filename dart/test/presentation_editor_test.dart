@@ -90,6 +90,66 @@ void main() {
     await finish(tester);
   });
 
+  testWidgets('moves a picture with the mouse, then resizes it by a corner', (tester) async {
+    await open(tester, 'shp-shapes');
+    final deck = Deck(hub.doc);
+    final painter = SlidePainter(deck);
+    final rect = tester.getRect(find.byType(SlideCanvas));
+    final scale = math.min((rect.width - 48) / deck.size.width, (rect.height - 48) / deck.size.height);
+    final origin = rect.topLeft + Offset((rect.width - deck.size.width * scale) / 2, (rect.height - deck.size.height * scale) / 2);
+    final pic = hub.doc['s256-6']!;
+    final at = origin + painter.transformOf(pic).apply(painter.sizeOf(pic)!.center(Offset.zero)) * scale;
+    Map<String, Object?> xfrm() => hub.doc['s256-6']!.attributes['xfrm']! as Map<String, Object?>;
+
+    var drag = await tester.startGesture(at);
+    await drag.moveTo(at - const Offset(30, 20) * scale);
+    await drag.up();
+    await settle(tester);
+    expect(xfrm()['x'], 7164288 - 30 * emuPerPoint);
+    expect(xfrm()['y'], 5949280 - 20 * emuPerPoint);
+
+    final corner = origin + painter.transformOf(hub.doc['s256-6']!).apply(painter.sizeOf(pic)!.bottomRight(Offset.zero)) * scale;
+    drag = await tester.startGesture(corner);
+    await drag.moveTo(corner + const Offset(10, 10) * scale);
+    await drag.up();
+    await settle(tester);
+    expect(xfrm()['w'], closeTo(1778000 + 10 * emuPerPoint, 1));
+    expect(xfrm()['h'], closeTo(711200 + 10 * emuPerPoint, 1));
+    await finish(tester);
+  });
+
+  testWidgets('a second click goes into a group, whose shape then moves in it', (tester) async {
+    await open(tester, 'shp-shapes');
+    final rect = tester.getRect(find.byType(SlideCanvas));
+    await tester.tapAt(rect.topLeft + const Offset(4, 4));
+    await tester.sendKeyEvent(LogicalKeyboardKey.pageDown);
+    await tester.pump();
+    expect(find.text('Diapositive 2 sur 2'), findsOneWidget);
+    final deck = Deck(hub.doc);
+    final painter = SlidePainter(deck);
+    final scale = math.min((rect.width - 48) / deck.size.width, (rect.height - 48) / deck.size.height);
+    final origin = rect.topLeft + Offset((rect.width - deck.size.width * scale) / 2, (rect.height - deck.size.height * scale) / 2);
+    final child = hub.doc['s257-3']!;
+    final group = Map.of(hub.doc['s257-5']!.attributes['xfrm']! as Map<String, Object?>);
+    final at = origin + painter.transformOf(child).apply(painter.sizeOf(child)!.center(Offset.zero)) * scale;
+    Future<void> pause() => tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 400)));
+
+    await tester.tapAt(at);
+    await tester.pump();
+    await pause();
+    await tester.tapAt(at);
+    await tester.pump();
+    await pause();
+    final drag = await tester.startGesture(at);
+    await drag.moveTo(at + const Offset(20, 0) * scale);
+    await drag.up();
+    await settle(tester);
+    final x = hub.doc['s257-3']!.attributes['xfrm']! as Map<String, Object?>;
+    expect(x['x'], 2051720 + 20 * emuPerPoint);
+    expect(hub.doc['s257-5']!.attributes['xfrm'], group);
+    await finish(tester);
+  });
+
   testWidgets('types into the cells of a table, from one to the next', (tester) async {
     await open(tester, 'tbl-cell');
     final slide = slides()[0];
@@ -198,7 +258,7 @@ void main() {
     await tester.pump();
     await tester.tap(find.byTooltip('Orientation du texte').first);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Rotation de 270° de tout le texte'));
+    await tester.tap(find.widgetWithText(CheckedPopupMenuItem<String>, 'Rotation de 270° de tout le texte'));
     await settle(tester);
     await tester.tap(find.byTooltip('Aligner en bas').first);
     await settle(tester);

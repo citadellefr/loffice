@@ -213,13 +213,40 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
   }
 
   /// The shape at a point of the slide, the topmost; a shape of a group
-  /// gives the group.
+  /// gives the group, unless it or one of its shapes is selected, as in
+  /// PowerPoint, where a second click goes into the group.
   Node? _shapeAt(Offset p) {
-    final shapes = _deck.shapesOf(widget.slide).reversed;
-    for (final s in shapes) {
-      if (_contains(s, p)) return s;
+    Node? top(Node parent) => _deck.shapesOf(parent).reversed.where((s) => _contains(s, p)).firstOrNull;
+    var hit = top(widget.slide);
+    while (hit != null && hit.type == 'grp' && _selection.shapes.any((id) => id == hit!.id || _isUnder(id, hit.id))) {
+      final child = top(hit);
+      if (child == null) break;
+      hit = child;
     }
-    return null;
+    return hit;
+  }
+
+  bool _isUnder(String id, String ancestor) {
+    for (var n = _session.document[id]; n != null && n.type != 'slide'; n = _session.document[n.parent]) {
+      if (n.parent == ancestor) return true;
+    }
+    return false;
+  }
+
+  /// Whether a shape can be moved and resized: on the slide or in a group.
+  bool _placeable(Node shape) => shape.parent == widget.slide.id || _session.document[shape.parent]?.type == 'grp';
+
+  /// The transform from the coordinates a shape is placed in, its group's
+  /// or the slide's, to the slide.
+  Matrix4Like _space(Node shape) {
+    final parent = _session.document[shape.parent];
+    return parent != null && parent.type == 'grp' ? widget.painter.transformOf(parent) : Matrix4Like.identity();
+  }
+
+  /// How far the drag went, in the coordinates [shape] is placed in.
+  Offset _dragIn(Node shape) {
+    final inverse = _space(shape).invert();
+    return inverse.apply(_dragTo) - inverse.apply(_dragFrom);
   }
 
   bool _contains(Node shape, Offset p) {
@@ -373,7 +400,7 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
     }
 
     final single = _single;
-    if (single != null && single.parent == widget.slide.id && !_session.readOnly) {
+    if (single != null && _placeable(single) && !_session.readOnly) {
       for (final h in _handles(single).entries) {
         if ((h.value - p).distance * _scale < 8) {
           _drag = h.key == _Handle.rotate ? _Drag.rotate : _Drag.resize;
@@ -386,6 +413,7 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
 
     final hit = _shapeAt(p);
     _pressed = hit;
+    _wasSelected = hit != null && _selection.shapes.length == 1 && _selection.shapes.contains(hit.id);
     if (hit == null) {
       _drag = _Drag.none;
       _selection.clear();
@@ -461,15 +489,14 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
 
   void _up(PointerUpEvent e) {
     final drag = _drag;
-    _drag = _Drag.none;
     if (!_moved) {
+      _drag = _Drag.none;
       _edge = null;
       // a click on a shape already selected goes into its text
       final pressed = _pressed;
       if (drag == _Drag.move && pressed != null && _selection.shapes.length == 1 && pressed.type == 'sp' && _clicks == 1 && _wasSelected) {
         _startEditing(pressed, at: _dragFrom);
       }
-      _wasSelected = _selection.shapes.contains(_pressed?.id);
       setState(() {});
       return;
     }
@@ -480,12 +507,14 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
       _Drag.column || _Drag.row => _edgeEdit(),
       _ => Edit(),
     };
+    _drag = _Drag.none;
     _edge = null;
     if (!edit.isEmpty) _session.edit(edit);
-    _wasSelected = true;
     setState(() {});
   }
 
+  /// Whether the shape pressed was the one selected, which a click then
+  /// goes into the text of.
   var _wasSelected = false;
 
   Edit _edgeEdit() {
@@ -513,15 +542,15 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
     }
   }
 
-  /// Where the shapes being dragged would go, on the slide.
+  /// Where the shapes being dragged would go, in the coordinates each is
+  /// placed in.
   Map<Node, Rect> _previews() {
     final out = <Node, Rect>{};
-    final delta = _dragTo - _dragFrom;
     if (_drag == _Drag.move) {
       for (final id in _selection.shapes) {
         final n = _session.document[id];
-        final box = n == null || n.parent != widget.slide.id ? null : _deck.styleOf(n).bounds;
-        if (box != null) out[n!] = box.shift(delta);
+        final box = n == null || !_placeable(n) ? null : _deck.styleOf(n).bounds;
+        if (box != null) out[n!] = box.shift(_dragIn(n));
       }
     } else if (_drag == _Drag.resize) {
       final n = _single;
@@ -531,8 +560,8 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
     return out;
   }
 
-  /// The bounds of a shape resized by the handle dragged: the opposite side
-  /// stays where it is, rotated or not.
+  /// The bounds of a shape resized by the handle dragged, where it is
+  /// placed: the opposite side stays where it is, rotated or not.
   Rect _resized(Node shape, Rect box) {
     final t = widget.painter.transformOf(shape);
     final inverse = t.invert();
@@ -572,14 +601,14 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
       }
     }
     final local = Rect.fromLTRB(math.min(l, r), math.min(top, b), math.max(l, r), math.max(top, b));
-    final center = t.apply(local.center);
+    final center = _space(shape).invert().apply(t.apply(local.center));
     return Rect.fromCenter(center: center, width: math.max(local.width, 1), height: math.max(local.height, 1));
   }
 
   double _rotation(Node shape) {
-    final box = _deck.styleOf(shape).bounds!;
-    final c = box.center;
-    var degrees = math.atan2(_dragTo.dy - c.dy, _dragTo.dx - c.dx) * 180 / math.pi + 90;
+    final c = _deck.styleOf(shape).bounds!.center;
+    final to = _space(shape).invert().apply(_dragTo);
+    var degrees = math.atan2(to.dy - c.dy, to.dx - c.dx) * 180 / math.pi + 90;
     if (HardwareKeyboard.instance.isShiftPressed) degrees = (degrees / 15).round() * 15.0;
     return (degrees % 360 + 360) % 360;
   }
@@ -632,8 +661,8 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
       final step = _ctrl ? 0.75 : 7.2;
       _session.edit(DeckEdits(_deck).place({
         for (final s in shapes)
-          if (s.parent == widget.slide.id)
-            if (_deck.styleOf(s).bounds case final b?) s: b.shift(nudge * step),
+          if (_placeable(s))
+            if (_deck.styleOf(s).bounds case final b?) s: b.shift(_nudgeIn(s, nudge * step)),
       }));
       return true;
     }
@@ -652,6 +681,12 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
       }
     }
     return false;
+  }
+
+  /// A nudge on the slide, in the coordinates [shape] is placed in.
+  Offset _nudgeIn(Node shape, Offset by) {
+    final inverse = _space(shape).invert();
+    return inverse.apply(by) - inverse.apply(Offset.zero);
   }
 
   bool _textKey(Node shape, KeyEvent e) {
@@ -1065,7 +1100,15 @@ class _CanvasPainter extends CustomPainter {
         canvas.drawRect(Offset.zero & size, outline);
       }
       canvas.restore();
-      if (selection.shapes.length == 1 && selection.editing == null && shape.parent == w.slide.id) {
+      final group = w.session.document[shape.parent];
+      if (group != null && group.type == 'grp') {
+        final size = painter.sizeOf(group);
+        canvas.save();
+        canvas.transform(painter.transformOf(group).storage);
+        if (size != null) _dashed(canvas, Offset.zero & size, colors.primary, 1 / scale);
+        canvas.restore();
+      }
+      if (selection.shapes.length == 1 && selection.editing == null && state._placeable(shape)) {
         for (final h in state._handles(shape).entries) {
           final fill = Paint()..color = Colors.white;
           final edge = Paint()
@@ -1101,13 +1144,17 @@ class _CanvasPainter extends CustomPainter {
         final shape = state._single!;
         final box = deck.styleOf(shape).bounds!;
         canvas.save();
+        canvas.transform(state._space(shape).storage);
         canvas.translate(box.center.dx, box.center.dy);
         canvas.rotate(state._rotation(shape) * math.pi / 180);
         canvas.drawRect(Rect.fromCenter(center: Offset.zero, width: box.width, height: box.height), ghost);
         canvas.restore();
       } else {
-        for (final r in state._previews().values) {
+        for (final MapEntry(key: shape, value: r) in state._previews().entries) {
+          canvas.save();
+          canvas.transform(state._space(shape).storage);
           canvas.drawRect(r, ghost);
+          canvas.restore();
         }
       }
     }

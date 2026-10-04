@@ -487,10 +487,10 @@ class _PresentationEditorState extends State<PresentationEditor> {
   }
 
   void _arrange(bool forward, {bool all = false}) {
-    final shapes = _selectedShapes.where((n) => n.parent == _slide?.id).toList();
+    final shapes = _selectedShapes.where((n) => n.parent == _slide?.id || _session.document[n.parent]?.type == 'grp').toList();
     if (shapes.length != 1) return;
     final n = shapes.single;
-    final siblings = _current.shapesOf(_slide!);
+    final siblings = _current.shapesOf(_session.document[n.parent]!);
     final i = siblings.indexWhere((s) => s.id == n.id);
     final to = all ? (forward ? siblings.length : 0) : (forward ? i + 1 : i - 1);
     _edit(DeckEdits(_current).reorder(n, to));
