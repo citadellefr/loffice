@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.3 — 2026-10-05
 
 - `pptx` reads the background of a table style, "tblBg", which Themed
   Style 2 and its accents fill the table with. `tablestyles.json` is also
