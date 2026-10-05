@@ -6,8 +6,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:trame/trame.dart';
 
+import '../chrome/comments.dart';
+import '../chrome/comments_pane.dart' show authorColor;
 import '../chrome/strings.dart';
 import '../text/editing.dart';
+import 'comments.dart';
 import 'deck.dart';
 import 'edits.dart';
 import 'slide_painter.dart';
@@ -68,6 +71,9 @@ class SlideCanvas extends StatefulWidget {
     this.focusNode,
     this.strings = const LofficeStrings(),
     this.onShortcut,
+    this.comments = const [],
+    this.activeComment,
+    this.onComment,
   });
 
   final DocSession session;
@@ -80,6 +86,12 @@ class SlideCanvas extends StatefulWidget {
 
   /// Keys the canvas leaves to the editor around it; true when handled.
   final bool Function(KeyEvent event)? onShortcut;
+
+  /// The comment threads of the slide, drawn as balloons where they sit,
+  /// the active one raised; [onComment] hears the one that is clicked.
+  final List<CommentThread> comments;
+  final String? activeComment;
+  final ValueChanged<String>? onComment;
 
   @override
   State<SlideCanvas> createState() => SlideCanvasState();
@@ -357,9 +369,20 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
 
   // pointer
 
+  /// The box of the balloon of a comment thread, in points.
+  Rect _balloon(CommentThread t) {
+    final side = 22 / _scale;
+    return threadPlace(t) & Size(side, side);
+  }
+
   void _down(PointerDownEvent e) {
     _focus.requestFocus();
     final p = _toSlide(e.localPosition);
+    final comment = widget.comments.where((t) => _balloon(t).contains(p)).lastOrNull;
+    if (comment != null) {
+      widget.onComment?.call(comment.id);
+      return;
+    }
     final now = DateTime.now();
     final again = now.difference(_lastDown) < kDoubleTapTimeout && (e.localPosition - _lastDownAt).distance < kDoubleTapSlop;
     _clicks = again ? _clicks + 1 : 1;
@@ -1157,6 +1180,25 @@ class _CanvasPainter extends CustomPainter {
           canvas.restore();
         }
       }
+    }
+    for (final t in w.comments) {
+      final box = state._balloon(t);
+      final color = authorColor(t.root.author);
+      final active = t.id == w.activeComment;
+      final shape = RRect.fromRectAndCorners(box, topLeft: Radius.circular(box.width / 2), topRight: Radius.circular(box.width / 2), bottomRight: Radius.circular(box.width / 2));
+      canvas.drawRRect(shape, Paint()..color = t.done ? color.withValues(alpha: 0.5) : color);
+      canvas.drawRRect(
+        shape,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = (active ? 2.5 : 1.5) / scale
+          ..color = active ? Colors.white : const Color(0x66FFFFFF),
+      );
+      final label = TextPainter(
+        text: TextSpan(text: t.root.initials.isEmpty ? '?' : t.root.initials, style: TextStyle(fontSize: 9 / scale, color: Colors.white, fontWeight: FontWeight.w600)),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      label.paint(canvas, box.center - Offset(label.width / 2, label.height / 2));
     }
     canvas.restore();
   }

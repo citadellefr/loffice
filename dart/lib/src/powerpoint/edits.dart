@@ -118,7 +118,7 @@ class DeckEdits {
 
   /// A key after every child of [parent], or between two of them.
   String keyAfter(String parent, [Node? after]) {
-    final kids = tree.children(parent).where((n) => n.type != 'notes').toList();
+    final kids = tree.children(parent).where(isShape).toList();
     if (after == null) return keyBetween(kids.isEmpty ? '' : kids.last.key, '');
     final i = kids.indexWhere((n) => n.id == after.id);
     final next = i + 1 < kids.length ? kids[i + 1].key : '';
@@ -127,7 +127,7 @@ class DeckEdits {
 
   /// A key before every child of [parent].
   String keyFirst(String parent) {
-    final kids = tree.children(parent).where((n) => n.type != 'notes').toList();
+    final kids = tree.children(parent).where(isShape).toList();
     return keyBetween('', kids.isEmpty ? '' : kids.first.key);
   }
 
@@ -226,7 +226,7 @@ class DeckEdits {
     final id = randomId();
     return Edit([
       Change.create(Node(id: id, type: 'slide', parent: 'deck', key: keyAfter('deck', slide), attributes: slide.attributes)),
-      ...copies(tree.children(slide.id).where((n) => n.type != 'notes'), id),
+      ...copies(tree.children(slide.id).where(isShape), id),
     ]);
   }
 
@@ -265,7 +265,7 @@ class DeckEdits {
 
   /// Moves a child of its parent to [index] among the others of its kind.
   Edit reorder(Node node, int index) {
-    final kids = tree.children(node.parent).where((n) => n.type != 'notes' && n.id != node.id).toList();
+    final kids = tree.children(node.parent).where((n) => isShape(n) && n.id != node.id).toList();
     final i = index.clamp(0, kids.length);
     final before = i > 0 ? kids[i - 1].key : '';
     final after = i < kids.length ? kids[i].key : '';

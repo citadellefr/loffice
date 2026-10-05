@@ -14,6 +14,9 @@ final builtinTableStyles = jsonDecode(builtinTableStylesJson) as Map<String, Obj
 /// what is drawn in points.
 const emuPerPoint = 12700.0;
 
+/// Whether a child of a slide is a shape, not its notes or a comment.
+bool isShape(Node n) => n.type != 'notes' && n.type != 'comment';
+
 /// A presentation as a session's tree holds it, read to be shown: what
 /// each slide inherits from its layout and master.
 class Deck {
@@ -92,7 +95,7 @@ class Deck {
   }
 
   /// The shapes of a slide, notes left out.
-  List<Node> shapesOf(Node parent) => [for (final n in tree.children(parent.id)) if (n.type != 'notes') n];
+  List<Node> shapesOf(Node parent) => [for (final n in tree.children(parent.id)) if (isShape(n)) n];
 
   /// The slide, layout or master a shape is on.
   Node? pageOf(Node shape) {

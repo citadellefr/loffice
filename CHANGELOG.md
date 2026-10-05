@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- `pptx` reads, adds, edits and deletes the comments of PowerPoint
+  ("comment" nodes under their slide: author, initials, date, place,
+  the comment they answer, their text), through `p:cmLst` and the list of
+  authors. The hub signs the comments a client adds with its name, as in
+  Word; `Document.Check` takes the author. The modern comments of
+  Microsoft 365 are left as they are.
+- Dart: Review > New Comment and Show Comments open the comments of the
+  slide beside it, with balloons where they sit on the slide. The pane is
+  Word's, shared in `chrome/comments_pane.dart`; PowerPoint's comments
+  cannot be resolved. The notes are called "Notes" in the ribbon, as
+  PowerPoint calls them.
+
 ## 0.8.3 — 2026-10-05
 
 - `pptx` reads the background of a table style, "tblBg", which Themed

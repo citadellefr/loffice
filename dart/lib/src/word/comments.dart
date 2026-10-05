@@ -1,50 +1,21 @@
 import 'package:trame/trame.dart';
 
+import '../chrome/comments.dart';
 import 'edits.dart';
-
-/// A comment of a Word document: a "comment" node under "doc", its blocks
-/// saying what it says. The flows of the body mark its range with Objects
-/// "cs" and "ce", and its reference with "comment" (see the Go package
-/// docx).
-class WordComment {
-  WordComment(this.node, this.text);
-
-  final Node node;
-
-  /// What it says, its paragraphs one a line, without the objects.
-  final String text;
-
-  String get id => node.id;
-  String get author => node.attributes['author'] as String? ?? '';
-  String get initials => node.attributes['initials'] as String? ?? initialsOf(author);
-  DateTime? get date => DateTime.tryParse(node.attributes['date'] as String? ?? '')?.toLocal();
-  bool get done => node.attributes['done'] == true;
-  String? get parent => node.attributes['parent'] as String?;
-}
 
 /// A comment and the answers to it, with the place of its range in the
 /// flows of the body.
-class WordThread {
-  WordThread(this.root);
-
-  final WordComment root;
-  final replies = <WordComment>[];
+class WordThread extends CommentThread {
+  WordThread(super.root);
 
   /// Where the range starts and ends, the Objects excluded, and where the
   /// reference is: a flow and an offset.
   (String, int)? start, end, reference;
 
-  String get id => root.id;
-  bool get done => root.done;
-  Iterable<WordComment> get all => [root, ...replies];
-
   /// Whether the text the comment was about is still there.
+  @override
   bool get anchored => start != null || end != null || reference != null;
 }
-
-/// The initials Word gives a name: the first letter of its first two words.
-String initialsOf(String name) =>
-    name.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).take(2).map((w) => String.fromCharCode(w.runes.first).toUpperCase()).join();
 
 /// The anchors of the comments in the flows of the body, by the key that
 /// holds them, "cs", "ce" or "comment": comment id to flow and offset.
@@ -75,9 +46,9 @@ List<WordThread> commentThreads(Tree tree) {
   final anchors = commentAnchors(flows);
   final order = {for (final (i, f) in flows.indexed) f.id: i};
   final threads = <String, WordThread>{};
-  final replies = <WordComment>[];
+  final replies = <DocComment>[];
   for (final n in nodes) {
-    final c = WordComment(n, _plain(tree, n.id));
+    final c = DocComment(n, _plain(tree, n.id));
     if (c.parent != null && tree[c.parent!]?.type == 'comment') {
       replies.add(c);
       continue;
@@ -232,7 +203,7 @@ Edit deleteComments(Tree tree, Set<String> ids) {
 
 /// Makes a comment say [text] instead: the text changed as little as it
 /// can, its objects and formatting kept.
-Edit editComment(Tree tree, WordComment comment, String text) {
+Edit editComment(Tree tree, DocComment comment, String text) {
   final flow = flowsOf(tree, comment.id).firstOrNull;
   if (flow == null) return Edit();
   final whole = flow.text!.text;

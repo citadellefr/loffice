@@ -5,12 +5,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:trame/trame.dart';
 
+import '../chrome/comments.dart';
+import '../chrome/comments_pane.dart';
 import '../chrome/ribbon.dart';
 import '../chrome/strings.dart';
 import '../drawing/geometry.dart';
 import '../plain_text_editor.dart';
 import '../text/editing.dart';
 import '../text/text_frame.dart';
+import 'comments.dart';
 import 'deck.dart';
 import 'edits.dart';
 import 'slide_canvas.dart';
@@ -57,6 +60,9 @@ class _PresentationEditorState extends State<PresentationEditor> {
   StreamSubscription<Edit>? _changes;
   String? _slideId;
   var _notes = true;
+  var _commentsShown = false;
+  var _drafting = false;
+  String? _activeComment;
   var _sorter = false;
   var _backstage = false;
   List<Node> _clipboard = const [];
@@ -126,6 +132,58 @@ class _PresentationEditorState extends State<PresentationEditor> {
     if (edit.isEmpty) return false;
     return _session.edit(edit);
   }
+
+  // comments
+
+  List<CommentThread> get _threads {
+    final slide = _slide;
+    return slide == null ? const [] : slideThreads(_session.document, slide.id);
+  }
+
+  CommentAuthor get _author => (name: _session.name, date: DateTime.now());
+
+  void _newComment() => setState(() {
+    _commentsShown = true;
+    _drafting = true;
+  });
+
+  void _postComment(String text, {CommentThread? answering}) {
+    final slide = _slide;
+    if (slide == null) return;
+    final edit = addComment(_session.document, slide.id, text, _author, parent: answering?.id);
+    if (!_edit(edit)) return;
+    setState(() {
+      _drafting = false;
+      _activeComment = answering?.id ?? edit.changes.first.id;
+    });
+  }
+
+  void _deleteComment(DocComment comment) {
+    final thread = _threads.where((t) => t.all.any((c) => c.id == comment.id)).firstOrNull;
+    if (thread != null) _edit(deleteComment(thread, comment));
+  }
+
+  Widget _commentsPane(Node slide) => CommentsPane<CommentThread>(
+    threads: _threads,
+    active: _activeComment,
+    me: _session.name,
+    readOnly: _session.readOnly || _session.name.isEmpty,
+    drafting: _drafting,
+    resolvable: false,
+    emptyHint: _s.noSlideCommentsHint,
+    strings: _s,
+    onSelect: (t) => setState(() => _activeComment = t.id),
+    onPost: _postComment,
+    onCancelDraft: () => setState(() => _drafting = false),
+    onReply: (t, text) => _postComment(text, answering: t),
+    onResolve: (_, _) {},
+    onDelete: _deleteComment,
+    onEdit: (c, text) => _edit(editComment(c, text)),
+    onClose: () => setState(() {
+      _commentsShown = false;
+      _drafting = false;
+    }),
+  );
 
   Node? get _slide {
     final slides = _current.slides;
@@ -680,6 +738,12 @@ class _PresentationEditorState extends State<PresentationEditor> {
                   focusNode: _canvasFocus,
                   strings: _s,
                   onShortcut: _shortcut,
+                  comments: _commentsShown ? _threads : const [],
+                  activeComment: _activeComment,
+                  onComment: (id) => setState(() {
+                    _commentsShown = true;
+                    _activeComment = id;
+                  }),
                 ),
               ),
               if (_previews > 0)
@@ -714,6 +778,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
                         children: [
                           Expanded(child: canvas),
                           const Divider(height: 1),
+                          if (_commentsShown && slide != null) SizedBox(height: 280, child: _commentsPane(slide)),
                           SizedBox(height: 88, child: _Thumbnails(editor: this, horizontal: true)),
                         ],
                       )
@@ -729,6 +794,10 @@ class _PresentationEditorState extends State<PresentationEditor> {
                               ],
                             ),
                           ),
+                          if (_commentsShown && slide != null) ...[
+                            const VerticalDivider(width: 1),
+                            SizedBox(width: 320, child: _commentsPane(slide)),
+                          ],
                         ],
                       ),
               ),
@@ -1247,6 +1316,26 @@ class _PresentationEditorState extends State<PresentationEditor> {
               large: true,
               selected: _slide?.attributes['hidden'] == true,
               onPressed: editable ? _hideSlide : null,
+            ),
+          ]),
+        ]),
+        RibbonTab(_s.review, [
+          RibbonGroup(_s.comments, [
+            RibbonButton(
+              icon: const Icon(Icons.add_comment_outlined),
+              label: _s.newComment,
+              large: true,
+              onPressed: editable && _session.name.isNotEmpty && _slide != null ? _newComment : null,
+            ),
+            RibbonButton(
+              icon: const Icon(Icons.forum_outlined),
+              label: _s.showComments,
+              large: true,
+              selected: _commentsShown,
+              onPressed: () => setState(() {
+                _commentsShown = !_commentsShown;
+                _drafting = false;
+              }),
             ),
           ]),
         ]),

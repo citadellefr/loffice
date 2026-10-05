@@ -6,13 +6,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:trame/trame.dart';
 
+import '../chrome/comments.dart';
+import '../chrome/comments_pane.dart';
 import '../chrome/ribbon.dart';
 import '../chrome/strings.dart';
 import '../powerpoint/slide_painter.dart' show MediaCache, MediaFetcher;
 import '../text/text_frame.dart' show Fonts, Props;
 import 'blocks.dart';
 import 'comments.dart';
-import 'comments_pane.dart';
 import 'document.dart';
 import 'edits.dart';
 import 'layout.dart';
@@ -644,7 +645,7 @@ class _WordEditorState extends State<WordEditor> {
   }
 
   /// Deletes a comment, and its answers when it starts a thread.
-  void _deleteComment(WordComment c) {
+  void _deleteComment(DocComment c) {
     final thread = _commentThreads.where((t) => t.id == c.id).firstOrNull;
     final ids = thread == null ? {c.id} : {for (final r in thread.all) r.id};
     if (_edit(deleteComments(_session.document, ids)) && ids.contains(_activeThread)) setState(() => _activeThread = null);
@@ -675,7 +676,7 @@ class _WordEditorState extends State<WordEditor> {
     return out;
   }
 
-  Widget _commentsPane(BuildContext context) => WordCommentsPane(
+  Widget _commentsPane(BuildContext context) => CommentsPane<WordThread>(
     threads: _commentThreads,
     active: _activeThread,
     me: _session.name,

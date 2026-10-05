@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:loffice/loffice.dart';
+import 'package:loffice/src/chrome/comments.dart';
 import 'package:loffice/src/word/comments.dart';
 import 'package:loffice/src/word/document.dart';
 import 'package:loffice/src/word/edits.dart';

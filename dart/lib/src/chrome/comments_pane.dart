@@ -4,11 +4,11 @@ import 'package:flutter/services.dart';
 import '../chrome/strings.dart';
 import 'comments.dart';
 
-/// The comments of a document as Word lists them beside the pages: a card
+/// The comments of a document as Word lists them beside its pages: a card
 /// by thread, in the order of the text, answered, resolved, edited and
 /// deleted there; and the comment being written.
-class WordCommentsPane extends StatefulWidget {
-  const WordCommentsPane({
+class CommentsPane<T extends CommentThread> extends StatefulWidget {
+  const CommentsPane({
     super.key,
     required this.threads,
     required this.active,
@@ -23,10 +23,12 @@ class WordCommentsPane extends StatefulWidget {
     required this.onDelete,
     required this.onEdit,
     required this.onClose,
+    this.resolvable = true,
+    this.emptyHint,
     this.strings = const LofficeStrings(),
   });
 
-  final List<WordThread> threads;
+  final List<T> threads;
 
   /// The thread whose card is open: the one of the caret, or clicked.
   final String? active;
@@ -37,23 +39,29 @@ class WordCommentsPane extends StatefulWidget {
 
   /// Whether a new comment is being written.
   final bool drafting;
-  final ValueChanged<WordThread> onSelect;
+  final ValueChanged<T> onSelect;
   final ValueChanged<String> onPost;
   final VoidCallback onCancelDraft;
-  final void Function(WordThread thread, String text) onReply;
-  final void Function(WordThread thread, bool done) onResolve;
+  final void Function(T thread, String text) onReply;
+  final void Function(T thread, bool done) onResolve;
 
   /// Deletes a comment, or its whole thread when it is the first.
-  final ValueChanged<WordComment> onDelete;
-  final void Function(WordComment comment, String text) onEdit;
+  final ValueChanged<DocComment> onDelete;
+  final void Function(DocComment comment, String text) onEdit;
   final VoidCallback onClose;
+
+  /// Whether threads can be resolved, which not every format keeps.
+  final bool resolvable;
+
+  /// What an empty pane says to do, by default what Word says.
+  final String? emptyHint;
   final LofficeStrings strings;
 
   @override
-  State<WordCommentsPane> createState() => _WordCommentsPaneState();
+  State<CommentsPane<T>> createState() => _CommentsPaneState<T>();
 }
 
-class _WordCommentsPaneState extends State<WordCommentsPane> {
+class _CommentsPaneState<T extends CommentThread> extends State<CommentsPane<T>> {
   final _draft = TextEditingController();
   final _reply = TextEditingController();
   final _editing = TextEditingController();
@@ -70,7 +78,7 @@ class _WordCommentsPaneState extends State<WordCommentsPane> {
   }
 
   @override
-  void didUpdateWidget(WordCommentsPane old) {
+  void didUpdateWidget(CommentsPane<T> old) {
     super.didUpdateWidget(old);
     if (widget.drafting && !old.drafting) {
       _draft.clear();
@@ -102,19 +110,19 @@ class _WordCommentsPaneState extends State<WordCommentsPane> {
     _draft.clear();
   }
 
-  void _sendReply(WordThread thread) {
+  void _sendReply(T thread) {
     final text = _reply.text.trim();
     if (text.isEmpty) return;
     widget.onReply(thread, text);
     _reply.clear();
   }
 
-  void _startEditing(WordComment c) => setState(() {
+  void _startEditing(DocComment c) => setState(() {
     _edited = c.id;
     _editing.text = c.text;
   });
 
-  void _saveEditing(WordComment c) {
+  void _saveEditing(DocComment c) {
     final text = _editing.text.trim();
     if (text.isNotEmpty && text != c.text) widget.onEdit(c, text);
     setState(() => _edited = null);
@@ -164,7 +172,7 @@ class _WordCommentsPaneState extends State<WordCommentsPane> {
         const SizedBox(height: 12),
         Text(_s.noComments, style: theme.textTheme.titleSmall),
         const SizedBox(height: 6),
-        if (!widget.readOnly) Text(_s.noCommentsHint, textAlign: TextAlign.center, style: theme.textTheme.bodySmall),
+        if (!widget.readOnly) Text(widget.emptyHint ?? _s.noCommentsHint, textAlign: TextAlign.center, style: theme.textTheme.bodySmall),
       ]),
     ),
   );
@@ -212,7 +220,7 @@ class _WordCommentsPaneState extends State<WordCommentsPane> {
     ]),
   );
 
-  Widget _threadCard(ThemeData theme, WordThread t) {
+  Widget _threadCard(ThemeData theme, T t) {
     final active = t.id == widget.active;
     final editable = !widget.readOnly;
     final collapsed = t.done && !active;
@@ -259,7 +267,7 @@ class _WordCommentsPaneState extends State<WordCommentsPane> {
     );
   }
 
-  Widget _comment(ThemeData theme, WordComment c, WordThread t, {required bool first, required bool collapsed}) {
+  Widget _comment(ThemeData theme, DocComment c, T t, {required bool first, required bool collapsed}) {
     final editable = !widget.readOnly;
     final mine = c.author == widget.me && widget.me.isNotEmpty;
     final text = _edited == c.id
@@ -286,7 +294,7 @@ class _WordCommentsPaneState extends State<WordCommentsPane> {
             icon: const Icon(Icons.more_horiz),
             itemBuilder: (context) => [
               if (mine) PopupMenuItem(value: 'edit', child: Text(_s.editComment)),
-              if (first) PopupMenuItem(value: 'resolve', child: Text(t.done ? _s.reopen : _s.resolveThread)),
+              if (first && widget.resolvable) PopupMenuItem(value: 'resolve', child: Text(t.done ? _s.reopen : _s.resolveThread)),
               PopupMenuItem(value: 'delete', child: Text(first ? _s.deleteThread : _s.deleteComment)),
             ],
             onSelected: (v) => switch (v) {

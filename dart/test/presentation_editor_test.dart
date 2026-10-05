@@ -360,6 +360,39 @@ void main() {
     await finish(tester);
   });
 
+  testWidgets('comments written, answered and deleted on a slide', (tester) async {
+    await open(tester, 'shp-shapes');
+    List<Node> comments() => [for (final n in hub.doc.children(slides().first.id)) if (n.type == 'comment') n];
+    await tester.tap(find.text('Révision'));
+    await tester.pump();
+    await tester.tap(find.text('Nouveau commentaire'));
+    await tester.pump();
+    await tester.enterText(find.byType(TextField), 'À revoir\nvite');
+    await tester.pump();
+    await tester.tap(find.text('Publier'));
+    await settle(tester);
+    expect(comments().length, 1);
+    final first = comments().single;
+    expect(first.attributes['author'], session.name);
+    expect(first.text!.text, 'À revoir\nvite\n');
+    expect(find.text('À revoir\nvite'), findsOneWidget);
+
+    await tester.enterText(find.widgetWithText(TextField, 'Répondre'), 'Fait');
+    await tester.pump();
+    await tester.tap(find.byIcon(Icons.send));
+    await settle(tester);
+    expect(comments().length, 2);
+    expect(comments().last.attributes['parent'], first.id);
+
+    // deleting the first one takes its answers
+    await tester.tap(find.byIcon(Icons.more_horiz).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Supprimer le thread'));
+    await settle(tester);
+    expect(comments(), isEmpty);
+    await finish(tester);
+  });
+
   testWidgets('inserts a shape and types into it', (tester) async {
     await open(tester, 'shp-shapes');
     await tester.tap(find.text('Insertion'));

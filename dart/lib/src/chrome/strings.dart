@@ -60,7 +60,7 @@ class LofficeStrings {
   String get presentationViews => 'Affichages des présentations';
   String get normal => 'Normal';
   String get slideSorter => 'Trieuse de diapositives';
-  String get notes => 'Commentaires';
+  String get notes => 'Notes';
   String get show => 'Afficher';
   String get undo => 'Annuler';
   String get redo => 'Rétablir';
@@ -235,6 +235,7 @@ class LofficeStrings {
   String get showComments => 'Afficher les commentaires';
   String get noComments => 'Aucun commentaire';
   String get noCommentsHint => 'Sélectionnez du texte, puis choisissez Nouveau commentaire.';
+  String get noSlideCommentsHint => 'Choisissez Nouveau commentaire pour en ajouter un à cette diapositive.';
   String get startConversation => 'Commencer une conversation';
   String get replyHint => 'Répondre';
   String get post => 'Publier';
@@ -338,7 +339,7 @@ class LofficeStrings {
   String get readOnly => 'Lecture seule';
   String get csvNotice => 'Fichier CSV : seules les valeurs affichées sont enregistrées, sans formules ni mise en forme';
   String get retry => 'Réessayer';
-  String get notesPrompt => 'Cliquez pour ajouter des commentaires';
+  String get notesPrompt => 'Cliquez pour ajouter des notes';
   String refused(String reason) => 'Modification refusée : $reason';
 
   // placeholders
@@ -473,6 +474,6 @@ class LofficeStrings {
   String get pauseTimer => 'Suspendre le minuteur';
   String get resumeTimer => 'Reprendre le minuteur';
   String get restartTimer => 'Redémarrer le minuteur';
-  String get noNotes => 'Aucun commentaire.';
+  String get noNotes => 'Aucune note.';
   String get endOfShow => 'Fin du diaporama, cliquez pour quitter.';
 }
