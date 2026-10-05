@@ -139,9 +139,11 @@ func (w *workbook) Encode(doc *ot.Tree) ([]byte, error) {
 	return w.doc.Save(doc)
 }
 
+var _ trame.Follower = (*workbook)(nil)
+
 // Follow calculates again what the edit reaches. A failure of the
 // calculation leaves the values as they are rather than the hub down.
-func (w *workbook) Follow(doc *ot.Tree, e ot.Edit, since []ot.Edit) (out ot.Edit) {
+func (w *workbook) Follow(doc *ot.Tree, e ot.Edit, since []ot.Edit, _ trame.Peer) (out ot.Edit) {
 	defer func() {
 		if recover() != nil {
 			out = nil

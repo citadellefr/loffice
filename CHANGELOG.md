@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.5 — 2026-10-05
+
+- On trame 0.3.0: a workbook follows the edits as trame now asks, told who
+  made them (without it the formulas would stop being calculated again). A
+  compile-time check keeps `Follower` honest.
+
 ## 0.8.4 — 2026-10-05
 
 - `pptx` reads, adds, edits and deletes the comments of PowerPoint
