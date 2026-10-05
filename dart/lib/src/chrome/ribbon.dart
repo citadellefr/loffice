@@ -386,6 +386,85 @@ class RibbonDropdown extends StatelessWidget {
   }
 }
 
+/// A length typed in, as the size boxes of Office: in centimeters, with a
+/// decimal comma. The value is in points.
+class RibbonMeasure extends StatefulWidget {
+  const RibbonMeasure({super.key, required this.label, required this.icon, required this.value, this.onChanged});
+
+  final String label;
+  final IconData icon;
+  final double? value;
+  final ValueChanged<double>? onChanged;
+
+  @override
+  State<RibbonMeasure> createState() => _RibbonMeasureState();
+}
+
+class _RibbonMeasureState extends State<RibbonMeasure> {
+  final _controller = TextEditingController();
+  final _focus = FocusNode();
+
+  static const _pointsPerCm = 72 / 2.54;
+
+  @override
+  void initState() {
+    super.initState();
+    _show();
+    _focus.addListener(() {
+      if (!_focus.hasFocus) _submit();
+    });
+  }
+
+  @override
+  void didUpdateWidget(RibbonMeasure old) {
+    super.didUpdateWidget(old);
+    if (!_focus.hasFocus) _show();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
+
+  void _show() {
+    final v = widget.value;
+    _controller.text = v == null ? '' : '${(v / _pointsPerCm).toStringAsFixed(2).replaceAll('.', ',')} cm';
+  }
+
+  void _submit() {
+    final cm = double.tryParse(_controller.text.replaceAll('cm', '').replaceAll(',', '.').trim());
+    if (cm != null && cm > 0 && widget.onChanged != null && (widget.value == null || (cm * _pointsPerCm - widget.value!).abs() > 0.01)) {
+      widget.onChanged!(cm * _pointsPerCm);
+    }
+    _show();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: widget.label,
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(widget.icon, size: 16),
+        const SizedBox(width: 4),
+        SizedBox(
+          width: 72,
+          height: 24,
+          child: TextField(
+            controller: _controller,
+            focusNode: _focus,
+            enabled: widget.onChanged != null,
+            style: const TextStyle(fontSize: 12),
+            decoration: const InputDecoration(isDense: true, border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 6)),
+            onSubmitted: (_) => _submit(),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
 /// The colors a color command offers: the theme's with lighter and darker
 /// shades, and Office's standard ones. The value chosen is a color as the
 /// Go package writes it, null for none or automatic.

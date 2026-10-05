@@ -223,6 +223,21 @@ void main() {
     final grid = hub.doc[frame.id]!.attributes['grid']! as List<Object?>;
     expect(grid[0], closeTo(1524000 + 20 * emuPerPoint, 1));
     expect(grid[1], closeTo(1524000 - 20 * emuPerPoint, 1));
+
+    // a cell split in three columns, then typed 3 cm high
+    await tester.tapAt(at(painter.tableOf(hub.doc[frame.id]!)!.cells[cell(3, 0).id]!.rect.center));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Fractionner les cellules'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Nombre de colonnes'), '3');
+    await tester.tap(find.text('OK'));
+    await settle(tester);
+    expect(hub.doc[frame.id]!.attributes['grid'], hasLength(6));
+    expect(cell(0, 0).attributes['gridSpan'], 3);
+    await tester.enterText(find.descendant(of: find.byTooltip('Hauteur'), matching: find.byType(TextField)), '3');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await settle(tester);
+    expect(hub.doc.children(frame.id)[3].attributes['h'], closeTo(1080000, 2));
     await finish(tester);
   });
 

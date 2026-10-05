@@ -9,6 +9,10 @@
   the presentation, then Office's light, medium and dark ones, drawn with
   the options of the table. The built-in styles are drawn even when the
   presentation does not hold them.
+- Dart: Layout > Split Cells splits a cell that is not merged into the
+  columns and rows asked for, sharing its column and row, the cells of the
+  other rows and columns merged across them. Layout > Cell Size types the
+  height and width of a cell in centimeters, the table growing with them.
 
 ## 0.8.1 — 2026-10-05
 

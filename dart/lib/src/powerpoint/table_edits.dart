@@ -266,14 +266,85 @@ class TableEdits {
     return Edit(changes);
   }
 
+  /// Splits a cell that is not merged into [columns] × [rows] cells, its
+  /// text left in the first: its column and row are shared among them, the
+  /// cells of the other rows and columns merged across them.
+  Edit splitInto(CellLayout cell, int columns, int rows) {
+    if (cell.rowSpan > 1 || cell.colSpan > 1 || columns < 1 || rows < 1 || columns * rows == 1) return Edit();
+    final (r, c) = (cell.row, cell.col);
+    final changes = <Change>[];
+    final grid = _grid;
+    if (columns > 1 && c < grid.length && grid[c] is num) {
+      final width = (grid[c]! as num).round();
+      grid.replaceRange(c, c + 1, [for (var i = 0; i < columns; i++) i < columns - 1 ? width ~/ columns : width - width ~/ columns * (columns - 1)]);
+      changes.add(Change.set(frame.id, attributes: {'grid': grid}));
+    }
+    final trs = _rows;
+    for (var i = 0; i < trs.length && columns > 1; i++) {
+      final slot = layout.slots[i];
+      final kids = tree.children(trs[i].id);
+      final before = i == r ? cell.node : _last(slot, c + 1);
+      final at = before == null ? -1 : kids.indexOf(before);
+      var key = at >= 0 ? kids[at].key : '';
+      final next = at + 1 < kids.length ? kids[at + 1].key : '';
+      final owner = i == r ? null : _origin(slot, c);
+      if (i != r && owner == null) continue;
+      if (owner != null) changes.add(Change.set(owner.id, attributes: {'gridSpan': _span(owner) + columns - 1}));
+      for (var n = 1; n < columns; n++) {
+        key = keyBetween(key, next);
+        if (owner == null) {
+          changes.add(_emptyLike(cell.node, trs[i].id, key));
+          continue;
+        }
+        final rowSpan = owner.attributes['rowSpan'];
+        changes.add(Change.create(Node(id: randomId(), type: 'tc', parent: trs[i].id, key: key, attributes: {
+          'hMerge': true,
+          if (owner.attributes['vMerge'] == true) 'vMerge': true,
+          'rowSpan': ?rowSpan,
+        }, text: Delta([const Op.insert('\n')]))));
+      }
+    }
+    if (rows > 1) {
+      final height = ((layout.rows[r + 1] - layout.rows[r]) * emuPerPoint / rows).round();
+      changes.add(Change.set(trs[r].id, attributes: {'h': height}));
+      final grown = <String>{};
+      var rowKey = trs[r].key;
+      for (var n = 1; n < rows; n++) {
+        final id = randomId();
+        rowKey = keyBetween(rowKey, r + 1 < trs.length ? trs[r + 1].key : '');
+        changes.add(Change.create(Node(id: id, type: 'tr', parent: frame.id, key: rowKey, attributes: {'h': height})));
+        var key = '';
+        for (var col = 0; col < layout.slots[r].length; col++) {
+          if (col == c) {
+            for (var i = 0; i < columns; i++) {
+              key = keyBetween(key, '');
+              changes.add(_emptyLike(cell.node, id, key));
+            }
+            continue;
+          }
+          final over = layout.cellOver(r, col);
+          if (over == null) continue;
+          if (grown.add(over.node.id)) changes.addAll(_rowSpan(over, over.rowSpan + rows - 1));
+          key = keyBetween(key, '');
+          changes.add(Change.create(Node(id: randomId(), type: 'tc', parent: id, key: key, attributes: {
+            'vMerge': true,
+            if (col > over.col) 'hMerge': true,
+            if (col == over.col && over.colSpan > 1) 'gridSpan': over.colSpan,
+          }, text: Delta([const Op.insert('\n')]))));
+        }
+      }
+    }
+    return Edit(changes);
+  }
+
   /// Moves the edge after column [edge] - 1 by [by] points: the columns on
   /// each side of an inner edge share their width, the last edge widens
-  /// the table.
-  Edit resizeColumn(int edge, double by) {
+  /// the table, as any edge does to [widen] it.
+  Edit resizeColumn(int edge, double by, {bool widen = false}) {
     final grid = _grid;
     if (edge < 1 || edge > grid.length || grid.any((w) => w is! num)) return Edit();
     final widths = [for (final w in grid) (w! as num).round()];
-    final last = edge == widths.length;
+    final last = widen || edge == widths.length;
     var d = (by * emuPerPoint).round();
     d = math.max(d, math.min(0, _narrowest - widths[edge - 1]));
     if (!last) d = math.min(d, math.max(0, widths[edge] - _narrowest));
@@ -347,13 +418,13 @@ class TableEdits {
       if (c.node.text case final t? when t.length > 1) Change.text(c.node.id, Delta([Op.delete(t.length - 1)])),
   ]);
 
-  /// Turns an option of the table style on or off: "firstRow", "bandRow"…
   /// Gives the table a style, by id.
   Edit restyle(String style) {
     final tbl = {...?(frame.attributes['tbl'] as Map<String, Object?>?), 'style': style};
     return Edit([Change.set(frame.id, attributes: {'tbl': tbl})]);
   }
 
+  /// Turns an option of the table style on or off: "firstRow", "bandRow"…
   Edit toggle(String option) {
     final tbl = {...?(frame.attributes['tbl'] as Map<String, Object?>?)};
     if (tbl[option] == true) {

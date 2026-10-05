@@ -435,6 +435,16 @@ class _PresentationEditorState extends State<PresentationEditor> {
     if (cells.isNotEmpty) _selection.selectShapes([cells.first.node.id]);
   }
 
+  /// Splits a merged cell back, or one that is not into the columns and
+  /// rows asked for.
+  Future<void> _splitCells() async {
+    final cell = _table?.$2;
+    if (cell == null) return;
+    if (cell.rowSpan > 1 || cell.colSpan > 1) return _tableEdit((e, c) => e.split(c!));
+    final size = await showDialog<(int, int)>(context: context, builder: (_) => _SplitDialog(strings: _s));
+    if (size != null) _tableEdit((e, c) => e.splitInto(c!, size.$1, size.$2));
+  }
+
   /// A new table in the middle of the slide, two thirds of its width, its
   /// first cell ready for typing.
   void _insertTable(int rows, int columns) {
@@ -1056,13 +1066,27 @@ class _PresentationEditorState extends State<PresentationEditor> {
               ]),
               direction(large: true),
             ]),
+            RibbonGroup(_s.cellSize, [
+              RibbonMeasure(
+                label: _s.height,
+                icon: Icons.height,
+                value: table.$2?.rect.height,
+                onChanged: cell == null ? null : (h) => _tableEdit((e, c) => e.resizeRow(c!.row + c.rowSpan, h - c.rect.height)),
+              ),
+              RibbonMeasure(
+                label: _s.width,
+                icon: Icons.width_normal_outlined,
+                value: table.$2?.rect.width,
+                onChanged: cell == null ? null : (w) => _tableEdit((e, c) => e.resizeColumn(c!.col + c.colSpan, w - c.rect.width, widen: true)),
+              ),
+            ]),
             RibbonGroup(_s.merge, [
               RibbonButton(icon: const Icon(Icons.call_merge), label: _s.mergeCells, large: true, onPressed: cells.length > 1 ? _merge : null),
               RibbonButton(
                 icon: const Icon(Icons.call_split),
                 label: _s.splitCells,
                 large: true,
-                onPressed: cells.length == 1 && (cell!.rowSpan > 1 || cell.colSpan > 1) ? () => _tableEdit((e, c) => e.split(c!)) : null,
+                onPressed: cells.length == 1 ? _splitCells : null,
               ),
             ]),
           ]),
@@ -1410,6 +1434,56 @@ class _Backstage extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The columns and rows PowerPoint asks a cell to be split into.
+class _SplitDialog extends StatefulWidget {
+  const _SplitDialog({required this.strings});
+
+  final LofficeStrings strings;
+
+  @override
+  State<_SplitDialog> createState() => _SplitDialogState();
+}
+
+class _SplitDialogState extends State<_SplitDialog> {
+  final _columns = TextEditingController(text: '2');
+  final _rows = TextEditingController(text: '1');
+
+  @override
+  void dispose() {
+    _columns.dispose();
+    _rows.dispose();
+    super.dispose();
+  }
+
+  void _done() {
+    final columns = int.tryParse(_columns.text) ?? 0, rows = int.tryParse(_rows.text) ?? 0;
+    if (columns >= 1 && rows >= 1 && columns <= 75 && rows <= 75) Navigator.of(context).pop((columns, rows));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.strings;
+    Widget field(TextEditingController controller, String label) => TextField(
+      controller: controller,
+      keyboardType: TextInputType.number,
+      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+      decoration: InputDecoration(labelText: label),
+      onSubmitted: (_) => _done(),
+    );
+    return AlertDialog(
+      title: Text(s.splitCells),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        field(_columns, s.numberOfColumns),
+        field(_rows, s.numberOfRows),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(s.cancel)),
+        FilledButton(onPressed: _done, child: Text(s.ok)),
+      ],
     );
   }
 }

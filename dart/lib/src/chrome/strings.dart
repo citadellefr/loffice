@@ -358,6 +358,11 @@ class LofficeStrings {
   String get merge => 'Fusionner';
   String get mergeCells => 'Fusionner les cellules';
   String get splitCells => 'Fractionner les cellules';
+  String get cellSize => 'Taille de la cellule';
+  String get height => 'Hauteur';
+  String get width => 'Largeur';
+  String get numberOfColumns => 'Nombre de colonnes';
+  String get numberOfRows => 'Nombre de lignes';
   String get tableStyleOptions => 'Options de style de tableau';
   String get tableDesign => 'Création de tableau';
   String get centerVertically => 'Centrer verticalement';

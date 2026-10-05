@@ -132,6 +132,28 @@ void main() {
     expect(t.cellOver(2, 2)!.node.text!.text, '\n');
   });
 
+  test('a cell split into columns and rows shares them, the others merged across', () {
+    final cell = layout().cellOver(0, 2)!;
+    final grid = [...tree['s256-2']!.attributes['grid']! as List<Object?>];
+    edit((e) => e.splitInto(cell, 2, 2));
+    final t = layout();
+    expect(t.slots, hasLength(4));
+    expect(t.slots.every((s) => s.length == 4), isTrue);
+    expect(t.cells, hasLength(9));
+    final m = merged(t);
+    expect((m.rowSpan, m.colSpan), (3, 2));
+    for (final (r, c) in [(0, 2), (0, 3), (1, 2), (1, 3)]) {
+      expect((t.cellOver(r, c)!.rowSpan, t.cellOver(r, c)!.colSpan), (1, 1));
+    }
+    expect(t.cellOver(0, 2)!.node.id, cell.node.id);
+    expect(t.cellOver(2, 2)!.colSpan, 2);
+    expect(t.cellOver(3, 2)!.colSpan, 2);
+    final widths = tree['s256-2']!.attributes['grid']! as List<Object?>;
+    expect((widths[2]! as num) + (widths[3]! as num), grid[2]);
+    final trs = tree.children('s256-2');
+    expect(trs[1].attributes['h'], trs[0].attributes['h']);
+  });
+
   test('a merged cell split creates the cells its span covered without one', () {
     final cell = merged(layout());
     final row = tree[cell.node.parent]!;
