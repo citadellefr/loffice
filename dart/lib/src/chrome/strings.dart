@@ -425,6 +425,7 @@ class LofficeStrings {
   String get object => 'Objet';
   String get shapeName => 'Forme';
   String get textBoxName => 'ZoneTexte';
+  String get preview => 'Aperçu';
   String get transitionToThisSlide => 'Transition vers cette diapositive';
   String get effectOptions => 'Options d’effet';
   String get timing => 'Minutage';

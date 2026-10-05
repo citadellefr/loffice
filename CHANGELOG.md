@@ -25,7 +25,8 @@
   after the time a slide gives, and not on a click when a slide says so;
   nothing is drawn outside the slide. Slides without a transition no
   longer fade. The Transitions tab picks the effect, its options, its
-  duration, applies it to all slides, and sets when the show goes on.
+  duration, applies it to all slides, and sets when the show goes on;
+  a transition picked plays over the slide, as Preview plays it again.
 - Dart: Slide Show > Presenter View (Alt+F5) shows the slide with, beside
   it, the next one and the notes, the time spoken above, which pauses and
   restarts, and the slide's number below.

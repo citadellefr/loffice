@@ -10,6 +10,7 @@ import 'package:loffice/src/chrome/ribbon.dart';
 import 'package:loffice/src/powerpoint/deck.dart';
 import 'package:loffice/src/powerpoint/slide_canvas.dart';
 import 'package:loffice/src/powerpoint/slide_painter.dart';
+import 'package:loffice/src/powerpoint/slideshow.dart';
 import 'package:trame/testing.dart';
 
 void main() {
@@ -336,6 +337,10 @@ void main() {
     await settle(tester);
     Object? transition(int i) => slides()[i].attributes['transition'];
     expect(transition(0), {'dur': 1000, 'effect': 'push', 'dir': 'u'});
+    // picked, it plays over the slide
+    expect(find.byType(TransitionPreview), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 1100));
+    expect(find.byType(TransitionPreview), findsNothing);
 
     await tester.tap(find.byTooltip('Options d’effet').first);
     await tester.pumpAndSettle();

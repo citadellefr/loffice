@@ -255,6 +255,66 @@ class _SlideshowState extends State<Slideshow> with SingleTickerProviderStateMix
   }
 }
 
+/// The transition of a slide played once, as the Transitions tab
+/// previews it over the slide: [from] gives way to [slide], from black when
+/// there is none.
+class TransitionPreview extends StatefulWidget {
+  const TransitionPreview({super.key, required this.deck, required this.painter, required this.slide, this.from, required this.onDone});
+
+  final Deck deck;
+  final SlidePainter painter;
+  final Node slide;
+  final Node? from;
+  final VoidCallback onDone;
+
+  @override
+  State<TransitionPreview> createState() => _TransitionPreviewState();
+}
+
+class _TransitionPreviewState extends State<TransitionPreview> with SingleTickerProviderStateMixin {
+  late final Map<String, Object?> _transition = _SlideshowState._transition(widget.slide);
+  late final _progress = AnimationController(
+    vsync: this,
+    duration: Duration(milliseconds: _transition['dur'] is num ? math.max(1, (_transition['dur']! as num).toInt()) : 1),
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _progress.forward().whenComplete(() {
+      if (mounted) widget.onDone();
+    });
+  }
+
+  @override
+  void dispose() {
+    _progress.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = widget.deck.size;
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: AspectRatio(
+          aspectRatio: size.width / size.height,
+          child: ClipRect(
+            child: ColoredBox(
+              color: Colors.black,
+              child: CustomPaint(
+                size: Size.infinite,
+                painter: _ShowPainter(widget.painter, widget.deck, widget.slide, from: widget.from, transition: _transition, progress: _progress),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// A slide shown, coming on over the one before with its transition.
 class _ShowPainter extends CustomPainter {
   _ShowPainter(this.painter, this.deck, this.slide, {this.from, required this.transition, required this.progress}) : super(repaint: progress);
@@ -269,7 +329,11 @@ class _ShowPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final t = progress.value, from = this.from;
-    if (from == null || t >= 1) return _draw(canvas, size, slide);
+    if (t >= 1) return _draw(canvas, size, slide);
+    void back({Offset shift = Offset.zero, double opacity = 1}) {
+      if (from != null) _draw(canvas, size, from, shift: shift, opacity: opacity);
+    }
+
     final dir = transition['dir'];
     Offset away(Object? dir) {
       final d = '${dir ?? 'l'}';
@@ -280,17 +344,17 @@ class _ShowPainter extends CustomPainter {
 
     switch (transition['effect']) {
       case 'push':
-        _draw(canvas, size, from, shift: away(dir) * t);
+        back(shift: away(dir) * t);
         _draw(canvas, size, slide, shift: away(dir) * (t - 1));
       case 'cover':
-        _draw(canvas, size, from);
+        back();
         _draw(canvas, size, slide, shift: away(dir) * (t - 1));
       case 'pull':
         _draw(canvas, size, slide);
-        _draw(canvas, size, from, shift: away(dir) * t);
+        back(shift: away(dir) * t);
       case 'wipe':
         final (w, h) = (size.width, size.height);
-        _draw(canvas, size, from);
+        back();
         _draw(canvas, size, slide, clip: Path()..addRect(switch (dir) {
           'r' => Rect.fromLTRB(0, 0, w * t, h),
           'u' => Rect.fromLTRB(0, h * (1 - t), w, h),
@@ -308,19 +372,19 @@ class _ShowPainter extends CustomPainter {
                 ..addRect(Offset.zero & size)
                 ..addRect(Rect.fromCenter(center: c, width: edges.width, height: edges.height)))
             : (Path()..addRect(Rect.fromCenter(center: c, width: band.width, height: band.height)));
-        _draw(canvas, size, from);
+        back();
         _draw(canvas, size, slide, clip: clip);
       case 'zoom':
-        _draw(canvas, size, from);
+        back();
         _draw(canvas, size, slide, opacity: t, scale: dir == 'out' ? 1.6 - 0.6 * t : 0.4 + 0.6 * t);
       case 'fade' when transition['thruBlk'] == true:
         if (t < 0.5) {
-          _draw(canvas, size, from, opacity: 1 - 2 * t);
+          back(opacity: 1 - 2 * t);
         } else {
           _draw(canvas, size, slide, opacity: 2 * t - 1);
         }
       default:
-        _draw(canvas, size, from);
+        back();
         _draw(canvas, size, slide, opacity: t);
     }
   }

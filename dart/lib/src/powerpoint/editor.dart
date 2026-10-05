@@ -326,6 +326,12 @@ class _PresentationEditorState extends State<PresentationEditor> {
     _edit(Edit([Change.set(slide.id, attributes: {'hidden': slide.attributes['hidden'] == true ? null : true})]));
   }
 
+  /// The number of the transition preview playing over the slide, 0 for
+  /// none.
+  var _previews = 0;
+
+  void _preview() => setState(() => _previews++);
+
   /// The transition of the slide shown, empty for none.
   Map<String, Object?> get _transition => _slide?.attributes['transition'] as Map<String, Object?>? ?? const {};
 
@@ -365,6 +371,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
       'dur': _transitionDurations[effect] ?? 500,
       if (options.isNotEmpty) ...options.first.$2,
     });
+    if (effect.isNotEmpty && effect != 'cut') _preview();
   }
 
   Rect get _center {
@@ -656,20 +663,37 @@ class _PresentationEditorState extends State<PresentationEditor> {
     final deck = _current;
     final slide = _slide;
     _slideId = slide?.id;
+    final slides = deck.slides;
+    final at = slide == null ? -1 : slides.indexWhere((s) => s.id == slide.id);
     final canvas = ColoredBox(
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
       child: slide == null
           ? const SizedBox.expand()
-          : SlideCanvas(
-              session: _session,
-              deck: deck,
-              slide: slide,
-              painter: _paint,
-              selection: _selection,
-              focusNode: _canvasFocus,
-              strings: _s,
-              onShortcut: _shortcut,
-            ),
+          : Stack(children: [
+              Positioned.fill(
+                child: SlideCanvas(
+                  session: _session,
+                  deck: deck,
+                  slide: slide,
+                  painter: _paint,
+                  selection: _selection,
+                  focusNode: _canvasFocus,
+                  strings: _s,
+                  onShortcut: _shortcut,
+                ),
+              ),
+              if (_previews > 0)
+                Positioned.fill(
+                  child: TransitionPreview(
+                    key: ValueKey(_previews),
+                    deck: deck,
+                    painter: _paint,
+                    slide: slide,
+                    from: at > 0 ? slides[at - 1] : null,
+                    onDone: () => setState(() => _previews = 0),
+                  ),
+                ),
+            ]),
     );
     // a phone gives the slide its whole width, the thumbnails in a row below
     final phone = MediaQuery.sizeOf(context).width < phoneWidth;
@@ -1133,6 +1157,9 @@ class _PresentationEditorState extends State<PresentationEditor> {
             ]),
           ]),
         RibbonTab(_s.transitions, [
+          RibbonGroup(_s.preview, [
+            RibbonButton(icon: const Icon(Icons.play_circle_outline), label: _s.preview, large: true, onPressed: _transition['effect'] != null ? _preview : null),
+          ]),
           RibbonGroup(_s.transitionToThisSlide, [
             for (final (effect, icon) in [
               ('', Icons.block),
@@ -1165,7 +1192,10 @@ class _PresentationEditorState extends State<PresentationEditor> {
                     child: Text(_s.effectOption(name)),
                   ),
               ],
-              onSelected: _retransition,
+              onSelected: (keys) {
+                _retransition(keys);
+                _preview();
+              },
             ),
           ]),
           RibbonGroup(_s.timing, [
