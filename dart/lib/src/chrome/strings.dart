@@ -368,6 +368,29 @@ class LofficeStrings {
     _ => 'Horizontal',
   };
   String get tableStyles => 'Styles de tableau';
+  String get customStyles => 'Personnalisé';
+  String get customStyle => 'Style personnalisé';
+  String tableStyleSection(String kind) => switch (kind) {
+    'Light' => 'Clair',
+    'Medium' => 'Moyen',
+    _ => 'Foncé',
+  };
+
+  /// The name of a built-in table style: [family] as Office names it in
+  /// English, "Medium Style 2", and an accent from 1 to 6, 0 for none.
+  String tableStyleName(String family, int accent) {
+    if (accent == 0 && family == 'Themed Style 1') return 'Aucun style, aucune grille';
+    if (accent == 0 && family == 'Themed Style 2') return 'Aucun style, grille du tableau';
+    final kind = switch (family.split(' ').first) {
+      'Themed' => 'Style à thème',
+      'Light' => 'Style clair',
+      'Medium' => 'Style moyen',
+      _ => 'Style foncé',
+    };
+    final name = '$kind ${family.split(' ').last}';
+    if (accent == 0) return name;
+    return family == 'Dark Style 2' ? '$name - Accentuation $accent/Accentuation ${accent + 1}' : '$name - Accentuation $accent';
+  }
   String get shading => 'Trame de fond';
   String get drawBorders => 'Dessiner des bordures';
   String get penWeight => 'Épaisseur du stylo';

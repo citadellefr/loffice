@@ -22,9 +22,8 @@ const _placing = {'xml', 'gridSpan', 'rowSpan', 'hMerge', 'vMerge'};
 /// A new table of [rows] × [columns] filling [bounds]'s width, in the
 /// deck's default style, with a header row and banded rows.
 Edit newTable(Deck deck, Node slide, int rows, int columns, Rect bounds, {required String name, required String key}) {
-  final styles = deck.tree['deck']?.attributes['tblStyles'];
   final def = deck.tree['deck']?.attributes['tblStyleDef'];
-  final style = def is String && styles is Map<String, Object?> && styles.containsKey(def) ? def : defaultTableStyle;
+  final style = def is String && deck.tableStyle(def).isNotEmpty ? def : defaultTableStyle;
   final width = (bounds.width * emuPerPoint / columns).round();
   final id = randomId();
   final changes = <Change>[
@@ -349,6 +348,12 @@ class TableEdits {
   ]);
 
   /// Turns an option of the table style on or off: "firstRow", "bandRow"…
+  /// Gives the table a style, by id.
+  Edit restyle(String style) {
+    final tbl = {...?(frame.attributes['tbl'] as Map<String, Object?>?), 'style': style};
+    return Edit([Change.set(frame.id, attributes: {'tbl': tbl})]);
+  }
+
   Edit toggle(String option) {
     final tbl = {...?(frame.attributes['tbl'] as Map<String, Object?>?)};
     if (tbl[option] == true) {

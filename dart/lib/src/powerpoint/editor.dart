@@ -18,6 +18,7 @@ import 'slide_painter.dart';
 import 'slideshow.dart';
 import 'table.dart';
 import 'table_edits.dart';
+import 'table_gallery.dart';
 
 /// A PowerPoint editor on a session whose document is a presentation: the
 /// ribbon, the slides at the left, the slide being edited with its notes,
@@ -940,6 +941,28 @@ class _PresentationEditorState extends State<PresentationEditor> {
               ]),
             ]),
             RibbonGroup(_s.tableStyles, [
+              RibbonMenu<String>(
+                icon: const Icon(Icons.table_view),
+                label: _s.styles,
+                large: true,
+                enabled: editable,
+                constraints: const BoxConstraints(maxWidth: TableStyleGallery.width + 32),
+                items: [
+                  PopupMenuItem(
+                    enabled: false,
+                    child: Builder(builder: (context) => TableStyleGallery(
+                      deck: deck,
+                      table: table.$1,
+                      strings: _s,
+                      onSelected: (id) {
+                        Navigator.of(context).pop();
+                        _tableEdit((e, _) => e.restyle(id));
+                      },
+                    )),
+                  ),
+                ],
+                onSelected: (_) {},
+              ),
               RibbonMenu<Map<String, Object?>?>(
                 icon: const Icon(Icons.format_color_fill),
                 label: _s.shading,

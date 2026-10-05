@@ -50,7 +50,13 @@ func TestTableEdits(t *testing.T) {
 		t.Fatalf("styles %v", styles)
 	}
 
+	// Medium Style 2 - Accent 2, which the presentation lacks
+	var tbl map[string]any
+	_ = json.Unmarshal(table.Attrs["tbl"], &tbl)
+	tbl["style"] = "{21E4AEA4-8DFA-4A89-87EB-49C32662AFE0}"
+	restyled, _ := json.Marshal(tbl)
 	apply(t, d, tree, ot.Edit{
+		{Op: ot.OpSet, ID: table.ID, Attrs: ot.Values{"tbl": restyled}},
 		{Op: ot.OpTxt, ID: grid[1][1].ID, Text: ot.Delta{{Insert: "Cellule"}}},
 		{Op: ot.OpSet, ID: grid[1][2].ID, Attrs: ot.Values{"fill": json.RawMessage(`{"solid":{"scheme":"accent2"}}`), "lnB": json.RawMessage(`{"w":25400,"fill":{"solid":{"rgb":"FF0000"}}}`), "lnT": json.RawMessage(`{"fill":{"none":true}}`)}},
 		{Op: ot.OpSet, ID: grid[2][0].ID, Attrs: ot.Values{"gridSpan": json.RawMessage(`2`), "vert": json.RawMessage(`"vert270"`)}},
@@ -128,6 +134,9 @@ func TestTableEdits(t *testing.T) {
 	table = tableOn(again, slide.ID)
 	if string(table.Attrs["grid"]) != "[1524000,1524000,1524000,1524000,1000000]" {
 		t.Fatalf("grid %s", table.Attrs["grid"])
+	}
+	if !strings.Contains(string(table.Attrs["tbl"]), "21E4AEA4") || !strings.Contains(string(again.Node("deck").Attrs["tblStyles"]), "21E4AEA4") {
+		t.Fatalf("restyled %s", table.Attrs["tbl"])
 	}
 	grid = cells(again, table)
 	if len(grid) != 4 {

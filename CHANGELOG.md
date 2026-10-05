@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- `pptx` reads the background of a table style, "tblBg", which Themed
+  Style 2 and its accents fill the table with. `tablestyles.json` is also
+  written for the Dart package (`builtin_styles.dart`).
+- Dart: Table Design > Styles shows PowerPoint's gallery: the styles of
+  the presentation, then Office's light, medium and dark ones, drawn with
+  the options of the table. The built-in styles are drawn even when the
+  presentation does not hold them.
+
 ## 0.8.1 — 2026-10-05
 
 - PowerPoint tables are read, drawn and edited. `pptx` gives a table's

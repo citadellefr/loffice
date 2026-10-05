@@ -1,9 +1,14 @@
+import 'dart:convert';
 import 'dart:ui';
 
 import 'package:trame/trame.dart';
 
 import '../drawing/color.dart';
 import '../text/text_frame.dart';
+import 'builtin_styles.dart';
+
+/// Office's built-in table styles, by id.
+final builtinTableStyles = jsonDecode(builtinTableStylesJson) as Map<String, Object?>;
 
 /// EMU in a point: the positions and sizes of a document are in EMU,
 /// what is drawn in points.
@@ -100,9 +105,15 @@ class Deck {
 
   /// The parts of the style a table names, by name: "wholeTbl",
   /// "firstRow"…
-  Map<String, Map<String, Object?>> tableStyleOf(Node table) {
-    final id = _map(table.attributes['tbl'])?['style'];
-    final style = _map(_map(tree['deck']?.attributes['tblStyles'])?[id]);
+  Map<String, Map<String, Object?>> tableStyleOf(Node table) => tableStyle(_map(table.attributes['tbl'])?['style']);
+
+  /// The ids of the table styles the presentation holds.
+  Iterable<String> get tableStyleIds => _map(tree['deck']?.attributes['tblStyles'])?.keys ?? const [];
+
+  /// The parts of a table style by name, those of the presentation before
+  /// Office's built-in ones.
+  Map<String, Map<String, Object?>> tableStyle(Object? id) {
+    final style = _map(_map(tree['deck']?.attributes['tblStyles'])?[id] ?? builtinTableStyles[id]);
     return {
       for (final e in (style ?? const {}).entries)
         if (e.value is Map<String, Object?>) e.key: e.value! as Map<String, Object?>,

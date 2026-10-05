@@ -296,6 +296,11 @@ void main() {
     await tester.tap(find.text('Ligne d’en-tête'));
     await settle(tester);
     expect((hub.doc[frame.id]!.attributes['tbl']! as Map<String, Object?>)['firstRow'], isNull);
+    await tester.tap(find.byTooltip('Styles').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Style clair 1 - Accentuation 2'));
+    await settle(tester);
+    expect(hub.doc[frame.id]!.attributes['tbl'], {'style': '{0E3FDE45-AF77-4B5C-9715-49D594BDF05E}', 'bandRow': true});
 
     // Tab from the first cell to the last, and once more: a fourth row
     for (var i = 0; i < 9; i++) {

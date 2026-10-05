@@ -117,7 +117,7 @@ class TableLayout {
         style.lines(p),
       );
     }
-    final tableFill = options['fill'] is Map<String, Object?> ? (options['fill']! as Map<String, Object?>, colors) : null;
+    final tableFill = options['fill'] is Map<String, Object?> ? (options['fill']! as Map<String, Object?>, colors) : style.background;
     return TableLayout._(columns, rows, fits, cells, slots, tableFill, nodesOf(tree, table));
   }
 
@@ -199,30 +199,60 @@ class TableLayout {
     final all = Offset.zero & size;
     if (fill != null) DrawingPainter(fill!.$2, images: images).fill(canvas, Path()..addRect(all), all, fill!.$1);
     for (final c in cells.values) {
-      final f = c.fill;
-      if (f != null) DrawingPainter(f.$2, images: images).fill(canvas, Path()..addRect(c.rect), c.rect, f.$1);
+      _fill(canvas, c.rect, c.fill, images);
     }
     for (final c in cells.values) {
-      final r = c.rect;
-      for (final MapEntry(key: edge, value: (line, colors)) in c.lines.entries) {
-        final (from, to) = switch (edge) {
-          'l' => (r.topLeft, r.bottomLeft),
-          'r' => (r.topRight, r.bottomRight),
-          't' => (r.topLeft, r.topRight),
-          'b' => (r.bottomLeft, r.bottomRight),
-          'tl2br' => (r.topLeft, r.bottomRight),
-          _ => (r.bottomLeft, r.topRight),
-        };
-        DrawingPainter(colors).line(canvas, Path()
-          ..moveTo(from.dx, from.dy)
-          ..lineTo(to.dx, to.dy), line);
-      }
+      _lines(canvas, c.rect, c.lines);
     }
     for (final c in cells.values) {
       canvas.save();
       canvas.translate(c.rect.left, c.rect.top);
       c.text.paint(canvas);
       canvas.restore();
+    }
+  }
+
+  /// Paints a table style as the gallery shows it: five rows of five empty
+  /// cells taking the parts [options] turn on, a dash in their text color.
+  static void paintStyle(Canvas canvas, Size size, Map<String, Map<String, Object?>> parts, Map<String, Object?> options, {required ColorContext colors, required DeckTheme theme}) {
+    const n = 5;
+    final style = _Style(parts, options, n, n, colors, theme);
+    final w = size.width / n, h = size.height / n;
+    const blank = Node(id: '', type: 'tc', key: '');
+    final cells = [
+      for (var r = 0; r < n; r++)
+        for (var c = 0; c < n; c++) (_Placed(blank, r, c, 1, 1), Rect.fromLTWH(c * w, r * h, w, h)),
+    ];
+    _fill(canvas, Offset.zero & size, style.background, null);
+    for (final (p, rect) in cells) {
+      _fill(canvas, rect, style.fill(p), null);
+    }
+    for (final (p, rect) in cells) {
+      _lines(canvas, rect, style.lines(p));
+      final dash = Paint()
+        ..color = colors.resolve(style.color(p) ?? {'scheme': 'tx1'}) ?? const Color(0xFF000000)
+        ..strokeWidth = math.max(1, h / 8);
+      canvas.drawLine(rect.centerLeft + Offset(w / 4, 0), rect.centerRight - Offset(w / 4, 0), dash);
+    }
+  }
+
+  static void _fill(Canvas canvas, Rect rect, Styled? fill, ImageSource? images) {
+    if (fill != null) DrawingPainter(fill.$2, images: images).fill(canvas, Path()..addRect(rect), rect, fill.$1);
+  }
+
+  static void _lines(Canvas canvas, Rect r, Map<String, Styled> lines) {
+    for (final MapEntry(key: edge, value: (line, colors)) in lines.entries) {
+      final (from, to) = switch (edge) {
+        'l' => (r.topLeft, r.bottomLeft),
+        'r' => (r.topRight, r.bottomRight),
+        't' => (r.topLeft, r.topRight),
+        'b' => (r.bottomLeft, r.bottomRight),
+        'tl2br' => (r.topLeft, r.bottomRight),
+        _ => (r.bottomLeft, r.topRight),
+      };
+      DrawingPainter(colors).line(canvas, Path()
+        ..moveTo(from.dx, from.dy)
+        ..lineTo(to.dx, to.dy), line);
     }
   }
 
@@ -355,9 +385,26 @@ class _Style {
         if (part[k] == 'on' || part[k] == 'off') out[k] = part[k] == 'on' ? '1' : '0';
       }
       if (part['font'] is String) out['font'] = part['font']! as String;
-      if (part['color'] is Map<String, Object?>) out['fill'] = jsonEncode({'solid': part['color']});
+    }
+    final color = this.color(p);
+    if (color != null) out['fill'] = jsonEncode({'solid': color});
+    return out;
+  }
+
+  /// The color the style gives the text of a cell.
+  Map<String, Object?>? color(_Placed p) {
+    Map<String, Object?>? out;
+    for (final (part, _) in _of(p)) {
+      if (part['color'] is Map<String, Object?>) out = part['color']! as Map<String, Object?>;
     }
     return out;
+  }
+
+  /// The fill the style lays under all the cells.
+  Styled? get background {
+    final bg = parts['tblBg'], fill = bg?['fill'], ref = bg?['fillRef'];
+    if (fill is Map<String, Object?>) return (fill, colors);
+    return ref is Map<String, Object?> ? _ref(ref, theme.fills) : null;
   }
 
   Styled? fill(_Placed p) {

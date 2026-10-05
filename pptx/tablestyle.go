@@ -13,7 +13,8 @@ const relTableStyles = "http://schemas.openxmlformats.org/officeDocument/2006/re
 
 // TableStyle is how a style paints the parts of a table: "wholeTbl",
 // "band1H" "band2H" "band1V" "band2V", "firstRow" "lastRow" "firstCol"
-// "lastCol" and the corners "nwCell" "neCell" "swCell" "seCell".
+// "lastCol", the corners "nwCell" "neCell" "swCell" "seCell", and the
+// background under all the cells, "tblBg".
 type TableStyle map[string]*TableStylePart
 
 // TableStylePart is the text and the cells of a part of a table.
@@ -61,6 +62,11 @@ func readTableStyle(s *xmldom.Element, media func(string) string) TableStyle {
 			style[name] = readTablePart(e, media)
 		}
 	}
+	if bg := s.Child(aNS, "tblBg"); bg != nil {
+		p := &TableStylePart{}
+		readCellStyle(p, bg, media)
+		style["tblBg"] = p
+	}
 	return style
 }
 
@@ -86,10 +92,15 @@ func readTablePart(e *xmldom.Element, media func(string) string) *TableStylePart
 			}
 		}
 	}
-	st := e.Child(aNS, "tcStyle")
-	if st == nil {
-		return p
+	if st := e.Child(aNS, "tcStyle"); st != nil {
+		readCellStyle(p, st, media)
 	}
+	return p
+}
+
+// readCellStyle reads the fill and borders of a tcStyle, or the fill of a
+// tblBg.
+func readCellStyle(p *TableStylePart, st *xmldom.Element, media func(string) string) {
 	if f := st.Child(aNS, "fill"); f != nil {
 		p.Fill = drawingml.FillIn(f, media)
 	}
@@ -111,7 +122,6 @@ func readTablePart(e *xmldom.Element, media func(string) string) *TableStylePart
 			p.Borders[edge.Local] = b
 		}
 	}
-	return p
 }
 
 func onOff(s string) string {

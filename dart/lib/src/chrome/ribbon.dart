@@ -311,6 +311,7 @@ class RibbonMenu<T> extends StatelessWidget {
     required this.onSelected,
     this.large = false,
     this.enabled = true,
+    this.constraints,
   });
 
   final Widget icon;
@@ -320,11 +321,15 @@ class RibbonMenu<T> extends StatelessWidget {
   final bool large;
   final bool enabled;
 
+  /// The size of the menu, for one wider than a list.
+  final BoxConstraints? constraints;
+
   @override
   Widget build(BuildContext context) {
     return PopupMenuButton<T>(
       tooltip: label,
       enabled: enabled,
+      constraints: constraints,
       onSelected: onSelected,
       itemBuilder: (_) => items,
       child: IgnorePointer(

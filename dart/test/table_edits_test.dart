@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:loffice/src/powerpoint/builtin_styles.dart';
 import 'package:loffice/src/powerpoint/deck.dart';
 import 'package:loffice/src/powerpoint/slide_painter.dart';
 import 'package:loffice/src/powerpoint/table.dart';
@@ -25,6 +26,21 @@ void main() {
   }
 
   CellLayout merged(TableLayout t) => t.cells.values.firstWhere((c) => c.node.text!.text == 'merged cell\n');
+
+  test('a built-in style the presentation lacks is drawn as Office draws it', () {
+    final ids = [for (final (_, ids) in builtinTableStyleFamilies) ...ids.where((id) => id.isNotEmpty)];
+    expect(ids, hasLength(74));
+    expect(ids.every(builtinTableStyles.containsKey), isTrue);
+
+    // Medium Style 2 - Accent 2
+    const id = '{21E4AEA4-8DFA-4A89-87EB-49C32662AFE0}';
+    expect(tree['deck']!.attributes['tblStyles'], isNot(contains(id)));
+    edit((e) => e.restyle(id));
+    final tbl = tree['s256-2']!.attributes['tbl']! as Map<String, Object?>;
+    expect(tbl['style'], id);
+    final fill = layout().cells.values.last.fill!.$1;
+    expect(jsonEncode(fill), contains('accent2'));
+  });
 
   test('a row inserted across a merged cell lengthens it', () {
     edit((e) => e.insertRow(1));
