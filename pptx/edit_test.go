@@ -35,7 +35,7 @@ func slidesOf(tree *ot.Tree) []*ot.Node {
 
 func apply(t *testing.T, d *Document, tree *ot.Tree, e ot.Edit) {
 	t.Helper()
-	if err := d.Check(tree, e); err != nil {
+	if err := d.Check(tree, e, "Test"); err != nil {
 		t.Fatalf("%v refused: %v", e, err)
 	}
 	if err := tree.Apply(e); err != nil {
@@ -132,7 +132,7 @@ func TestEdits(t *testing.T) {
 		{{Op: ot.OpSet, ID: title.ID, Attrs: ot.Values{"xml": json.RawMessage(`"<p:sp/>"`)}}},
 		{{Op: ot.OpTxt, ID: slides[0].ID, Text: ot.Delta{{Insert: "x"}}}},
 	} {
-		if d.Check(tree, e) == nil {
+		if d.Check(tree, e, "Test") == nil {
 			t.Errorf("%v allowed", e)
 		}
 	}

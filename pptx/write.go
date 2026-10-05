@@ -30,7 +30,7 @@ func (d *Document) Save(tree *ot.Tree) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	w := &writer{d: d, pkg: pkg, tree: tree, fresh: map[*xmldom.Element]bool{}}
+	w := &writer{d: d, pkg: pkg, tree: tree, fresh: map[*xmldom.Element]bool{}, authors: slices.Clone(d.authors)}
 	if err := w.save(); err != nil {
 		return nil, err
 	}
@@ -44,6 +44,11 @@ type writer struct {
 	// fresh are the ids of the shapes created since the document was
 	// read, which may need new ones.
 	fresh map[*xmldom.Element]bool
+	// authors are those of the comments, as the writer has them.
+	authors        []cmAuthor
+	authorsChanged bool
+	// newAuthors is the part of the authors, when the writer adds it.
+	newAuthors string
 	// force rewrites every slide, for tests.
 	force bool
 }
@@ -107,7 +112,10 @@ func (w *writer) save() error {
 			}
 		}
 	}
-	if w.listed(slides) {
+	if err := w.writeAuthors(); err != nil {
+		return err
+	}
+	if w.listed(slides) && w.newAuthors == "" {
 		return nil
 	}
 	return w.presentation(slides)
@@ -250,6 +258,9 @@ func (w *writer) slide(n *ot.Node, name string, rels *partrel.Rels, isNew bool) 
 		r := partrel.Rel{Type: relSlideLayout, Target: layout}
 		rw.Drop(relSlideLayout, r)
 		rw.Ensure(r)
+	}
+	if err := w.comments(n, w.d.slides[n.ID], rw); err != nil {
+		return err
 	}
 	rw.Resolve(root, standardSpaces())
 	if err := w.put(name, typeSlide, append([]byte(xmlHeader), root.Bytes()...)); err != nil {
@@ -699,6 +710,9 @@ func (w *writer) presentation(slides []slide) error {
 	}
 	if len(slides) == 0 {
 		pres.Remove(ids)
+	}
+	if w.newAuthors != "" {
+		rw.Ensure(partrel.Rel{Type: relCommentAuthors, Target: w.newAuthors})
 	}
 	forgetCustomShows(pres, gone)
 	w.sections(pres, slides)

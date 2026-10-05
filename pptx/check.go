@@ -15,6 +15,10 @@ var (
 // shapeTypes are the nodes a slide or a group can hold.
 var shapeTypes = map[string]bool{"sp": true, "pic": true, "cxn": true, "grp": true, "frame": true, "alt": true, "other": true}
 
+// commentEditable are the attributes of a comment that may change: where
+// it sits.
+var commentEditable = map[string]bool{"x": true, "y": true}
+
 // editable are the attributes a change may set, by node type.
 var editable = map[string]map[string]bool{
 	"slide": {"name": true, "hidden": true, "bg": true, "layout": true, "transition": true},
@@ -34,8 +38,19 @@ var tableTypes = map[string]string{"tr": "frame", "tc": "tr"}
 
 // Check tells whether an edit only changes what can be edited: the slides,
 // their shapes and the text of their notes, not the masters and layouts.
-func (d *Document) Check(tree *ot.Tree, e ot.Edit) error {
+// The comments it adds are signed by author.
+func (d *Document) Check(tree *ot.Tree, e ot.Edit, author string) error {
 	created := map[string]string{}
+	parents := map[string]string{}
+	slideOf := func(id string) string {
+		if p, ok := parents[id]; ok {
+			return p
+		}
+		if n := tree.Node(id); n != nil {
+			return n.Parent
+		}
+		return ""
+	}
 	typeOf := func(id string) string {
 		if t, ok := created[id]; ok {
 			return t
@@ -50,14 +65,16 @@ func (d *Document) Check(tree *ot.Tree, e ot.Edit) error {
 		case ot.OpNew:
 			parent := typeOf(c.Parent)
 			ok := c.Type == "slide" && c.Parent == "deck" ||
+				c.Type == "comment" && parent == "slide" && newComment(c, author, c.Parent, typeOf, slideOf) ||
 				shapeTypes[c.Type] && (parent == "slide" || parent == "grp") ||
 				tableTypes[c.Type] != "" && tableTypes[c.Type] == parent
 			if !ok {
 				return ErrReadOnly
 			}
 			created[c.ID] = c.Type
+			parents[c.ID] = c.Parent
 		case ot.OpDel:
-			if t := typeOf(c.ID); t != "" && t != "slide" && !shapeTypes[t] && tableTypes[t] == "" {
+			if t := typeOf(c.ID); t != "" && t != "slide" && t != "comment" && !shapeTypes[t] && tableTypes[t] == "" {
 				return ErrReadOnly
 			}
 		case ot.OpSet:
@@ -65,11 +82,11 @@ func (d *Document) Check(tree *ot.Tree, e ot.Edit) error {
 			if t == "" {
 				continue
 			}
-			if t != "slide" && !shapeTypes[t] && tableTypes[t] == "" {
+			if t != "slide" && t != "comment" && !shapeTypes[t] && tableTypes[t] == "" {
 				return ErrReadOnly
 			}
 			for k := range c.Attrs {
-				if !editable[t][k] {
+				if !editable[t][k] && !(t == "comment" && commentEditable[k]) {
 					return ErrReadOnly
 				}
 			}
@@ -77,7 +94,7 @@ func (d *Document) Check(tree *ot.Tree, e ot.Edit) error {
 				return ErrReadOnly
 			}
 		case ot.OpTxt:
-			if t := typeOf(c.ID); t != "" && t != "sp" && t != "tc" && t != "notes" {
+			if t := typeOf(c.ID); t != "" && t != "sp" && t != "tc" && t != "notes" && t != "comment" {
 				return ErrReadOnly
 			}
 		}

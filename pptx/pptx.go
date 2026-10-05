@@ -18,6 +18,7 @@
 //	  grp                        a group, with its shapes
 //	  alt other                  what is only kept: alternate content, ink
 //	  notes "s256-notes"         the text of the notes
+//	  comment "s256-c0.1"        author, initials, date, x, y, parent (comments.go)
 //
 // Shapes have the attributes drawingml reads from their spPr (xfrm, geom,
 // fill, line), their name, descr, hidden, their placeholder (ph), style,
@@ -76,7 +77,12 @@ type Document struct {
 	presName string
 	presRels *partrel.Rels
 	slides   map[string]*slidePart // by node id
-	layouts  map[string]string     // part name of each layout node
+	// authors of the comments, the part that lists them, and the
+	// numbers PowerPoint gave the comments read, by node id.
+	authors     []cmAuthor
+	authorsPart string
+	cmRefs      map[string]cmRef
+	layouts     map[string]string // part name of each layout node
 	// layoutNodes are the layout node ids by part name.
 	layoutNodes map[string]string
 }
@@ -85,6 +91,8 @@ type slidePart struct {
 	name  string
 	rels  *partrel.Rels
 	notes string
+	// comments is the part of the comments of the slide.
+	comments string
 	// sldID is the id of the slide in the presentation.
 	sldID int64
 }
@@ -102,6 +110,7 @@ func Open(data []byte) (*Document, *ot.Tree, error) {
 		trusted:     map[uint64]bool{},
 		seed:        maphash.MakeSeed(),
 		slides:      map[string]*slidePart{},
+		cmRefs:      map[string]cmRef{},
 		layouts:     map[string]string{},
 		layoutNodes: map[string]string{},
 	}
@@ -247,6 +256,7 @@ func (r *reader) presentation() error {
 		}
 	}
 
+	r.commentAuthors(rels)
 	slides := elements(pres.Child(pNS, "sldIdLst"), pNS, "sldId")
 	keys = ot.Keys(len(slides))
 	for i, s := range slides {
@@ -368,6 +378,7 @@ func (r *reader) slide(name string, sldID int64, key string) error {
 	}
 	attrs["xml"] = r.d.raw(s)
 	r.nodes[placeholder].Attrs = attrs
+	r.readComments(id, part, rels)
 
 	if part.notes != "" {
 		if flow := r.notes(part.notes); flow != nil {

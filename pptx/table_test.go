@@ -109,7 +109,7 @@ func TestTableEdits(t *testing.T) {
 		{{Op: ot.OpSet, ID: grid[0][0].ID, Attrs: ot.Values{"xml": json.RawMessage(`"<a:tc/>"`)}}},
 		{{Op: ot.OpTxt, ID: grid[0][0].Parent, Text: ot.Delta{{Insert: "x"}}}},
 	} {
-		if d.Check(tree, e) == nil {
+		if d.Check(tree, e, "Test") == nil {
 			t.Errorf("%v allowed", e)
 		}
 	}

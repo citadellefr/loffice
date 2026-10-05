@@ -90,8 +90,8 @@ func openPresentation(_ string, data []byte) (*ot.Tree, trame.File, error) {
 	return tree, presentation{doc}, nil
 }
 
-func (p presentation) Check(doc *ot.Tree, e ot.Edit, _ Peer) error {
-	return p.doc.Check(doc, e)
+func (p presentation) Check(doc *ot.Tree, e ot.Edit, by Peer) error {
+	return p.doc.Check(doc, e, by.Name)
 }
 
 func (p presentation) Encode(doc *ot.Tree) ([]byte, error) {
