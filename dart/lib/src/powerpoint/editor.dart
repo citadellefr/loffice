@@ -548,13 +548,13 @@ class _PresentationEditorState extends State<PresentationEditor> {
     _edit(DeckEdits(_current).reorder(n, to));
   }
 
-  Future<void> _slideshow({bool fromCurrent = false}) async {
+  Future<void> _slideshow({bool fromCurrent = false, bool presenter = false}) async {
     final slides = _current.slides;
     final start = fromCurrent ? slides.indexWhere((s) => s.id == _slide?.id) : 0;
     _selection.clear();
     await Slideshow.show(
       context,
-      Slideshow(deck: _current, painter: _paint, start: start < 0 ? 0 : start, strings: _s, images: _media),
+      Slideshow(deck: _current, painter: _paint, start: start < 0 ? 0 : start, strings: _s, images: _media, presenter: presenter),
     );
   }
 
@@ -566,7 +566,8 @@ class _PresentationEditorState extends State<PresentationEditor> {
     final key = e.logicalKey;
     final editing = _selection.editing != null;
     if (key == LogicalKeyboardKey.f5) {
-      unawaited(_slideshow(fromCurrent: shift));
+      final alt = HardwareKeyboard.instance.isAltPressed;
+      unawaited(_slideshow(fromCurrent: shift || alt, presenter: alt));
       return true;
     }
     if (!ctrl) {
@@ -1203,6 +1204,13 @@ class _PresentationEditorState extends State<PresentationEditor> {
           RibbonGroup(_s.startSlideShow, [
             RibbonButton(icon: const Icon(Icons.slideshow), label: _s.fromBeginning, large: true, shortcut: 'F5', onPressed: _slideshow),
             RibbonButton(icon: const Icon(Icons.play_arrow), label: _s.fromCurrentSlide, large: true, shortcut: 'Maj+F5', onPressed: () => _slideshow(fromCurrent: true)),
+            RibbonButton(
+              icon: const Icon(Icons.co_present_outlined),
+              label: _s.presenterView,
+              large: true,
+              shortcut: 'Alt+F5',
+              onPressed: () => _slideshow(fromCurrent: true, presenter: true),
+            ),
             RibbonButton(
               icon: const Icon(Icons.visibility_off_outlined),
               label: _s.hideSlide,

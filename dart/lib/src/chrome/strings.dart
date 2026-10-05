@@ -465,5 +465,13 @@ class LofficeStrings {
     'thruBlk' => 'Par le noir',
     _ => 'En douceur',
   };
+  String get presenterView => 'Mode Présentateur';
+  String get nextSlide => 'Diapositive suivante';
+  String get previousSlide => 'Diapositive précédente';
+  String get endSlideShow => 'Arrêter le diaporama';
+  String get pauseTimer => 'Suspendre le minuteur';
+  String get resumeTimer => 'Reprendre le minuteur';
+  String get restartTimer => 'Redémarrer le minuteur';
+  String get noNotes => 'Aucun commentaire.';
   String get endOfShow => 'Fin du diaporama, cliquez pour quitter.';
 }

@@ -20,6 +20,7 @@ class Slideshow extends StatefulWidget {
     this.start = 0,
     this.strings = const LofficeStrings(),
     this.images,
+    this.presenter = false,
   });
 
   final Deck deck;
@@ -31,6 +32,10 @@ class Slideshow extends StatefulWidget {
 
   /// Notifies when pictures arrive.
   final Listenable? images;
+
+  /// Shows the presenter view: the slide, the next one, the notes and the
+  /// time, as PowerPoint shows them on the speaker's screen.
+  final bool presenter;
 
   /// Shows a slide show over everything, until it ends.
   static Future<void> show(BuildContext context, Slideshow show) => Navigator.of(context).push(
@@ -56,6 +61,11 @@ class _SlideshowState extends State<Slideshow> with SingleTickerProviderStateMix
   Timer? _timer;
   final _focus = FocusNode();
 
+  /// The seconds the presenter has spoken, counted while [_running].
+  var _seconds = 0;
+  var _running = true;
+  Timer? _tick;
+
   @override
   void initState() {
     super.initState();
@@ -65,12 +75,18 @@ class _SlideshowState extends State<Slideshow> with SingleTickerProviderStateMix
     widget.images?.addListener(_repaint);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
     _shown();
+    if (widget.presenter) {
+      _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (_running) setState(() => _seconds++);
+      });
+    }
   }
 
   @override
   void dispose() {
     widget.images?.removeListener(_repaint);
     _timer?.cancel();
+    _tick?.cancel();
     _progress.dispose();
     _focus.dispose();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -149,24 +165,91 @@ class _SlideshowState extends State<Slideshow> with SingleTickerProviderStateMix
     final end = _at >= _slides.length;
     final from = _from == null ? null : _slides.elementAtOrNull(_from!);
     final click = end || _transition(_slides[_at])['noClick'] != true;
-    return Focus(
-      autofocus: true,
-      focusNode: _focus,
-      onKeyEvent: _key,
-      child: GestureDetector(
-        onTap: click ? () => _go(_at + 1) : null,
-        onSecondaryTap: () => _go(_at - 1),
-        onHorizontalDragEnd: (d) => _go(_at + ((d.primaryVelocity ?? 0) < 0 ? 1 : -1)),
-        child: ColoredBox(
-          color: Colors.black,
-          child: end
-              ? Center(child: Text(widget.strings.endOfShow, style: const TextStyle(color: Colors.white70, fontSize: 18)))
-              : SizedBox.expand(
-                  child: CustomPaint(
-                    painter: _ShowPainter(widget.painter, widget.deck, _slides[_at], from: from, transition: _transition(_slides[_at]), progress: _progress),
-                  ),
+    final show = GestureDetector(
+      onTap: click ? () => _go(_at + 1) : null,
+      onSecondaryTap: () => _go(_at - 1),
+      onHorizontalDragEnd: (d) => _go(_at + ((d.primaryVelocity ?? 0) < 0 ? 1 : -1)),
+      child: ColoredBox(
+        color: Colors.black,
+        child: end
+            ? Center(child: Text(widget.strings.endOfShow, style: const TextStyle(color: Colors.white70, fontSize: 18)))
+            : SizedBox.expand(
+                child: CustomPaint(
+                  painter: _ShowPainter(widget.painter, widget.deck, _slides[_at], from: from, transition: _transition(_slides[_at]), progress: _progress),
                 ),
-        ),
+              ),
+      ),
+    );
+    return Focus(autofocus: true, focusNode: _focus, onKeyEvent: _key, child: widget.presenter ? _presenterView(show) : show);
+  }
+
+  /// The slide shown with, beside it, the next one and the notes; the time
+  /// above, the commands below.
+  Widget _presenterView(Widget show) {
+    final s = widget.strings;
+    final next = _slides.elementAtOrNull(_at + 1);
+    final shown = _slides.elementAtOrNull(_at);
+    final notes = shown == null ? null : widget.deck.tree.children(shown.id).where((n) => n.type == 'notes').firstOrNull?.text?.text.trim();
+    const light = TextStyle(color: Colors.white70);
+    String two(int n) => n.toString().padLeft(2, '0');
+    final time = '${_seconds >= 3600 ? '${_seconds ~/ 3600}:' : ''}${two(_seconds ~/ 60 % 60)}:${two(_seconds % 60)}';
+    return Material(
+      color: const Color(0xFF202020),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(children: [
+          Row(children: [
+            Text(time, style: light.copyWith(fontSize: 22, fontFeatures: const [FontFeature.tabularFigures()])),
+            IconButton(
+              tooltip: _running ? s.pauseTimer : s.resumeTimer,
+              color: Colors.white70,
+              icon: Icon(_running ? Icons.pause : Icons.play_arrow),
+              onPressed: () => setState(() => _running = !_running),
+            ),
+            IconButton(tooltip: s.restartTimer, color: Colors.white70, icon: const Icon(Icons.replay), onPressed: () => setState(() => _seconds = 0)),
+            const Spacer(),
+            TextButton(
+              style: TextButton.styleFrom(foregroundColor: Colors.white),
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(s.endSlideShow),
+            ),
+          ]),
+          const SizedBox(height: 12),
+          Expanded(
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(flex: 3, child: show),
+              const SizedBox(width: 16),
+              Expanded(
+                flex: 2,
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(s.nextSlide, style: light),
+                  const SizedBox(height: 6),
+                  AspectRatio(
+                    aspectRatio: widget.deck.size.width / widget.deck.size.height,
+                    child: ColoredBox(
+                      color: Colors.black,
+                      child: next == null
+                          ? Center(child: Text(s.endOfShow, textAlign: TextAlign.center, style: light))
+                          : CustomPaint(painter: _ShowPainter(widget.painter, widget.deck, next, transition: const {}, progress: kAlwaysCompleteAnimation)),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      child: Text(notes == null || notes.isEmpty ? s.noNotes : notes, style: light.copyWith(fontSize: 18, color: Colors.white)),
+                    ),
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 8),
+          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            IconButton(tooltip: s.previousSlide, color: Colors.white70, icon: const Icon(Icons.chevron_left), onPressed: () => _go(_at - 1)),
+            Text(s.slideOf(math.min(_at + 1, _slides.length), _slides.length), style: light),
+            IconButton(tooltip: s.nextSlide, color: Colors.white70, icon: const Icon(Icons.chevron_right), onPressed: () => _go(_at + 1)),
+          ]),
+        ]),
       ),
     );
   }
