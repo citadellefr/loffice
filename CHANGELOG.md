@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.4 — 2026-10-05
 
 - `pptx` reads, adds, edits and deletes the comments of PowerPoint
   ("comment" nodes under their slide: author, initials, date, place,
