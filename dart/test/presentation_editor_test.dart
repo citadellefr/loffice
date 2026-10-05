@@ -118,7 +118,7 @@ void main() {
     await finish(tester);
   });
 
-  testWidgets('a second click goes into a group, whose shape then moves in it', (tester) async {
+  testWidgets('a second click goes into a group, whose shape then moves in it, the group around it', (tester) async {
     await open(tester, 'shp-shapes');
     final rect = tester.getRect(find.byType(SlideCanvas));
     await tester.tapAt(rect.topLeft + const Offset(4, 4));
@@ -146,7 +146,8 @@ void main() {
     await settle(tester);
     final x = hub.doc['s257-3']!.attributes['xfrm']! as Map<String, Object?>;
     expect(x['x'], 2051720 + 20 * emuPerPoint);
-    expect(hub.doc['s257-5']!.attributes['xfrm'], group);
+    // it was on the right edge of the group, which widens with it
+    expect(hub.doc['s257-5']!.attributes['xfrm'], {...group, 'w': 1105272 + 254000, 'cw': 1105272 + 254000});
     await finish(tester);
   });
 

@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:trame/trame.dart';
@@ -27,15 +28,92 @@ class DeckEdits {
     }..removeWhere((k, v) => k == 'rot' && v == 0);
   }
 
-  /// Places shapes; each rectangle is in points, on the slide.
-  Edit place(Map<Node, Rect> shapes, {double? rotation}) => Edit([
+  /// Places shapes; each rectangle is in points, in the coordinates of
+  /// the slide or group the shape is in.
+  Edit place(Map<Node, Rect> shapes, {double? rotation}) => _fitted([
     for (final e in shapes.entries) Change.set(e.key.id, attributes: {'xfrm': xfrm(e.key, e.value, rotation: rotation)}),
   ]);
 
   Edit rotate(Node shape, double degrees) {
     final bounds = deck.styleOf(shape).bounds;
     if (bounds == null) return Edit();
-    return Edit([Change.set(shape.id, attributes: {'xfrm': xfrm(shape, bounds, rotation: degrees)})]);
+    return _fitted([Change.set(shape.id, attributes: {'xfrm': xfrm(shape, bounds, rotation: degrees)})]);
+  }
+
+  /// [changes], then those that keep the groups whose shapes they place
+  /// the box of their shapes, as PowerPoint keeps them: the shapes stay
+  /// where they are on the slide.
+  Edit _fitted(List<Change> changes) {
+    final after = tree.copy();
+    if (after.apply(Edit(changes)) == null) return Edit(changes);
+    final out = [...changes];
+    int depth(Node n) {
+      var d = 0;
+      for (Node? p = n; p != null && p.type == 'grp'; p = after[p.parent]) {
+        d++;
+      }
+      return d;
+    }
+
+    var groups = {for (final c in changes) ?after[after[c.id]?.parent ?? '']}.where((g) => g.type == 'grp').toList();
+    while (groups.isNotEmpty) {
+      groups.sort((a, b) => depth(b) - depth(a));
+      final next = <Node>[];
+      for (final g in groups) {
+        final x = _fit(after, after[g.id]!);
+        if (x == null) continue;
+        final set = Change.set(g.id, attributes: {'xfrm': x});
+        after.apply(Edit([set]));
+        out.add(set);
+        if (after[g.parent] case final parent? when parent.type == 'grp') next.add(parent);
+      }
+      groups = next;
+    }
+    return Edit(out);
+  }
+
+  /// The place of a group around its shapes, null when it is already.
+  static Map<String, Object?>? _fit(Tree tree, Node group) {
+    final x = group.attributes['xfrm'];
+    if (x is! Map<String, Object?>) return null;
+    double v(String k) => x[k] is num ? (x[k]! as num).toDouble() : 0;
+    Rect? box;
+    for (final child in tree.children(group.id)) {
+      final c = child.attributes['xfrm'];
+      if (c is! Map<String, Object?>) continue;
+      final b = _turned(c);
+      box = box == null ? b : box.expandToInclude(b);
+    }
+    if (box == null || (box.left - v('cx')).abs() < 1 && (box.top - v('cy')).abs() < 1 && (box.width - v('cw')).abs() < 1 && (box.height - v('ch')).abs() < 1) return null;
+    final sx = v('cw') > 0 ? v('w') / v('cw') : 1.0, sy = v('ch') > 0 ? v('h') / v('ch') : 1.0;
+    final (w, h) = (box.width * sx, box.height * sy);
+    // the center of the shapes, where the group's box turns about now
+    final half = Offset(v('w') / 2, v('h') / 2);
+    var q = Offset((box.center.dx - v('cx')) * sx, (box.center.dy - v('cy')) * sy) - half;
+    q = Offset(x['flipH'] == true ? -q.dx : q.dx, x['flipV'] == true ? -q.dy : q.dy);
+    final a = v('rot') / 60000 * math.pi / 180;
+    final center = Offset(v('x'), v('y')) + half + Offset(q.dx * math.cos(a) - q.dy * math.sin(a), q.dx * math.sin(a) + q.dy * math.cos(a));
+    return {
+      ...x,
+      'x': (center.dx - w / 2).round(),
+      'y': (center.dy - h / 2).round(),
+      'w': w.round(),
+      'h': h.round(),
+      'cx': box.left.round(),
+      'cy': box.top.round(),
+      'cw': box.width.round(),
+      'ch': box.height.round(),
+    };
+  }
+
+  /// The box a shape covers once turned, in the coordinates of its xfrm.
+  static Rect _turned(Map<String, Object?> x) {
+    double v(String k) => x[k] is num ? (x[k]! as num).toDouble() : 0;
+    final r = Rect.fromLTWH(v('x'), v('y'), v('w'), v('h'));
+    final a = v('rot') / 60000 * math.pi / 180;
+    if (a == 0) return r;
+    final (c, s) = (math.cos(a).abs(), math.sin(a).abs());
+    return Rect.fromCenter(center: r.center, width: r.width * c + r.height * s, height: r.width * s + r.height * c);
   }
 
   /// A key after every child of [parent], or between two of them.

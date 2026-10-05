@@ -13,6 +13,9 @@
   columns and rows asked for, sharing its column and row, the cells of the
   other rows and columns merged across them. Layout > Cell Size types the
   height and width of a cell in centimeters, the table growing with them.
+- Dart: a group keeps the box of its shapes when one is moved, resized or
+  turned, as PowerPoint keeps it, growing and shrinking around them; the
+  shapes stay where they are on the slide, the group turned or not.
 
 ## 0.8.1 — 2026-10-05
 
