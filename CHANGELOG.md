@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.1 — 2026-10-05
 
 - PowerPoint tables are read, drawn and edited. `pptx` gives a table's
   frame "tbl" (its style and options) and "grid" (the widths of its
