@@ -11,7 +11,8 @@
 //	master "M1"                  theme, clrMap, bg, title body other (text styles)
 //	  layout "L1"                name, type, bg, clrMapOvr, showMasterSp
 //	    shapes…                  the placeholders slides inherit from
-//	slide "s256"                 layout, name, hidden, bg, clrMapOvr, showMasterSp
+//	slide "s256"                 layout, name, hidden, bg, clrMapOvr, showMasterSp,
+//	                             transition (transition.go)
 //	  sp "s256-2"                a shape; its text is the node's
 //	  pic cxn frame              a picture, a connector, a table or chart
 //	  grp                        a group, with its shapes
@@ -355,6 +356,7 @@ func (r *reader) slide(name string, sldID int64, key string) error {
 	if v, ok := s.Attr("showMasterSp"); ok {
 		attrs["showMasterSp"] = json.RawMessage(strconv.FormatBool(v != "0" && v != "false"))
 	}
+	putJSON(attrs, "transition", readTransition(s))
 	spTree := cSld.Child(pNS, "spTree")
 	placeholder := len(r.nodes)
 	r.add(id, "slide", "deck", key, nil, nil)

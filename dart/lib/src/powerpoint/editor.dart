@@ -326,6 +326,47 @@ class _PresentationEditorState extends State<PresentationEditor> {
     _edit(Edit([Change.set(slide.id, attributes: {'hidden': slide.attributes['hidden'] == true ? null : true})]));
   }
 
+  /// The transition of the slide shown, empty for none.
+  Map<String, Object?> get _transition => _slide?.attributes['transition'] as Map<String, Object?>? ?? const {};
+
+  /// Changes the transition of the slide shown, or of all of them; a null
+  /// value removes a key.
+  void _retransition(Map<String, Object?> changes, {bool all = false}) {
+    final slide = _slide;
+    if (slide == null) return;
+    final t = {'dur': 500, ..._transition, ...changes}..removeWhere((_, v) => v == null);
+    final keep = t.keys.any((k) => k != 'dur');
+    _edit(Edit([
+      for (final s in all ? _current.slides : [slide]) Change.set(s.id, attributes: {'transition': keep ? t : null}),
+    ]));
+  }
+
+  /// The options of a transition effect, the first PowerPoint's default:
+  /// how [LofficeStrings.effectOption] names them, and the keys they set.
+  static List<(String, Map<String, Object?>)> _effectOptions(Object? effect) => switch (effect) {
+    'push' => [for (final d in ['u', 'l', 'r', 'd']) (d, {'dir': d})],
+    'wipe' => [for (final d in ['l', 'u', 'r', 'd']) (d, {'dir': d})],
+    'cover' || 'pull' => [for (final d in ['l', 'u', 'r', 'd', 'lu', 'ru', 'ld', 'rd']) (d, {'dir': d})],
+    'split' => [for (final o in ['vert', 'horz']) for (final d in ['out', 'in']) ('$o $d', {'orient': o, 'dir': d})],
+    'zoom' => [('in', {'dir': 'in'}), ('out', {'dir': 'out'})],
+    'fade' => [('smooth', {'thruBlk': null}), ('thruBlk', {'thruBlk': true})],
+    _ => [],
+  };
+
+  static const _transitionDurations = {'cut': 0, 'fade': 700, 'push': 1000, 'wipe': 1000, 'split': 1500, 'pull': 1000, 'cover': 1000, 'zoom': 500};
+
+  void _pickTransition(String effect) {
+    final options = _effectOptions(effect);
+    _retransition({
+      'effect': effect.isEmpty ? null : effect,
+      'dir': null,
+      'orient': null,
+      'thruBlk': null,
+      'dur': _transitionDurations[effect] ?? 500,
+      if (options.isNotEmpty) ...options.first.$2,
+    });
+  }
+
   Rect get _center {
     final size = _current.size;
     return Rect.fromCenter(center: size.center(Offset.zero), width: 144, height: 108);
@@ -1090,6 +1131,74 @@ class _PresentationEditorState extends State<PresentationEditor> {
               ),
             ]),
           ]),
+        RibbonTab(_s.transitions, [
+          RibbonGroup(_s.transitionToThisSlide, [
+            for (final (effect, icon) in [
+              ('', Icons.block),
+              ('cut', Icons.flash_on_outlined),
+              ('fade', Icons.gradient),
+              ('push', Icons.keyboard_double_arrow_up),
+              ('wipe', Icons.swipe_left_outlined),
+              ('split', Icons.vertical_split_outlined),
+              ('pull', Icons.open_in_new),
+              ('cover', Icons.layers_outlined),
+              ('zoom', Icons.zoom_in),
+            ])
+              RibbonButton(
+                icon: Icon(icon),
+                label: _s.transition(effect),
+                large: true,
+                selected: (_transition['effect'] ?? '') == effect,
+                onPressed: editable && _slide != null ? () => _pickTransition(effect) : null,
+              ),
+            RibbonMenu<Map<String, Object?>>(
+              icon: const Icon(Icons.tune),
+              label: _s.effectOptions,
+              large: true,
+              enabled: editable && _effectOptions(_transition['effect']).isNotEmpty,
+              items: [
+                for (final (name, keys) in _effectOptions(_transition['effect']))
+                  CheckedPopupMenuItem(
+                    value: keys,
+                    checked: keys.entries.every((e) => _transition[e.key] == e.value),
+                    child: Text(_s.effectOption(name)),
+                  ),
+              ],
+              onSelected: _retransition,
+            ),
+          ]),
+          RibbonGroup(_s.timing, [
+            RibbonButton(icon: const Icon(Icons.done_all), label: _s.applyToAll, large: true, onPressed: editable && _slide != null ? () => _retransition({}, all: true) : null),
+            RibbonMeasure(
+              label: _s.duration,
+              icon: Icons.timer_outlined,
+              unit: 's',
+              scale: 1000,
+              value: (_transition['dur'] as num?)?.toDouble(),
+              onChanged: editable && _transition['effect'] != null ? (ms) => _retransition({'dur': ms.round()}) : null,
+            ),
+            RibbonCheck(
+              label: _s.onMouseClick,
+              value: _transition['noClick'] != true,
+              onChanged: editable && _slide != null ? (click) => _retransition({'noClick': click ? null : true}) : null,
+            ),
+            Row(mainAxisSize: MainAxisSize.min, children: [
+              RibbonCheck(
+                label: _s.advanceAfter,
+                value: _transition['after'] != null,
+                onChanged: editable && _slide != null ? (after) => _retransition({'after': after ? 0 : null}) : null,
+              ),
+              RibbonMeasure(
+                label: _s.advanceAfter,
+                icon: Icons.schedule,
+                unit: 's',
+                scale: 1000,
+                value: (_transition['after'] as num?)?.toDouble() ?? 0,
+                onChanged: editable && _slide != null ? (ms) => _retransition({'after': ms.round()}) : null,
+              ),
+            ]),
+          ]),
+        ]),
         RibbonTab(_s.slideShow, [
           RibbonGroup(_s.startSlideShow, [
             RibbonButton(icon: const Icon(Icons.slideshow), label: _s.fromBeginning, large: true, shortcut: 'F5', onPressed: _slideshow),

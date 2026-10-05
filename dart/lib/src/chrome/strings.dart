@@ -425,5 +425,45 @@ class LofficeStrings {
   String get object => 'Objet';
   String get shapeName => 'Forme';
   String get textBoxName => 'ZoneTexte';
+  String get transitionToThisSlide => 'Transition vers cette diapositive';
+  String get effectOptions => 'Options d’effet';
+  String get timing => 'Minutage';
+  String get duration => 'Durée';
+  String get applyToAll => 'Appliquer partout';
+  String get onMouseClick => 'Manuellement';
+  String get advanceAfter => 'Après';
+  String transition(String effect) => switch (effect) {
+    '' => 'Aucune',
+    'cut' => 'Couper',
+    'fade' => 'Fondu',
+    'push' => 'Pousser',
+    'wipe' => 'Balayer',
+    'split' => 'Fractionner',
+    'pull' => 'Découvrir',
+    'cover' => 'Couvrir',
+    'zoom' => 'Zoom',
+    _ => 'Autre',
+  };
+
+  /// An option of a transition: a direction the slide goes in, "l" coming
+  /// from the right, an axis and way, "vert out", or how it fades.
+  String effectOption(String option) => switch (option) {
+    'l' => 'De la droite',
+    'r' => 'De la gauche',
+    'u' => 'Du bas',
+    'd' => 'Du haut',
+    'lu' => 'Du coin inférieur droit',
+    'ru' => 'Du coin inférieur gauche',
+    'ld' => 'Du coin supérieur droit',
+    'rd' => 'Du coin supérieur gauche',
+    'in' => 'Avant',
+    'out' => 'Arrière',
+    'vert out' => 'Verticale vers l’extérieur',
+    'vert in' => 'Verticale vers l’intérieur',
+    'horz out' => 'Horizontale vers l’extérieur',
+    'horz in' => 'Horizontale vers l’intérieur',
+    'thruBlk' => 'Par le noir',
+    _ => 'En douceur',
+  };
   String get endOfShow => 'Fin du diaporama, cliquez pour quitter.';
 }

@@ -17,7 +17,7 @@ var shapeTypes = map[string]bool{"sp": true, "pic": true, "cxn": true, "grp": tr
 
 // editable are the attributes a change may set, by node type.
 var editable = map[string]map[string]bool{
-	"slide": {"name": true, "hidden": true, "bg": true, "layout": true},
+	"slide": {"name": true, "hidden": true, "bg": true, "layout": true, "transition": true},
 	"sp":    {"name": true, "descr": true, "hidden": true, "xfrm": true, "geom": true, "fill": true, "line": true, "body": true},
 	"pic":   {"name": true, "descr": true, "hidden": true, "xfrm": true, "geom": true, "fill": true, "line": true, "blip": true},
 	"cxn":   {"name": true, "descr": true, "hidden": true, "xfrm": true, "geom": true, "line": true},

@@ -16,6 +16,16 @@
 - Dart: a group keeps the box of its shapes when one is moved, resized or
   turned, as PowerPoint keeps it, growing and shrinking around them; the
   shapes stay where they are on the slide, the group turned or not.
+- `pptx` reads the transition of a slide into "transition" (`Transition`:
+  its effect and options, its duration, when the show goes on), and
+  writes it back when a client changes it, under the mc:AlternateContent
+  of PowerPoint 2010 for a duration no speed gives or an effect it adds.
+- Dart: the slide show plays the transitions (fade, through black, push,
+  wipe, split, cover, uncover, zoom; the others fade), goes on by itself
+  after the time a slide gives, and not on a click when a slide says so;
+  nothing is drawn outside the slide. Slides without a transition no
+  longer fade. The Transitions tab picks the effect, its options, its
+  duration, applies it to all slides, and sets when the show goes on.
 
 ## 0.8.1 — 2026-10-05
 

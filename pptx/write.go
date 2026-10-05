@@ -214,6 +214,7 @@ func (w *writer) slide(n *ot.Node, name string, rels *partrel.Rels, isNew bool) 
 		old["hidden"] = json.RawMessage("true")
 	}
 	putJSON(old, "bg", background(cSld, w.d.media))
+	putJSON(old, "transition", readTransition(root))
 	if changed(old, n.Attrs, "name") {
 		if s := str(n, "name"); s != "" {
 			cSld.Set("name", s)
@@ -230,6 +231,9 @@ func (w *writer) slide(n *ot.Node, name string, rels *partrel.Rels, isNew bool) 
 	}
 	if changed(old, n.Attrs, "bg") {
 		setBackground(cSld, n.Attrs["bg"], w.embed)
+	}
+	if changed(old, n.Attrs, "transition") {
+		setTransition(root, n.Attrs["transition"])
 	}
 
 	spTree := cSld.Child(pNS, "spTree")

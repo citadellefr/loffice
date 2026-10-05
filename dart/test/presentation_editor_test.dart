@@ -328,6 +328,33 @@ void main() {
     await finish(tester);
   });
 
+  testWidgets('a transition picked, its options and duration, then for all slides', (tester) async {
+    await open(tester, 'shp-shapes');
+    await tester.tap(find.text('Transitions'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Pousser'));
+    await settle(tester);
+    Object? transition(int i) => slides()[i].attributes['transition'];
+    expect(transition(0), {'dur': 1000, 'effect': 'push', 'dir': 'u'});
+
+    await tester.tap(find.byTooltip('Options d’effet').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(CheckedPopupMenuItem<Map<String, Object?>>, 'De la droite'));
+    await settle(tester);
+    await tester.enterText(find.descendant(of: find.byTooltip('Durée'), matching: find.byType(TextField)), '2');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await settle(tester);
+    expect(transition(0), {'dur': 2000, 'effect': 'push', 'dir': 'l'});
+
+    await tester.tap(find.byTooltip('Appliquer partout'));
+    await settle(tester);
+    expect(transition(1), transition(0));
+    await tester.tap(find.byTooltip('Aucune'));
+    await settle(tester);
+    expect(transition(0), isNull);
+    await finish(tester);
+  });
+
   testWidgets('inserts a shape and types into it', (tester) async {
     await open(tester, 'shp-shapes');
     await tester.tap(find.text('Insertion'));
