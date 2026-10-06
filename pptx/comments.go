@@ -254,7 +254,7 @@ func (w *writer) comments(n *ot.Node, p *slidePart, rw *partrel.Writer) error {
 		existing = p.comments
 	}
 	if len(nodes) == 0 {
-		if existing != "" {
+		if existing != "" && len(commentNodes(w.d.loaded, n.ID)) > 0 {
 			rw.Drop(relComments, partrel.Rel{Type: relComments})
 			w.remove(existing)
 		}

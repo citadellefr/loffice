@@ -154,3 +154,18 @@ func TestCommentsRefused(t *testing.T) {
 		t.Error("an answer to nothing was accepted")
 	}
 }
+
+func TestEmptyCommentsKept(t *testing.T) {
+	d, tree := openCorpus(t, "libreoffice/tdf173266.pptx")
+	data, err := save(d, tree, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pkg, err := opc.Open(data, Limits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !pkg.Has("ppt/comments/comment1.xml") {
+		t.Error("the comments part of a slide without a comment is lost")
+	}
+}
