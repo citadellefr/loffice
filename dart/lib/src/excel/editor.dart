@@ -29,6 +29,7 @@ class SpreadsheetEditor extends StatefulWidget {
     this.onClose,
     this.strings = const LofficeStrings(),
     this.fonts,
+    this.hosted = false,
   });
 
   final DocSession session;
@@ -38,6 +39,10 @@ class SpreadsheetEditor extends StatefulWidget {
 
   /// The package bundling the free fonts standing in for Office's.
   final String? fonts;
+
+  /// Whether a host draws undo, redo and who else is here in a bar of its
+  /// own: the ribbon then leaves them out.
+  final bool hosted;
 
   @override
   State<SpreadsheetEditor> createState() => _SpreadsheetEditorState();
@@ -1117,28 +1122,31 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
       fileLabel: _s.file,
       onFile: () => setState(() => _backstage = true),
       leading: [
-        IconButton(
-          tooltip: '${_s.undo} (Ctrl+Z)',
-          iconSize: 18,
-          onPressed: _session.canUndo ? () => setState(_session.undo) : null,
-          icon: const Icon(Icons.undo),
-        ),
-        IconButton(
-          tooltip: '${_s.redo} (Ctrl+Y)',
-          iconSize: 18,
-          onPressed: _session.canRedo ? () => setState(_session.redo) : null,
-          icon: const Icon(Icons.redo),
-        ),
+        if (!widget.hosted) ...[
+          IconButton(
+            tooltip: '${_s.undo} (Ctrl+Z)',
+            iconSize: 18,
+            onPressed: _session.canUndo ? () => setState(_session.undo) : null,
+            icon: const Icon(Icons.undo),
+          ),
+          IconButton(
+            tooltip: '${_s.redo} (Ctrl+Y)',
+            iconSize: 18,
+            onPressed: _session.canRedo ? () => setState(_session.redo) : null,
+            icon: const Icon(Icons.redo),
+          ),
+        ],
       ],
       trailing: [
-        for (final p in _session.peers.take(5))
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
-            child: Tooltip(
-              message: p.name,
-              child: CircleAvatar(radius: 12, child: Text(p.name.isEmpty ? '?' : p.name.characters.first.toUpperCase(), style: const TextStyle(fontSize: 11))),
+        if (!widget.hosted)
+          for (final p in _session.peers.take(5))
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: Tooltip(
+                message: p.name,
+                child: CircleAvatar(radius: 12, child: Text(p.name.isEmpty ? '?' : p.name.characters.first.toUpperCase(), style: const TextStyle(fontSize: 11))),
+              ),
             ),
-          ),
         const SizedBox(width: 8),
       ],
       initialTab: 0,

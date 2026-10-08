@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.6 — 2026-10-08
+
+- Dart: `hosted` on the three editors. A host that draws undo, redo and who
+  else is in the document in a bar of its own asks the ribbon to leave them
+  out.
+- `pptx` keeps the comments part of a slide that never had a comment.
+
 ## 0.8.5 — 2026-10-05
 
 - On trame 0.3.0: a workbook follows the edits as trame now asks, told who

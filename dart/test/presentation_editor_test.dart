@@ -22,7 +22,7 @@ void main() {
     await tester.pump();
   }
 
-  Future<void> open(WidgetTester tester, String fixture, {Size size = const Size(1400, 900)}) async {
+  Future<void> open(WidgetTester tester, String fixture, {Size size = const Size(1400, 900), bool hosted = false}) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -30,7 +30,7 @@ void main() {
     session = DocSession(hub.connect)..start();
     addTearDown(session.dispose);
     await tester.pumpWidget(MaterialApp(
-      home: Scaffold(body: PresentationEditor(session: session, media: (_) async => Uint8List(0), title: '$fixture.pptx')),
+      home: Scaffold(body: PresentationEditor(session: session, media: (_) async => Uint8List(0), title: '$fixture.pptx', hosted: hosted)),
     ));
     await settle(tester);
   }
@@ -47,6 +47,18 @@ void main() {
     expect(find.text('Accueil'), findsOneWidget);
     expect(find.text('Insertion'), findsOneWidget);
     expect(find.text('Diapositive 1 sur 2'), findsOneWidget);
+    await finish(tester);
+  });
+
+  testWidgets('hosted, the ribbon leaves undo and redo to the bar of its host', (tester) async {
+    await open(tester, 'shp-shapes');
+    expect(find.byIcon(Icons.undo), findsOneWidget);
+    await finish(tester);
+
+    await open(tester, 'shp-shapes', hosted: true);
+    expect(find.byIcon(Icons.undo), findsNothing);
+    expect(find.byIcon(Icons.redo), findsNothing);
+    expect(find.text('Accueil'), findsOneWidget);
     await finish(tester);
   });
 
