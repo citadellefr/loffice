@@ -446,6 +446,15 @@ func (d *Document) link(name string) string {
 	return ""
 }
 
+// linkTo names the link to an address a client asks for, "" unless it is
+// one a document may hold.
+func (d *Document) linkTo(target string) string {
+	if target = partrel.LinkTarget(target); target == "" {
+		return ""
+	}
+	return d.names.Link(target)
+}
+
 // media is the picture a name points to, without its "@".
 func (d *Document) media(name string) string {
 	if r, ok := d.names.Lookup(name); ok && r.Type == partrel.Image && !r.External {

@@ -472,7 +472,7 @@ func (w *writer) setText(e *xmldom.Element, n *ot.Node) {
 		_ = json.Unmarshal(n.Attrs["body"], &props)
 		drawingml.SetBodyProps(bodyPr, old, props)
 	}
-	drawingml.SetFlow(body, flow, w.d.fragment)
+	drawingml.SetFlow(body, flow, w.d.fragment, w.d.linkTo)
 }
 
 // setPlaceholder makes a new shape the placeholder ph describes, as a
@@ -657,7 +657,7 @@ func (w *writer) notes(id, name string) error {
 	if body == nil {
 		return nil
 	}
-	drawingml.SetFlow(body, n.Text.Delta(), w.d.fragment)
+	drawingml.SetFlow(body, n.Text.Delta(), w.d.fragment, w.d.linkTo)
 	rw := w.rels(name, rels)
 	rw.Resolve(doc.Root, spaces)
 	if err := w.pkg.Set(name, doc.Bytes()); err != nil {

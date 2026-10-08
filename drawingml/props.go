@@ -23,7 +23,8 @@ import (
 //	fill        the fill of the letters, as JSON
 //	hl          highlight color, as JSON
 //	font ea cs sym  typefaces, "+mj-lt" naming the theme's
-//	link        {"url":"…"}, read only
+//	link        {"url":"…"}: a client sets the address, of the web, of mail
+//	            or a name ("urn:"), and the writer makes the link
 //
 // Paragraph keys, on marks and list style levels:
 //

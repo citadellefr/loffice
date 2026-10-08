@@ -53,7 +53,6 @@ const (
 	relTheme          = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme"
 	relHeader         = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/header"
 	relFooter         = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer"
-	relHyperlink      = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"
 )
 
 // relNotes are the relationships of the parts of footnotes and endnotes.

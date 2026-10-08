@@ -1,6 +1,7 @@
 package drawingml
 
 import (
+	"encoding/json"
 	"strings"
 	"unicode/utf8"
 
@@ -106,8 +107,12 @@ func text(t *xmldom.Element) string {
 // may be. It returns the element, nil if raw is not trusted.
 type Raw func(raw string) *xmldom.Element
 
+// Links names the relationship of the link to an address a client asks
+// for, "" when it is not one a document may hold.
+type Links func(target string) string
+
 // SetFlow replaces the paragraphs of a text body by those of a flow.
-func SetFlow(body *xmldom.Element, flow ot.Delta, raw Raw) {
+func SetFlow(body *xmldom.Element, flow ot.Delta, raw Raw, links Links) {
 	var kept []xmldom.Node
 	for _, c := range body.Content {
 		if e, ok := c.(*xmldom.Element); ok && e.Space == NS && e.Local == "p" {
@@ -143,7 +148,7 @@ func SetFlow(body *xmldom.Element, flow ot.Delta, raw Raw) {
 				key := attrsKey(o.Attrs)
 				if run == nil || key != runKey {
 					endRun()
-					run = newRun(o.Attrs, raw)
+					run = newRun(o.Attrs, raw, links)
 					runKey = key
 				}
 				runText.WriteString(chunk)
@@ -160,7 +165,7 @@ func SetFlow(body *xmldom.Element, flow ot.Delta, raw Raw) {
 				p = newA("p")
 			case '\v':
 				br := newA("br")
-				if rPr := runElement(o.Attrs, "rPr", raw); rPr != nil {
+				if rPr := runElement(o.Attrs, "rPr", raw, nil); rPr != nil {
 					br.Append(rPr)
 				}
 				p.Append(br)
@@ -188,19 +193,19 @@ func attrsKey(a ot.Attrs) string {
 }
 
 // newRun starts an a:r, or an a:fld when the text is a field's.
-func newRun(a ot.Attrs, raw Raw) *xmldom.Element {
+func newRun(a ot.Attrs, raw Raw, links Links) *xmldom.Element {
 	run := newA("r")
 	if f := a["fld"]; f != "" {
 		if fld := raw(f); fld != nil && fld.Local == "fld" {
 			run = fld
-			rPr := runElement(a, "rPr", raw)
+			rPr := runElement(a, "rPr", raw, nil)
 			if rPr != nil {
 				run.Content = append([]xmldom.Node{rPr}, run.Content...)
 			}
 			return run
 		}
 	}
-	if rPr := runElement(a, "rPr", raw); rPr != nil {
+	if rPr := runElement(a, "rPr", raw, links); rPr != nil {
 		run.Append(rPr)
 	}
 	return run
@@ -208,8 +213,8 @@ func newRun(a ot.Attrs, raw Raw) *xmldom.Element {
 
 // runElement is the rPr or endParaRPr of attributes: the one they were read
 // from with their keys written over it, or a new one; nil when there is
-// nothing to say.
-func runElement(a ot.Attrs, local string, raw Raw) *xmldom.Element {
+// nothing to say. With links, it points where the "link" of a client asks.
+func runElement(a ot.Attrs, local string, raw Raw, links Links) *xmldom.Element {
 	props := Props{}
 	for k, v := range a {
 		if !paraKeys[k] && k != "r" && k != "o" && k != "fld" && k != "link" {
@@ -225,13 +230,40 @@ func runElement(a ot.Attrs, local string, raw Raw) *xmldom.Element {
 			e.Rename(local)
 		}
 	} else {
-		if len(props) == 0 {
+		if len(props) == 0 && (links == nil || a["link"] == "") {
 			return nil
 		}
 		e = newA(local)
 	}
 	SetRunProps(e, old, props)
+	if links != nil {
+		setLink(e, a["link"], links)
+	}
 	return e
+}
+
+// setLink makes the hyperlink of a run lead to the address of its "link",
+// when it is not where the run was read leading.
+func setLink(rPr *xmldom.Element, link string, links Links) {
+	var l struct {
+		URL string `json:"url"`
+	}
+	if json.Unmarshal([]byte(link), &l) != nil || l.URL == "" {
+		return
+	}
+	name := links(l.URL)
+	if name == "" {
+		return
+	}
+	h := child(rPr, "hlinkClick")
+	if h == nil {
+		h = newA("hlinkClick")
+		setChild(rPr, []string{"hlinkClick"}, h, rPrOrder)
+	}
+	if h.Get("r:id") != name {
+		h.Set("r:id", name)
+		h.Unset("action")
+	}
 }
 
 // finishParagraph gives a paragraph its pPr and endParaRPr from the
@@ -256,7 +288,7 @@ func finishParagraph(p *xmldom.Element, mark ot.Attrs, raw Raw) {
 		SetParaProps(pPr, old, props)
 		p.Content = append([]xmldom.Node{pPr}, p.Content...)
 	}
-	if end := runElement(mark, "endParaRPr", raw); end != nil {
+	if end := runElement(mark, "endParaRPr", raw, nil); end != nil {
 		p.Append(end)
 	}
 }

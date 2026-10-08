@@ -42,7 +42,7 @@ func TestFlow(t *testing.T) {
 		t.Fatal(err)
 	}
 	spaces := map[string]string{"a": NS}
-	SetFlow(doc.Root, edited, fragments(spaces))
+	SetFlow(doc.Root, edited, fragments(spaces), nil)
 	want := `<a:p><a:pPr lvl="1"/><a:r><a:rPr lang="fr-FR"/><a:t>Un</a:t></a:r><a:br/><a:r><a:t>deux</a:t></a:r>` +
 		`<a:fld id="{1}" type="slidenum"><a:rPr lang="fr-FR"/><a:t>3</a:t></a:fld><a:endParaRPr lang="fr-FR" sz="1800"/></a:p>` +
 		`<a:p><m:x xmlns:m="urn:m"/></a:p>` +

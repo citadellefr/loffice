@@ -396,6 +396,7 @@ func TestClientObjects(t *testing.T) {
 		{Insert: "ici", Attrs: ot.Attrs{"link": "#_Toc1"}},
 		{Insert: "x", Attrs: ot.Attrs{"field": `INCLUDETEXT "c:\\secret"`}},
 		{Insert: "y", Attrs: ot.Attrs{"link": "javascript:alert(1)"}},
+		{Insert: "@Devis", Attrs: ot.Attrs{"link": "urn:citadelle:todo?id=7"}},
 	}}})
 	saved, err := d.Save(tree)
 	if err != nil {
@@ -407,7 +408,8 @@ func TestClientObjects(t *testing.T) {
 		`<w:fldSimple w:instr=" PAGE "><w:r><w:rPr><w:b/><w:bCs/></w:rPr><w:t>1</w:t></w:r></w:fldSimple>`,
 		`<w:hyperlink r:id="rId7"><w:r><w:t>site</w:t></w:r></w:hyperlink>`,
 		`<w:hyperlink w:anchor="_Toc1"><w:r><w:t>ici</w:t></w:r></w:hyperlink>`,
-		`<w:r><w:t>xyA</w:t></w:r>`,
+		`<w:r><w:t>xy</w:t></w:r>`,
+		`<w:hyperlink r:id="rId8"><w:r><w:t>@Devis</w:t></w:r></w:hyperlink>`,
 	} {
 		if !strings.Contains(doc, want) {
 			t.Errorf("missing %s in\n%s", want, doc)

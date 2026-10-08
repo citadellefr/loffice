@@ -61,6 +61,28 @@ func firstText(tree *ot.Tree, slide string) *ot.Node {
 	return nil
 }
 
+// A link a client asks for by its address: the writer makes it, and it
+// reads back as asked. What is no address a document may hold stays text.
+func TestClientLinks(t *testing.T) {
+	d, tree := openCorpus(t, "poi/aptia.pptx")
+	title := firstText(tree, slidesOf(tree)[0].ID)
+	apply(t, d, tree, ot.Edit{{Op: ot.OpTxt, ID: title.ID, Text: ot.Delta{
+		{Insert: "@Devis", Attrs: ot.Attrs{"link": `{"url":"urn:citadelle:todo?id=7"}`}},
+		{Insert: "site", Attrs: ot.Attrs{"link": `{"url":"https://example.org/"}`, "b": "1"}},
+		{Insert: "non", Attrs: ot.Attrs{"link": `{"url":"javascript:alert(1)"}`}},
+	}}})
+	_, again := reopen(t, d, tree)
+	flow := firstText(again, slidesOf(again)[0].ID).Text.Delta()
+	for i, want := range []string{`{"url":"urn:citadelle:todo?id=7"}`, `{"url":"https://example.org/"}`, ""} {
+		if got := flow[i].Attrs["link"]; got != want {
+			t.Errorf("%q reads the link %q, want %q", flow[i].Insert, got, want)
+		}
+	}
+	if flow[1].Attrs["b"] != "1" {
+		t.Errorf("the link lost its bold: %v", flow[1].Attrs)
+	}
+}
+
 func TestEdits(t *testing.T) {
 	d, tree := openCorpus(t, "poi/aptia.pptx")
 	slides := slidesOf(tree)

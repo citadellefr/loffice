@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
-	"net/url"
 	"reflect"
 	"slices"
 	"strconv"
@@ -634,7 +633,7 @@ func wrapsOf(a ot.Attrs) []string {
 	if f := fieldInstr(a["field"]); f != "" {
 		return []string{"\x00field" + f}
 	}
-	if l := a["link"]; linkTarget(l) != "" || anchorOf(l) != "" {
+	if l := a["link"]; partrel.LinkTarget(l) != "" || anchorOf(l) != "" {
 		return []string{"\x00link" + l}
 	}
 	return nil
@@ -652,20 +651,6 @@ func fieldInstr(s string) string {
 		return ""
 	}
 	return " " + s + " "
-}
-
-// linkTarget is the URL of a link a client asks for, "" unless it is one
-// of the web or of mail.
-func linkTarget(s string) string {
-	u, err := url.Parse(s)
-	if err != nil || len(s) > 2000 || u.Host == "" && u.Scheme != "mailto" {
-		return ""
-	}
-	switch u.Scheme {
-	case "http", "https", "mailto", "ftp":
-		return u.String()
-	}
-	return ""
 }
 
 // anchorOf is the bookmark a link inside the document goes to.
@@ -687,7 +672,7 @@ func (w *writer) shell(wrap string, in *xmldom.Element) *xmldom.Element {
 		if a := anchorOf(target); a != "" {
 			setAttr(h, "anchor", a)
 		} else if w.rels != nil {
-			h.Set("r:id", w.rels.Ensure(partrel.Rel{Type: relHyperlink, Target: linkTarget(target), External: true}))
+			h.Set("r:id", w.rels.Ensure(partrel.Rel{Type: partrel.Hyperlink, Target: partrel.LinkTarget(target), External: true}))
 		}
 		return h
 	}

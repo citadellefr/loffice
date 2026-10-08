@@ -91,7 +91,7 @@ func TestCorpusTextRoundTrip(t *testing.T) {
 				return
 			}
 			flow := Flow(e, nil)
-			SetFlow(e, flow, fragments(spaces))
+			SetFlow(e, flow, fragments(spaces), nil)
 			bodies++
 			changed = true
 		})

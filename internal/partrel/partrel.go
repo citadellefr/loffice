@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"iter"
+	"net/url"
 	"path"
 	"strconv"
 	"strings"
@@ -20,8 +21,9 @@ import (
 )
 
 const (
-	NS    = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
-	Image = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
+	NS        = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+	Image     = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
+	Hyperlink = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"
 )
 
 // Rel is a relationship an element of the document points to.
@@ -154,6 +156,40 @@ func (n *Names) Picture(target string, data []byte) string {
 		n.byName[s] = Rel{Type: Image, Target: target}
 	}
 	return s
+}
+
+// Link names the link to an address no part points to yet.
+func (n *Names) Link(target string) string {
+	r := Rel{Type: Hyperlink, Target: target, External: true}
+	s := nameOf(n.pkg, r)
+	if _, known := n.byName[s]; !known {
+		n.byName[s] = r
+	}
+	return s
+}
+
+// LinkTarget is the address of a link a client asks for, "" unless it is
+// one of the web or of mail, or a name — "urn:" — that leads nowhere but
+// in the host that wrote it.
+func LinkTarget(s string) string {
+	u, err := url.Parse(s)
+	if err != nil || len(s) > 2000 {
+		return ""
+	}
+	switch u.Scheme {
+	case "http", "https", "ftp":
+		if u.Host == "" {
+			return ""
+		}
+	case "mailto":
+	case "urn":
+		if u.Opaque == "" {
+			return ""
+		}
+	default:
+		return ""
+	}
+	return u.String()
 }
 
 func pictureName(crc uint32, size uint64) string {

@@ -354,7 +354,7 @@ func (w *writer) cell(n *ot.Node, cols, rows int) *xmldom.Element {
 		body.Append(xmldom.New(aNS, "a:lstStyle"))
 		tc.Content = append([]xmldom.Node{body}, tc.Content...)
 	}
-	drawingml.SetFlow(body, flow, w.d.fragment)
+	drawingml.SetFlow(body, flow, w.d.fragment, w.d.linkTo)
 	return tc
 }
 
