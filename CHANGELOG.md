@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.7 — 2026-10-09
 
 - Dart: `commands` on the Word, PowerPoint and plain text editors are the
   keywords of the host an `@` typed in the text starts. A `Command` with a
