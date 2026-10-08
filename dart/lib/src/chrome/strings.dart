@@ -476,4 +476,16 @@ class LofficeStrings {
   String get restartTimer => 'Redémarrer le minuteur';
   String get noNotes => 'Aucune note.';
   String get endOfShow => 'Fin du diaporama, cliquez pour quitter.';
+
+  // keywords after an @
+  String get ask => 'Demander';
+  String get askHint => 'La réponse remplace la question';
+  String get writeQuestion => 'Écrivez votre question, puis Entrée';
+  String get thinking => 'Réflexion en cours…';
+  String get noResult => 'Aucun résultat';
+  String get searchFailed => 'La recherche a échoué';
+  String get answerFailed => 'La réponse n’est pas venue';
+  String get answerLost => 'La réponse n’a plus où s’écrire';
+  String searchIn(String keyword) => 'Rechercher dans $keyword…';
+  String questionFor(String keyword) => 'Votre question pour $keyword…';
 }

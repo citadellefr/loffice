@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -18,7 +19,13 @@ void main() {
     await tester.pump();
   }
 
-  Future<void> open(WidgetTester tester, String fixture, {Size size = const Size(1400, 900)}) async {
+  Future<void> open(
+    WidgetTester tester,
+    String fixture, {
+    Size size = const Size(1400, 900),
+    List<Command> commands = const [],
+    void Function(Uri uri)? onOpenLink,
+  }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -26,7 +33,26 @@ void main() {
     session = DocSession(hub.connect)..start();
     addTearDown(session.dispose);
     await tester.pumpWidget(MaterialApp(
-      home: Scaffold(body: WordEditor(session: session, media: (_) async => Uint8List(0), title: '$fixture.docx')),
+      home: Scaffold(
+        body: WordEditor(
+          session: session,
+          media: (_) async => Uint8List(0),
+          title: '$fixture.docx',
+          commands: commands,
+          onOpenLink: onOpenLink,
+        ),
+      ),
+    ));
+    await settle(tester);
+  }
+
+  /// Types at the caret, as the keyboard of the platform does.
+  Future<void> type(WidgetTester tester, String text) async {
+    final value = TextEditingValue.fromJSON(tester.testTextInput.editingState!);
+    final at = value.selection.extentOffset;
+    tester.testTextInput.updateEditingValue(TextEditingValue(
+      text: value.text.replaceRange(at, at, text),
+      selection: TextSelection.collapsed(offset: at + text.length),
     ));
     await settle(tester);
   }
@@ -93,6 +119,95 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await settle(tester);
     expect(body().text!.text.split('\n').length, paragraphs + 1);
+    await finish(tester);
+  });
+
+  testWidgets('a keyword after an @ mentions what the host finds as a link, which opens', (tester) async {
+    final opened = <Uri>[];
+    final tasks = Command(
+      'taches',
+      icon: Icons.task_alt,
+      search: (query) async => [
+        for (final (i, title) in ['Relire le devis', 'Appeler Ana'].indexed)
+          if (title.toLowerCase().contains(query)) Mention('@$title', Uri.parse('urn:x:todo?id=${i + 1}'), detail: 'Demain'),
+      ],
+    );
+    await open(tester, 'par-known-styles', commands: [tasks, Command('assistant', answer: (_, {required before, required after}) => const Stream.empty())], onOpenLink: opened.add);
+    await clickText(tester);
+    await ctrl(tester, LogicalKeyboardKey.home);
+    final before = body().text!.text;
+
+    await type(tester, '@');
+    expect(find.text('@taches'), findsOneWidget);
+    expect(find.text('@assistant'), findsOneWidget);
+    await type(tester, 't');
+    expect(find.text('@assistant'), findsNothing);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await settle(tester);
+    expect(body().text!.text, '@taches $before');
+    await tester.pump(const Duration(milliseconds: 10));
+    expect(find.text('Rechercher dans taches…'), findsOneWidget);
+    expect(find.text('@Relire le devis'), findsOneWidget);
+
+    await type(tester, 'ana');
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.text('@Relire le devis'), findsNothing);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await settle(tester);
+    expect(body().text!.text, '@Appeler Ana $before');
+    final editing = wordEditing(body());
+    expect(editing.attributesAt(0)?['link'], 'urn:x:todo?id=2');
+    expect(editing.attributesAt(12)?['link'], isNull);
+    expect(find.text('@Appeler Ana'), findsNothing);
+
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await clickText(tester);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    expect(opened, [Uri.parse('urn:x:todo?id=2')]);
+    await finish(tester);
+  });
+
+  testWidgets('a keyword that answers takes the paragraph as its question, and its answer takes its place', (tester) async {
+    final asked = <(String, String)>[];
+    final answers = StreamController<Answer>();
+    addTearDown(answers.close);
+    final assistant = Command(
+      'assistant',
+      answer: (question, {required before, required after}) {
+        asked.add((question, after));
+        return answers.stream;
+      },
+    );
+    await open(tester, 'par-known-styles', commands: [assistant]);
+    await clickText(tester);
+    await ctrl(tester, LogicalKeyboardKey.home);
+    final before = body().text!.text;
+    await ctrl(tester, LogicalKeyboardKey.end);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await settle(tester);
+
+    await type(tester, '@');
+    await type(tester, 'assistant ');
+    expect(find.text('Écrivez votre question, puis Entrée'), findsOneWidget);
+    await type(tester, 'un titre');
+    expect(find.text('Demander'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(asked.single, ('un titre', '\n'));
+    expect(find.text('Réflexion en cours…'), findsOneWidget);
+
+    // the text is held meanwhile
+    await tester.sendKeyEvent(LogicalKeyboardKey.backspace);
+    await type(tester, 'x');
+    expect(body().text!.text, contains('@assistant un titre\n'));
+    answers.add(const Answer.step('Lit le document'));
+    await tester.pump();
+    expect(find.text('Lit le document'), findsOneWidget);
+    answers.add(const Answer.done('Bilan\ndu mois'));
+    await tester.pump();
+    await settle(tester);
+    expect(body().text!.text, '${before}Bilan\ndu mois\n');
+    expect(find.text('Lit le document'), findsNothing);
     await finish(tester);
   });
 

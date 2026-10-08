@@ -11,6 +11,16 @@ import '../drawing/paint.dart';
 /// drawingml.
 typedef Props = Map<String, String>;
 
+/// The address the link of a run leads to, null when it has none.
+String? linkOf(Props run) {
+  final link = run['link'];
+  final url = link == null ? null : _json(link)?['url'];
+  return url is String && url.isNotEmpty ? url : null;
+}
+
+/// What makes text a link to [uri].
+Props linkProps(Uri uri) => {'link': jsonEncode({'url': '$uri'})};
+
 /// Where fonts come from: the typefaces a document names, and the free
 /// fonts with the same metrics that stand in for those that cannot be
 /// shipped.
@@ -309,13 +319,17 @@ class _Context {
     final (family, fallback) = fonts.families(run['font'] ?? '+mn-lt');
     final size = this.size(run);
     final baseline = double.tryParse(run['baseline'] ?? '') ?? 0;
+    // a link is drawn in the color the theme gives links, underlined,
+    // whatever its run says
+    final link = linkOf(run) != null;
     final decorations = [
-      if (run['u'] != null && run['u'] != 'none') TextDecoration.underline,
+      if (link || run['u'] != null && run['u'] != 'none') TextDecoration.underline,
       if (run['strike'] != null && run['strike'] != 'noStrike') TextDecoration.lineThrough,
     ];
     Color? color;
     final fill = run['fill'];
     if (fill != null) color = painter.color(_json(fill));
+    if (link) color = colors.resolve(const {'scheme': 'hlink'}) ?? color;
     final hl = run['hl'];
     return TextStyle(
       fontFamily: family,

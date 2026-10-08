@@ -28,6 +28,9 @@ const wordOwnKeys = {'sect', 'sx', 'pa'};
 /// does not take.
 const wordObjectKeys = {'o', 'po', 'img', 'fld', 'instr', 'br', 'sym', 'note', 'comment', 'cs', 'ce', 'bm', 'math'};
 
+/// What makes text a link to [uri], drawn as Word draws its links.
+Attributes linkAttributes(Uri uri) => {'link': '$uri', 'color': '0563C1', 'u': 'single'};
+
 /// A style of the document.
 class WordStyle {
   WordStyle.fromJson(Map<String, Object?> j)

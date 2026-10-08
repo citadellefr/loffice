@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:loffice/loffice.dart';
 import 'package:trame/testing.dart';
@@ -13,13 +16,13 @@ void main() {
     await tester.pump();
   }
 
-  Future<void> pumpEditor(WidgetTester tester) async {
+  Future<void> pumpEditor(WidgetTester tester, {List<Command> commands = const []}) async {
     hub = FakeHub('one\ntwo');
     mine = DocSession(hub.connect)..start();
     theirs = DocSession(hub.connect)..start();
     addTearDown(mine.dispose);
     addTearDown(theirs.dispose);
-    await tester.pumpWidget(MaterialApp(home: Scaffold(body: PlainTextEditor(session: mine))));
+    await tester.pumpWidget(MaterialApp(home: Scaffold(body: PlainTextEditor(session: mine, commands: commands))));
     await settle(tester);
   }
 
@@ -38,6 +41,64 @@ void main() {
     await settle(tester);
     expect(hub.text, 'one\nthree\ntwo');
     expect(theirs.text, 'one\nthree\ntwo');
+    await finish(tester);
+  });
+
+  testWidgets('keywords after an @: a mention is written by its name, an answer in place of its question', (tester) async {
+    final answers = StreamController<Answer>();
+    addTearDown(answers.close);
+    final asked = <(String, String, String)>[];
+    await pumpEditor(
+      tester,
+      commands: [
+        Command('taches', search: (query) async => [Mention('@Relire le devis', Uri.parse('urn:x:todo?id=1'))]),
+        Command(
+          'assistant',
+          answer: (question, {required before, required after}) {
+            asked.add((question, before, after));
+            return answers.stream;
+          },
+        ),
+      ],
+    );
+    Future<void> type(String text) async {
+      final value = tester.widget<TextField>(find.byType(TextField)).controller!.value;
+      final at = value.selection.extentOffset;
+      tester.testTextInput.updateEditingValue(TextEditingValue(
+        text: value.text.replaceRange(at, at, text),
+        selection: TextSelection.collapsed(offset: at + text.length),
+      ));
+      await settle(tester);
+    }
+
+    await tester.showKeyboard(find.byType(TextField));
+    tester.testTextInput.updateEditingValue(const TextEditingValue(text: 'one\ntwo', selection: TextSelection.collapsed(offset: 3)));
+    await tester.pump();
+    await type(' @');
+    expect(find.text('@taches'), findsOneWidget);
+    expect(find.text('@assistant'), findsOneWidget);
+    await type('t');
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await settle(tester);
+    expect(hub.text, 'one @taches \ntwo');
+    await tester.pump(const Duration(milliseconds: 10));
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await settle(tester);
+    expect(hub.text, 'one @Relire le devis \ntwo');
+
+    await type('@');
+    await type('assistant et après ?');
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(asked, [('et après ?', 'one @Relire le devis ', '\ntwo')]);
+    expect(tester.widget<TextField>(find.byType(TextField)).readOnly, isTrue);
+    theirs.replace(0, 0, '# ');
+    await settle(tester);
+    answers.add(const Answer.done('Puis trois.'));
+    await tester.pump();
+    await settle(tester);
+    expect(hub.text, '# one @Relire le devis Puis trois.\ntwo');
+    expect(tester.widget<TextField>(find.byType(TextField)).readOnly, isFalse);
     await finish(tester);
   });
 

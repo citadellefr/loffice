@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:trame/trame.dart';
 
+import '../chrome/commands.dart';
 import '../chrome/comments.dart';
 import '../chrome/comments_pane.dart';
 import '../chrome/ribbon.dart';
@@ -36,9 +37,19 @@ class PresentationEditor extends StatefulWidget {
     this.strings = const LofficeStrings(),
     this.fonts,
     this.hosted = false,
+    this.commands = const [],
+    this.onOpenLink,
   });
 
   final DocSession session;
+
+  /// The keywords of the host an `@` typed in a text starts: what they
+  /// find is written as a link.
+  final List<Command> commands;
+
+  /// Opens a link of a text, clicked with Ctrl or, in a document only
+  /// read, alone. Without it links do not open.
+  final void Function(Uri uri)? onOpenLink;
 
   /// Fetches the pictures of the document by their name.
   final MediaFetcher media;
@@ -749,6 +760,8 @@ class _PresentationEditorState extends State<PresentationEditor> {
                     _commentsShown = true;
                     _activeComment = id;
                   }),
+                  commands: widget.commands,
+                  onOpenLink: widget.onOpenLink,
                 ),
               ),
               if (_previews > 0)
@@ -1415,7 +1428,14 @@ class _PresentationEditorState extends State<PresentationEditor> {
               padding: const EdgeInsets.all(16),
               child: Text(_s.notesPrompt, style: TextStyle(color: Theme.of(context).hintColor)),
             )
-          : PlainTextEditor(key: ValueKey(notes.id), session: _session, node: notes.id, style: const TextStyle(fontSize: 13)),
+          : PlainTextEditor(
+              key: ValueKey(notes.id),
+              session: _session,
+              node: notes.id,
+              style: const TextStyle(fontSize: 13),
+              commands: widget.commands,
+              strings: _s,
+            ),
     );
   }
 

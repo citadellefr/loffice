@@ -2,7 +2,11 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:trame/trame.dart';
+
+import 'chrome/commands.dart';
+import 'chrome/strings.dart';
 
 /// A plain text editor of the text of [node] in a [DocSession], one line per
 /// paragraph, where the selections of others show in the theme's accent.
@@ -17,7 +21,14 @@ class PlainTextEditor extends StatefulWidget {
     this.padding = const EdgeInsets.all(16),
     this.focusNode,
     this.autofocus = false,
+    this.commands = const [],
+    this.strings = const LofficeStrings(),
   });
+
+  /// The keywords of the host an `@` typed in the text starts. What they
+  /// find is written by its name: a text holds no link.
+  final List<Command> commands;
+  final LofficeStrings strings;
 
   final DocSession session;
   final String node;
@@ -30,13 +41,18 @@ class PlainTextEditor extends StatefulWidget {
   State<PlainTextEditor> createState() => _PlainTextEditorState();
 }
 
-class _PlainTextEditorState extends State<PlainTextEditor> {
+class _PlainTextEditorState extends State<PlainTextEditor> implements CommandField {
   late final _PresenceController _controller;
+  late final _commands = Commands(this, commands: () => widget.commands, strings: () => widget.strings);
+  final _field = GlobalKey();
+  FocusNode? _ownFocus;
   StreamSubscription<Edit>? _changes;
   var _updating = false;
   var _selection = const TextSelection.collapsed(offset: 0);
 
   DocSession get _session => widget.session;
+
+  FocusNode get _focus => widget.focusNode ?? (_ownFocus ??= FocusNode());
 
   @override
   void initState() {
@@ -45,6 +61,17 @@ class _PlainTextEditorState extends State<PlainTextEditor> {
     _controller.addListener(_edited);
     _changes = _session.changes.listen(_changed);
     _session.addListener(_rebuild);
+    _commands.addListener(_rebuild);
+    _focus.addListener(_focusChanged);
+  }
+
+  @override
+  void didUpdateWidget(PlainTextEditor old) {
+    super.didUpdateWidget(old);
+    if (old.focusNode != widget.focusNode) {
+      (old.focusNode ?? _ownFocus)?.removeListener(_focusChanged);
+      _focus.addListener(_focusChanged);
+    }
   }
 
   @override
@@ -52,9 +79,14 @@ class _PlainTextEditorState extends State<PlainTextEditor> {
     unawaited(_changes?.cancel());
     _session.removeListener(_rebuild);
     _session.select(null);
+    _focus.removeListener(_focusChanged);
+    _ownFocus?.dispose();
+    _commands.dispose();
     _controller.dispose();
     super.dispose();
   }
+
+  void _focusChanged() => _focus.hasFocus ? _commands.follow() : _commands.close();
 
   void _rebuild() {
     if (mounted) setState(() {});
@@ -82,6 +114,59 @@ class _PlainTextEditorState extends State<PlainTextEditor> {
     if (value.selection.isValid) {
       _session.select(DocSelection(widget.node, value.selection.baseOffset, value.selection.extentOffset));
     }
+    _commands.follow();
+  }
+
+  // keywords
+
+  /// The line holding an offset of the text: its start and its end.
+  (int, int) _lineAt(int offset) {
+    final text = _controller.text;
+    final end = text.indexOf('\n', offset);
+    return (offset == 0 ? 0 : text.lastIndexOf('\n', offset - 1) + 1, end < 0 ? text.length : end);
+  }
+
+  @override
+  ({String text, int caret})? get typing {
+    final s = _controller.selection;
+    if (!s.isValid || !s.isCollapsed || _session.readOnly || !_focus.hasFocus) return null;
+    final (start, end) = _lineAt(s.extentOffset);
+    return (text: _controller.text.substring(start, end), caret: s.extentOffset - start);
+  }
+
+  @override
+  ({String before, String after}) get around {
+    final (start, end) = _lineAt(_controller.selection.extentOffset);
+    return (before: _controller.text.substring(0, start), after: _controller.text.substring(end));
+  }
+
+  @override
+  Rect? rectAt(int offset) {
+    RenderEditable? editable;
+    void visit(RenderObject object) {
+      if (object is RenderEditable) {
+        editable = object;
+      } else if (editable == null) {
+        object.visitChildren(visit);
+      }
+    }
+
+    _field.currentContext?.findRenderObject()?.visitChildren(visit);
+    final found = editable;
+    if (found == null) return null;
+    final (start, _) = _lineAt(_controller.selection.extentOffset);
+    final caret = found.getLocalRectForCaret(TextPosition(offset: start + offset));
+    return Rect.fromPoints(found.localToGlobal(caret.topLeft), found.localToGlobal(caret.bottomRight));
+  }
+
+  @override
+  void write(int start, int end, String text, {Uri? link}) {
+    final (line, _) = _lineAt(_controller.selection.extentOffset);
+    final written = link == null ? text : '$text ';
+    _controller.value = TextEditingValue(
+      text: _controller.text.replaceRange(line + start, line + end, written),
+      selection: TextSelection.collapsed(offset: line + start + written.length),
+    );
   }
 
   /// Follows a change of the document the field did not make.
@@ -105,6 +190,7 @@ class _PlainTextEditorState extends State<PlainTextEditor> {
         ? TextRange(start: move(value.composing.start), end: move(value.composing.end))
         : TextRange.empty;
     _set(TextEditingValue(text: text, selection: selection, composing: composing));
+    _commands.follow();
   }
 
   void _set(TextEditingValue value) {
@@ -121,17 +207,27 @@ class _PlainTextEditorState extends State<PlainTextEditor> {
         UndoTextIntent: CallbackAction<UndoTextIntent>(onInvoke: (_) => _session.undo()),
         RedoTextIntent: CallbackAction<RedoTextIntent>(onInvoke: (_) => _session.redo()),
       },
-      child: TextField(
-        controller: _controller,
-        focusNode: widget.focusNode,
-        autofocus: widget.autofocus,
-        readOnly: _session.readOnly || !_session.loaded,
-        maxLines: null,
-        expands: true,
-        keyboardType: TextInputType.multiline,
-        textAlignVertical: TextAlignVertical.top,
-        style: widget.style,
-        decoration: InputDecoration(border: InputBorder.none, contentPadding: widget.padding),
+      child: CommandsMenu(
+        commands: _commands,
+        child: Focus(
+          canRequestFocus: false,
+          skipTraversal: true,
+          onKeyEvent: (_, e) => _commands.key(e) ? KeyEventResult.handled : KeyEventResult.ignored,
+          child: TextField(
+            key: _field,
+            controller: _controller,
+            focusNode: _focus,
+            autofocus: widget.autofocus,
+            // an answer on its way holds the text
+            readOnly: _session.readOnly || !_session.loaded || _commands.answering,
+            maxLines: null,
+            expands: true,
+            keyboardType: TextInputType.multiline,
+            textAlignVertical: TextAlignVertical.top,
+            style: widget.style,
+            decoration: InputDecoration(border: InputBorder.none, contentPadding: widget.padding),
+          ),
+        ),
       ),
     );
   }

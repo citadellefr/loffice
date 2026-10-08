@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -22,7 +23,14 @@ void main() {
     await tester.pump();
   }
 
-  Future<void> open(WidgetTester tester, String fixture, {Size size = const Size(1400, 900), bool hosted = false}) async {
+  Future<void> open(
+    WidgetTester tester,
+    String fixture, {
+    Size size = const Size(1400, 900),
+    bool hosted = false,
+    List<Command> commands = const [],
+    void Function(Uri uri)? onOpenLink,
+  }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -30,7 +38,16 @@ void main() {
     session = DocSession(hub.connect)..start();
     addTearDown(session.dispose);
     await tester.pumpWidget(MaterialApp(
-      home: Scaffold(body: PresentationEditor(session: session, media: (_) async => Uint8List(0), title: '$fixture.pptx', hosted: hosted)),
+      home: Scaffold(
+        body: PresentationEditor(
+          session: session,
+          media: (_) async => Uint8List(0),
+          title: '$fixture.pptx',
+          hosted: hosted,
+          commands: commands,
+          onOpenLink: onOpenLink,
+        ),
+      ),
     ));
     await settle(tester);
   }
@@ -41,6 +58,17 @@ void main() {
   }
 
   List<Node> slides() => [for (final n in hub.doc.children('deck')) if (n.type == 'slide') n];
+
+  /// Types at the caret, as the keyboard of the platform does.
+  Future<void> type(WidgetTester tester, String text) async {
+    final value = TextEditingValue.fromJSON(tester.testTextInput.editingState!);
+    final at = value.selection.extentOffset;
+    tester.testTextInput.updateEditingValue(TextEditingValue(
+      text: value.text.replaceRange(at, at, text),
+      selection: TextSelection.collapsed(offset: at + text.length),
+    ));
+    await settle(tester);
+  }
 
   testWidgets('shows the ribbon, the slides and the status', (tester) async {
     await open(tester, 'shp-shapes');
@@ -435,6 +463,77 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.delete);
     await settle(tester);
     expect(hub.doc[box.id], isNull);
+    await finish(tester);
+  });
+
+  testWidgets('keywords after an @ in a text box: a mention is a link that opens, an answer takes the place of its question', (tester) async {
+    final opened = <Uri>[];
+    final asked = <(String, String, String)>[];
+    final answers = StreamController<Answer>();
+    addTearDown(answers.close);
+    await open(
+      tester,
+      'shp-shapes',
+      commands: [
+        Command('taches', search: (query) async => [Mention('@Relire le devis', Uri.parse('urn:x:todo?id=1'))]),
+        Command(
+          'assistant',
+          answer: (question, {required before, required after}) {
+            asked.add((question, before, after));
+            return answers.stream;
+          },
+        ),
+      ],
+      onOpenLink: opened.add,
+    );
+    await tester.tap(find.text('Insertion'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Zone de texte'));
+    await settle(tester);
+    final box = hub.doc.children(slides()[0].id).last;
+    String text() => hub.doc[box.id]!.text!.text;
+
+    await type(tester, '@');
+    expect(find.text('@taches'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await settle(tester);
+    expect(text(), '@taches \n');
+    await tester.pump(const Duration(milliseconds: 10));
+    expect(find.text('@Relire le devis'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await settle(tester);
+    expect(text(), '@Relire le devis \n');
+    final ops = hub.doc[box.id]!.text!.ops;
+    expect(ops[0].insert, '@Relire le devis');
+    expect(ops[0].attributes?['link'], '{"url":"urn:x:todo?id=1"}');
+    expect(ops[1].attributes?['link'], isNull);
+
+    // the link opens with Ctrl, where it is drawn
+    final caret = tester.state<SlideCanvasState>(find.byType(SlideCanvas)).rectAt(3)!;
+    await tester.tapAt(caret.center + const Offset(2, 0));
+    expect(opened, isEmpty);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.tapAt(caret.center + const Offset(2, 0));
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    expect(opened, [Uri.parse('urn:x:todo?id=1')]);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.end);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await settle(tester);
+    await type(tester, '@');
+    await type(tester, 'assistant une phrase');
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump();
+    expect(asked.single.$1, 'une phrase');
+    expect(asked.single.$2, endsWith('@Relire le devis \n'));
+    await type(tester, 'x');
+    expect(text(), '@Relire le devis \n@assistant une phrase\n');
+    answers.add(const Answer.done('À relire avant jeudi.'));
+    await tester.pump();
+    await settle(tester);
+    expect(text(), '@Relire le devis \nÀ relire avant jeudi.\n');
     await finish(tester);
   });
 }

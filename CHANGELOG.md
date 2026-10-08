@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- Dart: `commands` on the Word, PowerPoint and plain text editors are the
+  keywords of the host an `@` typed in the text starts. A `Command` with a
+  `search` proposes what to mention for what is typed after it; what is
+  picked is written as a link (by its name in plain text). One with an
+  `answer` takes the rest of the paragraph as a question and writes its
+  answer in its place: the editor is held meanwhile, Escape gives up.
+- Dart: links open — `onOpenLink`, on a click with Ctrl or, in a document
+  only read, alone. PowerPoint draws them in the color of the theme,
+  underlined.
+- `pptx` writes the links a client asks for (`link`, `{"url":"…"}`), as `docx`
+  does. Both take an address of the web, of mail, or a name ("urn:") that
+  only the host that wrote it knows how to open.
+
 ## 0.8.6 — 2026-10-08
 
 - Dart: `hosted` on the three editors. A host that draws undo, redo and who

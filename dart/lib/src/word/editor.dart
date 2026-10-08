@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:trame/trame.dart';
 
+import '../chrome/commands.dart';
 import '../chrome/comments.dart';
 import '../chrome/comments_pane.dart';
 import '../chrome/ribbon.dart';
@@ -35,9 +36,19 @@ class WordEditor extends StatefulWidget {
     this.fonts,
     this.onPicture,
     this.hosted = false,
+    this.commands = const [],
+    this.onOpenLink,
   });
 
   final DocSession session;
+
+  /// The keywords of the host an `@` typed in the text starts: what they
+  /// find is written as a link.
+  final List<Command> commands;
+
+  /// Opens a link of the text, clicked with Ctrl or, in a document only
+  /// read, alone. Without it links do not open.
+  final void Function(Uri uri)? onOpenLink;
 
   /// Fetches the pictures of the document by their name.
   final MediaFetcher media;
@@ -1023,6 +1034,9 @@ class _WordEditorState extends State<WordEditor> {
                           highlights: [for (final (n, a, b) in _matches) (n.id, a, b)],
                           changed: [for (final r in _revisions) (r.flow, r.start, r.end)],
                           trackAs: _trackAs,
+                          commands: widget.commands,
+                          onOpenLink: widget.onOpenLink,
+                          strings: _s,
                         ),
                       ),
                     ),

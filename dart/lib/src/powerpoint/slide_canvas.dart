@@ -6,10 +6,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:trame/trame.dart';
 
+import '../chrome/commands.dart';
 import '../chrome/comments.dart';
 import '../chrome/comments_pane.dart' show authorColor;
 import '../chrome/strings.dart';
 import '../text/editing.dart';
+import '../text/text_frame.dart' show linkOf, linkProps;
 import 'comments.dart';
 import 'deck.dart';
 import 'edits.dart';
@@ -74,7 +76,16 @@ class SlideCanvas extends StatefulWidget {
     this.comments = const [],
     this.activeComment,
     this.onComment,
+    this.commands = const [],
+    this.onOpenLink,
   });
+
+  /// The keywords an `@` typed in a text starts.
+  final List<Command> commands;
+
+  /// Opens a link of a text: clicked with Ctrl, or alone in a document
+  /// only read.
+  final void Function(Uri uri)? onOpenLink;
 
   final DocSession session;
   final Deck deck;
@@ -103,8 +114,9 @@ enum _Drag { none, move, resize, rotate, text, cells, column, row }
 /// the rotation handle above.
 enum _Handle { topLeft, top, topRight, right, bottomRight, bottom, bottomLeft, left, rotate }
 
-class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClient {
-  late FocusNode _focus = widget.focusNode ?? FocusNode();
+class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClient, CommandField {
+  late final _commands = Commands(this, commands: () => widget.commands, strings: () => widget.strings);
+  late FocusNode _focus = (widget.focusNode ?? FocusNode())..addListener(_focusChanged);
   TextInputConnection? _input;
   StreamSubscription<Edit>? _changes;
   var _local = false;
@@ -154,8 +166,9 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
       widget.selection.addListener(_selectionChanged);
     }
     if (oldWidget.focusNode != widget.focusNode) {
+      _focus.removeListener(_focusChanged);
       if (oldWidget.focusNode == null) _focus.dispose();
-      _focus = widget.focusNode ?? FocusNode();
+      _focus = (widget.focusNode ?? FocusNode())..addListener(_focusChanged);
     }
     if (oldWidget.slide.id != widget.slide.id && _selection.shapes.isNotEmpty) _selection.clear();
   }
@@ -164,10 +177,16 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
   void dispose() {
     _selection.removeListener(_selectionChanged);
     unawaited(_changes?.cancel());
+    _commands.dispose();
     _blink?.cancel();
     _input?.close();
+    _focus.removeListener(_focusChanged);
     if (widget.focusNode == null) _focus.dispose();
     super.dispose();
+  }
+
+  void _focusChanged() {
+    if (!_focus.hasFocus) _commands.close();
   }
 
   void _selectionChanged() {
@@ -182,6 +201,7 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
       _session.select(DocSelection(editing, _selection.base, _selection.extent));
       _restartBlink();
     }
+    _commands.follow();
     if (mounted) setState(() {});
   }
 
@@ -222,6 +242,99 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
   Node? get _editingNode {
     final id = _selection.editing;
     return id == null ? null : _session.document[id];
+  }
+
+  // keywords
+
+  @override
+  ({String text, int caret})? get typing {
+    final node = _editingNode;
+    final s = _selection;
+    if (node == null || !s.collapsed || _session.readOnly || !_focus.hasFocus) return null;
+    final editing = FlowEditing(node.text!);
+    final (start, end) = editing.paragraphAt(s.extent);
+    return (text: editing.text.substring(start, end), caret: s.extent - start);
+  }
+
+  /// The texts of the slide, the one being edited around its paragraph.
+  @override
+  ({String before, String after}) get around {
+    final node = _editingNode;
+    if (node == null) return (before: '', after: '');
+    final (start, end) = FlowEditing(node.text!).paragraphAt(_selection.extent);
+    final before = StringBuffer(), after = StringBuffer();
+    var passed = false;
+    void walk(String parent) {
+      for (final n in _session.document.children(parent)) {
+        final text = n.text?.text.replaceAll('￼', '');
+        if (n.id == node.id) {
+          passed = true;
+          before.write(text!.substring(0, start));
+          after.write(text.substring(end));
+        } else if (text != null && n.type != 'notes') {
+          (passed ? after : before).write(text);
+        }
+        walk(n.id);
+      }
+    }
+
+    walk(widget.slide.id);
+    return (before: before.toString(), after: after.toString());
+  }
+
+  @override
+  Rect? rectAt(int offset) {
+    final node = _editingNode;
+    final frame = node == null ? null : widget.painter.textOf(node);
+    final box = context.findRenderObject();
+    if (frame == null || box is! RenderBox) return null;
+    final (start, _) = FlowEditing(node!.text!).paragraphAt(_selection.extent);
+    final caret = frame.caretAt(start + offset);
+    final transform = widget.painter.transformOf(node);
+    Offset global(Offset p) => box.localToGlobal(_origin + transform.apply(p) * _scale);
+    return Rect.fromPoints(global(caret.topLeft), global(caret.bottomRight));
+  }
+
+  @override
+  void write(int start, int end, String text, {Uri? link}) {
+    final node = _editingNode;
+    if (node == null) return;
+    final editing = FlowEditing(node.text!);
+    final (paragraph, _) = editing.paragraphAt(_selection.extent);
+    start += paragraph;
+    end += paragraph;
+    if (link == null) {
+      _replace(node, start, end, text);
+      return;
+    }
+    final attributes = _selection.typing ?? editing.typingAttributes(start);
+    final d = Delta()..retain(start);
+    if (end > start) d.delete(end - start);
+    d
+      ..insert(text, {...attributes, ...linkProps(link)})
+      ..insert(' ', attributes.isEmpty ? null : attributes);
+    final caret = start + text.length + 1;
+    _text(node, d.chop(), caret, caret);
+  }
+
+  /// The link under a click that opens it, if any: in the text at a point
+  /// of the slide.
+  Uri? _linkAt(Offset p) {
+    if (widget.onOpenLink == null || !(_ctrl || _session.readOnly)) return null;
+    var node = _editingNode;
+    if (node == null || !_contains(node, p)) {
+      final hit = _shapeAt(p);
+      node = hit == null ? null : _cellAt(hit, p) ?? hit;
+    }
+    final frame = node?.text == null ? null : widget.painter.textOf(node!);
+    if (frame == null) return null;
+    final at = widget.painter.transformOf(node!).invert().apply(p);
+    final offset = frame.offsetAt(at);
+    final caret = frame.caretAt(offset);
+    if (at.dy < caret.top || at.dy > caret.bottom || (at.dx - caret.left).abs() > caret.height) return null;
+    final url = linkOf(FlowEditing(node.text!).attributesAt(offset) ?? const {});
+    final uri = url == null ? null : Uri.tryParse(url);
+    return uri != null && uri.hasScheme ? uri : null;
   }
 
   /// The shape at a point of the slide, the topmost; a shape of a group
@@ -376,8 +489,13 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
   }
 
   void _down(PointerDownEvent e) {
+    if (_commands.answering) return;
     _focus.requestFocus();
     final p = _toSlide(e.localPosition);
+    if (_linkAt(p) case final uri?) {
+      widget.onOpenLink!(uri);
+      return;
+    }
     final comment = widget.comments.where((t) => _balloon(t).contains(p)).lastOrNull;
     if (comment != null) {
       widget.onComment?.call(comment.id);
@@ -639,6 +757,7 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
   // keys
 
   KeyEventResult _key(FocusNode node, KeyEvent e) {
+    if (_commands.key(e)) return KeyEventResult.handled;
     if (e is KeyUpEvent) return KeyEventResult.ignored;
     if (widget.onShortcut?.call(e) ?? false) return KeyEventResult.handled;
     final editing = _editingNode;
@@ -848,6 +967,7 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
     final last = node.text!.length - 1;
     if (ok) _selection.edit(shape.id, base.clamp(0, last), extent.clamp(0, last));
     _input?.setEditingState(currentTextEditingValue);
+    _commands.follow();
     _restartBlink();
   }
 
@@ -883,12 +1003,23 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
     );
   }
 
+  /// Whether what the platform typed is not for the text: an answer is on
+  /// its way, and the platform is given back what the text holds.
+  bool get _held {
+    if (_commands.answering) _input?.setEditingState(currentTextEditingValue);
+    return _commands.answering;
+  }
+
   @override
   void updateEditingValueWithDeltas(List<TextEditingDelta> deltas) {
+    if (_held) return;
     for (final delta in deltas) {
       final node = _editingNode;
       if (node == null) return;
       switch (delta) {
+        case TextEditingDeltaInsertion(textInserted: '\n') when _commands.take():
+          _input?.setEditingState(currentTextEditingValue);
+          continue;
         case TextEditingDeltaInsertion(:final insertionOffset, :final textInserted):
           _replace(node, insertionOffset, insertionOffset, textInserted);
         case TextEditingDeltaDeletion(:final deletedRange):
@@ -910,7 +1041,7 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
   @override
   void updateEditingValue(TextEditingValue value) {
     final node = _editingNode;
-    if (node == null) return;
+    if (node == null || _held) return;
     final old = currentTextEditingValue.text, now = value.text;
     if (old != now) {
       var prefix = 0;
@@ -934,7 +1065,8 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
   @override
   void performAction(TextInputAction action) {
     final node = _editingNode;
-    if (node != null && action == TextInputAction.newline) _replace(node, _selection.start, _selection.end, '\n');
+    if (node == null || action != TextInputAction.newline || _held || _commands.take()) return;
+    _replace(node, _selection.start, _selection.end, '\n');
   }
 
   @override
@@ -988,7 +1120,7 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
       );
       _origin = Offset((constraints.maxWidth - size.width * _scale) / 2, (constraints.maxHeight - size.height * _scale) / 2);
       final theme = Theme.of(context);
-      return Focus(
+      final canvas = Focus(
         focusNode: _focus,
         onKeyEvent: _key,
         child: Listener(
@@ -1007,6 +1139,7 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
           ),
         ),
       );
+      return CommandsMenu(commands: _commands, child: canvas);
     });
   }
 }

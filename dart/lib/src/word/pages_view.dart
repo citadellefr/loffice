@@ -6,6 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:trame/trame.dart';
 
+import '../chrome/commands.dart';
+import '../chrome/strings.dart';
+import 'document.dart';
 import 'edits.dart';
 import 'layout.dart';
 import 'page_painter.dart';
@@ -29,6 +32,9 @@ class WordPagesView extends StatefulWidget {
     this.highlights = const [],
     this.changed = const [],
     this.trackAs,
+    this.commands = const [],
+    this.onOpenLink,
+    this.strings = const LofficeStrings(),
   });
 
   final DocSession session;
@@ -58,13 +64,22 @@ class WordPagesView extends StatefulWidget {
   /// The author changes are tracked as, null when they are not tracked.
   final String? trackAs;
 
+  /// The keywords an `@` typed in the text starts.
+  final List<Command> commands;
+
+  /// Opens a link of the text: clicked with Ctrl, or alone in a document
+  /// only read.
+  final void Function(Uri uri)? onOpenLink;
+  final LofficeStrings strings;
+
   @override
   State<WordPagesView> createState() => WordPagesViewState();
 }
 
 const _gap = 16.0;
 
-class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputClient {
+class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputClient, CommandField {
+  late final _commands = Commands(this, commands: () => widget.commands, strings: () => widget.strings);
   final _vertical = ScrollController();
   final _horizontal = ScrollController();
   TextInputConnection? _input;
@@ -110,6 +125,7 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
     _selection.removeListener(_selectionChanged);
     widget.focusNode.removeListener(_focusChanged);
     unawaited(_changes?.cancel());
+    _commands.dispose();
     _blink?.cancel();
     _input?.close();
     _vertical.dispose();
@@ -123,6 +139,7 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
     } else if (!widget.focusNode.hasFocus) {
       _input?.close();
       _input = null;
+      _commands.close();
     }
     if (mounted) setState(() {});
   }
@@ -136,6 +153,7 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
       if (widget.focusNode.hasFocus) _input?.setEditingState(currentTextEditingValue);
       _restartBlink();
     }
+    _commands.follow();
     if (mounted) setState(() {});
   }
 
@@ -168,6 +186,90 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
   Node? get _flow {
     final id = _selection.flow;
     return id == null ? null : _session.document[id];
+  }
+
+  // keywords
+
+  @override
+  ({String text, int caret})? get typing {
+    final flow = _flow;
+    final s = _selection;
+    if (flow == null || !s.collapsed || _session.readOnly || !widget.focusNode.hasFocus) return null;
+    final editing = wordEditing(flow);
+    final (start, end) = editing.paragraphAt(s.extent);
+    return (text: editing.text.substring(start, end), caret: s.extent - start);
+  }
+
+  @override
+  ({String before, String after}) get around {
+    final flow = _flow;
+    if (flow == null) return (before: '', after: '');
+    final (start, end) = wordEditing(flow).paragraphAt(_selection.extent);
+    final before = StringBuffer(), after = StringBuffer();
+    var passed = false;
+    for (final f in _flows) {
+      final text = f.text!.text;
+      if (f.id != flow.id) {
+        (passed ? after : before).write(text.replaceAll('￼', ''));
+        continue;
+      }
+      passed = true;
+      before.write(text.substring(0, start).replaceAll('￼', ''));
+      after.write(text.substring(end).replaceAll('￼', ''));
+    }
+    return (before: before.toString(), after: after.toString());
+  }
+
+  @override
+  Rect? rectAt(int offset) {
+    final flow = _flow;
+    final box = context.findRenderObject();
+    if (flow == null || box is! RenderBox || !_vertical.hasClients) return null;
+    final (start, _) = wordEditing(flow).paragraphAt(_selection.extent);
+    final at = _layout.caret(flow.id, start + offset, page: _selection.page);
+    final (tops, _) = _tops;
+    if (at == null || at.$1 >= tops.length) return null;
+    final (page, rect) = at;
+    final width = math.max(box.size.width, _width);
+    final origin = Offset(
+      (width - _layout.pages[page].size.width * _scale) / 2 - (_horizontal.hasClients ? _horizontal.offset : 0),
+      tops[page] - _vertical.offset,
+    );
+    return Rect.fromPoints(
+      box.localToGlobal(origin + rect.topLeft * _scale),
+      box.localToGlobal(origin + rect.bottomRight * _scale),
+    );
+  }
+
+  @override
+  void write(int start, int end, String text, {Uri? link}) {
+    final flow = _flow;
+    if (flow == null) return;
+    final editing = wordEditing(flow);
+    final (paragraph, _) = editing.paragraphAt(_selection.extent);
+    start += paragraph;
+    end += paragraph;
+    if (link == null) {
+      replace(flow, start, end, text);
+      return;
+    }
+    final attributes = _selection.typing ?? editing.typingAttributes(start);
+    final d = Delta()..retain(start);
+    if (end > start) d.delete(end - start);
+    d
+      ..insert(text, {...attributes, ...linkAttributes(link)})
+      ..insert(' ', attributes.isEmpty ? null : attributes);
+    final caret = start + text.length + 1;
+    _text(flow, d.chop(), caret, caret);
+  }
+
+  /// The link under a click that opens it, if any.
+  Uri? _linkAt(String flow, int offset) {
+    if (widget.onOpenLink == null || !(_ctrl || _session.readOnly)) return null;
+    final node = _session.document[flow];
+    final link = node == null ? null : wordEditing(node).attributesAt(offset)?['link'];
+    final uri = link == null ? null : Uri.tryParse(link);
+    return uri != null && uri.hasScheme ? uri : null;
   }
 
   // geometry
@@ -209,6 +311,7 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
   // pointer
 
   void _down(int page, PointerDownEvent e, Offset local) {
+    if (_commands.answering) return;
     widget.focusNode.requestFocus();
     if (e.buttons == kSecondaryMouseButton) {
       widget.onContextMenu?.call(e.position);
@@ -236,6 +339,10 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
     final (flow, offset) = hit;
     final node = _session.document[flow];
     if (node == null) return;
+    if (_linkAt(flow, offset) case final uri?) {
+      widget.onOpenLink!(uri);
+      return;
+    }
     final editing = wordEditing(node);
     if (_clicks == 2) {
       final (s, t) = editing.wordAt(offset);
@@ -266,6 +373,7 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
   bool get _shift => HardwareKeyboard.instance.isShiftPressed;
 
   KeyEventResult _key(FocusNode node, KeyEvent e) {
+    if (_commands.key(e)) return KeyEventResult.handled;
     if (e is KeyUpEvent) return KeyEventResult.ignored;
     if (widget.onShortcut?.call(e) ?? false) return KeyEventResult.handled;
     final flow = _flow;
@@ -586,6 +694,7 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
     final last = node.text!.length - 1;
     if (ok) _selection.set(flow.id, base.clamp(0, last), extent.clamp(0, last));
     _input?.setEditingState(currentTextEditingValue);
+    _commands.follow();
     _restartBlink();
     WidgetsBinding.instance.addPostFrameCallback((_) => _reveal());
   }
@@ -624,12 +733,23 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
     );
   }
 
+  /// Whether what the platform typed is not for the text: an answer is on
+  /// its way, and the platform is given back what the text holds.
+  bool get _held {
+    if (_commands.answering) _input?.setEditingState(currentTextEditingValue);
+    return _commands.answering;
+  }
+
   @override
   void updateEditingValueWithDeltas(List<TextEditingDelta> deltas) {
+    if (_held) return;
     for (final delta in deltas) {
       final node = _flow;
       if (node == null) return;
       switch (delta) {
+        case TextEditingDeltaInsertion(textInserted: '\n') when _commands.take():
+          _input?.setEditingState(currentTextEditingValue);
+          continue;
         case TextEditingDeltaInsertion(:final insertionOffset, :final textInserted):
           replace(node, insertionOffset, insertionOffset, textInserted);
         case TextEditingDeltaDeletion(:final deletedRange):
@@ -652,7 +772,7 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
   @override
   void updateEditingValue(TextEditingValue value) {
     final node = _flow;
-    if (node == null) return;
+    if (node == null || _held) return;
     final old = currentTextEditingValue.text, now = value.text;
     if (old != now) {
       var prefix = 0;
@@ -676,7 +796,8 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
   @override
   void performAction(TextInputAction action) {
     final node = _flow;
-    if (node != null && action == TextInputAction.newline) replace(node, _selection.start, _selection.end, '\n');
+    if (node == null || action != TextInputAction.newline || _held || _commands.take()) return;
+    replace(node, _selection.start, _selection.end, '\n');
   }
 
   @override
@@ -726,7 +847,7 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
     return LayoutBuilder(builder: (context, box) {
       _viewport = box.biggest;
       final width = math.max(box.maxWidth, _width);
-      return Focus(
+      final pagesView = Focus(
         focusNode: widget.focusNode,
         onKeyEvent: _key,
         child: MouseRegion(
@@ -769,6 +890,7 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
           ),
         ),
       );
+      return CommandsMenu(commands: _commands, child: pagesView);
     });
   }
 }
