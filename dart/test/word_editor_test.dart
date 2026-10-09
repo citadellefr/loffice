@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -25,6 +26,7 @@ void main() {
     Size size = const Size(1400, 900),
     List<Command> commands = const [],
     void Function(Uri uri)? onOpenLink,
+    LinkCard? linkCard,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -40,6 +42,7 @@ void main() {
           title: '$fixture.docx',
           commands: commands,
           onOpenLink: onOpenLink,
+          linkCard: linkCard,
         ),
       ),
     ));
@@ -72,9 +75,14 @@ void main() {
   }
 
   /// Clicks the first page near its top-left corner, in the text.
-  Future<void> clickText(WidgetTester tester) async {
+  /// A point in the first line of the first page.
+  Offset textAt(WidgetTester tester) {
     final page = find.byType(CustomPaint).evaluate().map((e) => e.renderObject! as RenderBox).firstWhere((b) => b.size.width < 1000 && b.size.height > 1000);
-    await tester.tapAt(page.localToGlobal(const Offset(150, 110)));
+    return page.localToGlobal(const Offset(150, 110));
+  }
+
+  Future<void> clickText(WidgetTester tester) async {
+    await tester.tapAt(textAt(tester));
     await settle(tester);
   }
 
@@ -132,7 +140,7 @@ void main() {
           if (title.toLowerCase().contains(query)) Mention('@$title', Uri.parse('urn:x:todo?id=${i + 1}'), detail: 'Demain'),
       ],
     );
-    await open(tester, 'par-known-styles', commands: [tasks, Command('assistant', answer: (_, {required before, required after}) => const Stream.empty())], onOpenLink: opened.add);
+    await open(tester, 'par-known-styles', commands: [tasks, Command('assistant', answer: (_, {required before, required after}) => const Stream.empty())], onOpenLink: opened.add, linkCard: (uri) => Text('card of $uri'));
     await clickText(tester);
     await ctrl(tester, LogicalKeyboardKey.home);
     final before = body().text!.text;
@@ -164,6 +172,18 @@ void main() {
     await clickText(tester);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
     expect(opened, [Uri.parse('urn:x:todo?id=2')]);
+
+    // pointed at, the link shows the card of the host, which leaves with
+    // the pointer
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: Offset.zero);
+    addTearDown(mouse.removePointer);
+    await mouse.moveTo(textAt(tester));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('card of urn:x:todo?id=2'), findsOneWidget);
+    await mouse.moveTo(textAt(tester) + const Offset(0, 300));
+    await tester.pump();
+    expect(find.text('card of urn:x:todo?id=2'), findsNothing);
     await finish(tester);
   });
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.8 — 2026-10-09
+
+- Dart: `linkCard` on the Word and PowerPoint editors is the card of the host
+  over a link — what it leads to — shown while the link is pointed at and,
+  on a touch screen, by a tap in a document only read. Word draws its links
+  as chips.
+
 ## 0.8.7 — 2026-10-09
 
 - Dart: `commands` on the Word, PowerPoint and plain text editors are the

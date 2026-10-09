@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -30,6 +31,7 @@ void main() {
     bool hosted = false,
     List<Command> commands = const [],
     void Function(Uri uri)? onOpenLink,
+    LinkCard? linkCard,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -46,6 +48,7 @@ void main() {
           hosted: hosted,
           commands: commands,
           onOpenLink: onOpenLink,
+          linkCard: linkCard,
         ),
       ),
     ));
@@ -485,6 +488,7 @@ void main() {
         ),
       ],
       onOpenLink: opened.add,
+      linkCard: (uri) => Text('card of $uri'),
     );
     await tester.tap(find.text('Insertion'));
     await tester.pump();
@@ -516,6 +520,17 @@ void main() {
     await tester.tapAt(caret.center + const Offset(2, 0));
     await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
     expect(opened, [Uri.parse('urn:x:todo?id=1')]);
+
+    // pointed at, it shows the card of the host, which leaves with the pointer
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: Offset.zero);
+    addTearDown(mouse.removePointer);
+    await mouse.moveTo(caret.center + const Offset(2, 0));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('card of urn:x:todo?id=1'), findsOneWidget);
+    await mouse.moveTo(caret.center + const Offset(2, 200));
+    await tester.pump();
+    expect(find.text('card of urn:x:todo?id=1'), findsNothing);
     await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
     await tester.sendKeyEvent(LogicalKeyboardKey.end);
     await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);

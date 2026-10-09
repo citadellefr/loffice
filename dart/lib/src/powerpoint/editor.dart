@@ -8,6 +8,7 @@ import 'package:trame/trame.dart';
 import '../chrome/commands.dart';
 import '../chrome/comments.dart';
 import '../chrome/comments_pane.dart';
+import '../chrome/link_card.dart';
 import '../chrome/ribbon.dart';
 import '../chrome/strings.dart';
 import '../drawing/geometry.dart';
@@ -39,6 +40,7 @@ class PresentationEditor extends StatefulWidget {
     this.hosted = false,
     this.commands = const [],
     this.onOpenLink,
+    this.linkCard,
   });
 
   final DocSession session;
@@ -50,6 +52,10 @@ class PresentationEditor extends StatefulWidget {
   /// Opens a link of a text, clicked with Ctrl or, in a document only
   /// read, alone. Without it links do not open.
   final void Function(Uri uri)? onOpenLink;
+
+  /// The card of the host over a link pointed at, or tapped on a touch
+  /// screen in a document only read: what it leads to. Null shows nothing.
+  final LinkCard? linkCard;
 
   /// Fetches the pictures of the document by their name.
   final MediaFetcher media;
@@ -762,6 +768,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
                   }),
                   commands: widget.commands,
                   onOpenLink: widget.onOpenLink,
+                  linkCard: widget.linkCard,
                 ),
               ),
               if (_previews > 0)

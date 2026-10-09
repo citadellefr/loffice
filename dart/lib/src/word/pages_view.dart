@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:trame/trame.dart';
 
 import '../chrome/commands.dart';
+import '../chrome/link_card.dart';
 import '../chrome/strings.dart';
 import 'document.dart';
 import 'edits.dart';
@@ -34,6 +35,7 @@ class WordPagesView extends StatefulWidget {
     this.trackAs,
     this.commands = const [],
     this.onOpenLink,
+    this.linkCard,
     this.strings = const LofficeStrings(),
   });
 
@@ -70,6 +72,10 @@ class WordPagesView extends StatefulWidget {
   /// Opens a link of the text: clicked with Ctrl, or alone in a document
   /// only read.
   final void Function(Uri uri)? onOpenLink;
+
+  /// The card of the host over a link pointed at, or tapped on a touch
+  /// screen in a document only read: what it leads to. Null shows nothing.
+  final LinkCard? linkCard;
   final LofficeStrings strings;
 
   @override
@@ -80,6 +86,10 @@ const _gap = 16.0;
 
 class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputClient, CommandField {
   late final _commands = Commands(this, commands: () => widget.commands, strings: () => widget.strings);
+  late final _cards = LinkCards(() => context, () => widget.linkCard);
+
+  /// The ground of each link, by page, for the layout it was found on.
+  (WordLayout, Map<int, List<Rect>>)? _linkBoxes;
   final _vertical = ScrollController();
   final _horizontal = ScrollController();
   TextInputConnection? _input;
@@ -126,6 +136,7 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
     widget.focusNode.removeListener(_focusChanged);
     unawaited(_changes?.cancel());
     _commands.dispose();
+    _cards.hide();
     _blink?.cancel();
     _input?.close();
     _vertical.dispose();
@@ -264,12 +275,61 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
   }
 
   /// The link under a click that opens it, if any.
-  Uri? _linkAt(String flow, int offset) {
-    if (widget.onOpenLink == null || !(_ctrl || _session.readOnly)) return null;
+  Uri? _linkAt(String flow, int offset) =>
+      widget.onOpenLink == null || !(_ctrl || _session.readOnly) ? null : _linkOf(flow, offset);
+
+  Uri? _linkOf(String flow, int offset) {
     final node = _session.document[flow];
     final link = node == null ? null : wordEditing(node).attributesAt(offset)?['link'];
     final uri = link == null ? null : Uri.tryParse(link);
     return uri != null && uri.hasScheme ? uri : null;
+  }
+
+  /// Tells the card which link the pointer is over, on a page.
+  void _hover(int page, PointerHoverEvent e) {
+    final p = e.localPosition / _scale;
+    final hit = _layout.hit(page, p, area: _selection.area);
+    Uri? uri;
+    if (hit case (final flow, final offset)) {
+      // the nearest character is not always under the pointer: a margin, the
+      // end of a line
+      for (final o in [offset, offset - 1]) {
+        if (o < 0 || !_layout.selection(flow, o, o + 1).any((r) => r.$1 == page && r.$2.contains(p))) continue;
+        uri = _linkOf(flow, o);
+        break;
+      }
+    }
+    _cards.point(uri, e.position);
+  }
+
+  /// The ground of the links of a page, each drawn as a chip.
+  List<Rect> _linksOn(int page) {
+    if (!identical(_linkBoxes?.$1, _layout)) {
+      final boxes = <int, List<Rect>>{};
+      for (final flow in flowsOf(_session.document)) {
+        var at = 0, from = 0;
+        String? link;
+        void close() {
+          if (link == null) return;
+          for (final (p, r) in _layout.selection(flow.id, from, at)) {
+            (boxes[p] ??= []).add(r);
+          }
+        }
+
+        for (final op in flow.text?.ops ?? const <Op>[]) {
+          final next = op.attributes?['link'];
+          if (next != link) {
+            close();
+            link = next;
+            from = at;
+          }
+          at += op.insert!.length;
+        }
+        close();
+      }
+      _linkBoxes = (_layout, boxes);
+    }
+    return _linkBoxes!.$2[page] ?? const [];
   }
 
   // geometry
@@ -312,6 +372,7 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
 
   void _down(int page, PointerDownEvent e, Offset local) {
     if (_commands.answering) return;
+    _cards.hide();
     widget.focusNode.requestFocus();
     if (e.buttons == kSecondaryMouseButton) {
       widget.onContextMenu?.call(e.position);
@@ -340,7 +401,7 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
     final node = _session.document[flow];
     if (node == null) return;
     if (_linkAt(flow, offset) case final uri?) {
-      widget.onOpenLink!(uri);
+      if (_ctrl || e.kind == PointerDeviceKind.mouse || !_cards.tap(uri, e.position)) widget.onOpenLink!(uri);
       return;
     }
     final editing = wordEditing(node);
@@ -852,6 +913,7 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
         onKeyEvent: _key,
         child: MouseRegion(
           cursor: SystemMouseCursors.text,
+          onExit: (_) => _cards.hide(),
           child: Scrollbar(
             controller: _horizontal,
             child: SingleChildScrollView(
@@ -874,6 +936,7 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
                         alignment: Alignment.topCenter,
                         child: Listener(
                           onPointerDown: (e) => _down(i, e, e.localPosition),
+                          onPointerHover: (e) => _hover(i, e),
                           onPointerMove: (e) => _move(i, e.localPosition),
                           onPointerUp: (_) => _dragging = false,
                           child: Container(
@@ -918,6 +981,18 @@ class _PagePainter extends CustomPainter {
         ..strokeWidth = 0.75;
       final y = s.area == PageArea.header ? page.body.top : page.body.bottom;
       canvas.drawLine(Offset(0, y), Offset(page.size.width, y), line);
+    }
+    for (final r in state._linksOn(index)) {
+      final chip = RRect.fromRectAndRadius(r.inflate(1), const Radius.circular(3));
+      canvas
+        ..drawRRect(chip, Paint()..color = _linkColor.withValues(alpha: 0.08))
+        ..drawRRect(
+          chip,
+          Paint()
+            ..color = _linkColor.withValues(alpha: 0.35)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 0.5,
+        );
     }
     for (final (flow, a, b, color) in state.widget.marks) {
       for (final (p, r) in layout.selection(flow, a, b)) {
@@ -974,6 +1049,9 @@ class _PagePainter extends CustomPainter {
 /// What was last copied in a Word editor, with its formatting: pasted as
 /// such when the clipboard still holds its text.
 Delta? _copied;
+
+/// The ink of a link, as Word writes it.
+const _linkColor = Color(0xFF0563C1);
 
 const _peerColors = [Color(0xFFE67E22), Color(0xFF8E44AD), Color(0xFF16A085), Color(0xFFC0392B), Color(0xFF2980B9)];
 

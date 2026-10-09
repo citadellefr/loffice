@@ -9,6 +9,7 @@ import 'package:trame/trame.dart';
 import '../chrome/commands.dart';
 import '../chrome/comments.dart';
 import '../chrome/comments_pane.dart' show authorColor;
+import '../chrome/link_card.dart';
 import '../chrome/strings.dart';
 import '../text/editing.dart';
 import '../text/text_frame.dart' show linkOf, linkProps;
@@ -78,6 +79,7 @@ class SlideCanvas extends StatefulWidget {
     this.onComment,
     this.commands = const [],
     this.onOpenLink,
+    this.linkCard,
   });
 
   /// The keywords an `@` typed in a text starts.
@@ -86,6 +88,10 @@ class SlideCanvas extends StatefulWidget {
   /// Opens a link of a text: clicked with Ctrl, or alone in a document
   /// only read.
   final void Function(Uri uri)? onOpenLink;
+
+  /// The card of the host over a link pointed at, or tapped on a touch
+  /// screen in a document only read: what it leads to. Null shows nothing.
+  final LinkCard? linkCard;
 
   final DocSession session;
   final Deck deck;
@@ -116,6 +122,7 @@ enum _Handle { topLeft, top, topRight, right, bottomRight, bottom, bottomLeft, l
 
 class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClient, CommandField {
   late final _commands = Commands(this, commands: () => widget.commands, strings: () => widget.strings);
+  late final _cards = LinkCards(() => context, () => widget.linkCard);
   late FocusNode _focus = (widget.focusNode ?? FocusNode())..addListener(_focusChanged);
   TextInputConnection? _input;
   StreamSubscription<Edit>? _changes;
@@ -178,6 +185,7 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
     _selection.removeListener(_selectionChanged);
     unawaited(_changes?.cancel());
     _commands.dispose();
+    _cards.hide();
     _blink?.cancel();
     _input?.close();
     _focus.removeListener(_focusChanged);
@@ -319,8 +327,9 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
 
   /// The link under a click that opens it, if any: in the text at a point
   /// of the slide.
-  Uri? _linkAt(Offset p) {
-    if (widget.onOpenLink == null || !(_ctrl || _session.readOnly)) return null;
+  Uri? _linkAt(Offset p) => widget.onOpenLink == null || !(_ctrl || _session.readOnly) ? null : _linkUnder(p);
+
+  Uri? _linkUnder(Offset p) {
     var node = _editingNode;
     if (node == null || !_contains(node, p)) {
       final hit = _shapeAt(p);
@@ -492,8 +501,9 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
     if (_commands.answering) return;
     _focus.requestFocus();
     final p = _toSlide(e.localPosition);
+    _cards.hide();
     if (_linkAt(p) case final uri?) {
-      widget.onOpenLink!(uri);
+      if (_ctrl || e.kind == PointerDeviceKind.mouse || !_cards.tap(uri, e.position)) widget.onOpenLink!(uri);
       return;
     }
     final comment = widget.comments.where((t) => _balloon(t).contains(p)).lastOrNull;
@@ -626,6 +636,7 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
       _ => MouseCursor.defer,
     };
     if (cursor != _cursor) setState(() => _cursor = cursor);
+    _cards.point(_linkUnder(_toSlide(e.localPosition)), e.position);
   }
 
   void _up(PointerUpEvent e) {
@@ -1129,6 +1140,7 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
           onPointerUp: _up,
           onPointerHover: _hover,
           child: MouseRegion(
+            onExit: (_) => _cards.hide(),
             cursor: _cursor != MouseCursor.defer
                 ? _cursor
                 : (_selection.editing != null ? SystemMouseCursors.text : SystemMouseCursors.basic),
