@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.9 — 2026-10-10
+
+- Dart: Word draws its links as links again, not as chips. The card of
+  `linkCard` over a link pointed at stays.
+
 ## 0.8.8 — 2026-10-09
 
 - Dart: `linkCard` on the Word and PowerPoint editors is the card of the host

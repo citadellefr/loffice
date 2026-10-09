@@ -87,9 +87,6 @@ const _gap = 16.0;
 class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputClient, CommandField {
   late final _commands = Commands(this, commands: () => widget.commands, strings: () => widget.strings);
   late final _cards = LinkCards(() => context, () => widget.linkCard);
-
-  /// The ground of each link, by page, for the layout it was found on.
-  (WordLayout, Map<int, List<Rect>>)? _linkBoxes;
   final _vertical = ScrollController();
   final _horizontal = ScrollController();
   TextInputConnection? _input;
@@ -300,36 +297,6 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
       }
     }
     _cards.point(uri, e.position);
-  }
-
-  /// The ground of the links of a page, each drawn as a chip.
-  List<Rect> _linksOn(int page) {
-    if (!identical(_linkBoxes?.$1, _layout)) {
-      final boxes = <int, List<Rect>>{};
-      for (final flow in flowsOf(_session.document)) {
-        var at = 0, from = 0;
-        String? link;
-        void close() {
-          if (link == null) return;
-          for (final (p, r) in _layout.selection(flow.id, from, at)) {
-            (boxes[p] ??= []).add(r);
-          }
-        }
-
-        for (final op in flow.text?.ops ?? const <Op>[]) {
-          final next = op.attributes?['link'];
-          if (next != link) {
-            close();
-            link = next;
-            from = at;
-          }
-          at += op.insert!.length;
-        }
-        close();
-      }
-      _linkBoxes = (_layout, boxes);
-    }
-    return _linkBoxes!.$2[page] ?? const [];
   }
 
   // geometry
@@ -982,18 +949,6 @@ class _PagePainter extends CustomPainter {
       final y = s.area == PageArea.header ? page.body.top : page.body.bottom;
       canvas.drawLine(Offset(0, y), Offset(page.size.width, y), line);
     }
-    for (final r in state._linksOn(index)) {
-      final chip = RRect.fromRectAndRadius(r.inflate(1), const Radius.circular(3));
-      canvas
-        ..drawRRect(chip, Paint()..color = _linkColor.withValues(alpha: 0.08))
-        ..drawRRect(
-          chip,
-          Paint()
-            ..color = _linkColor.withValues(alpha: 0.35)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 0.5,
-        );
-    }
     for (final (flow, a, b, color) in state.widget.marks) {
       for (final (p, r) in layout.selection(flow, a, b)) {
         if (p == index) canvas.drawRect(r, Paint()..color = color);
@@ -1049,9 +1004,6 @@ class _PagePainter extends CustomPainter {
 /// What was last copied in a Word editor, with its formatting: pasted as
 /// such when the clipboard still holds its text.
 Delta? _copied;
-
-/// The ink of a link, as Word writes it.
-const _linkColor = Color(0xFF0563C1);
 
 const _peerColors = [Color(0xFFE67E22), Color(0xFF8E44AD), Color(0xFF16A085), Color(0xFFC0392B), Color(0xFF2980B9)];
 
