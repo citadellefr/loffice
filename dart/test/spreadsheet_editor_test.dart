@@ -226,6 +226,47 @@ void main() {
     await finish(tester);
   });
 
+  testWidgets('the page layout tab sets how the sheet prints', (tester) async {
+    await open(tester);
+    Object? setup() => hub.doc['S1']!.attributes['print'];
+    await tester.tap(find.text('Mise en page').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Orientation').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(CheckedPopupMenuItem<bool>, 'Paysage'));
+    await tester.pumpAndSettle();
+    await settle(tester);
+    expect(setup(), {'land': true});
+
+    await tester.tap(find.byTooltip('Marges').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('Étroites'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Imprimer le quadrillage'));
+    await settle(tester);
+    expect(setup(), {'land': true, 'margins': {'l': 0.25, 'r': 0.25, 't': 0.75, 'b': 0.75, 'head': 0.3, 'foot': 0.3}, 'grid': true});
+
+    // a break over the third row, then the selection as what prints
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.tap(find.byTooltip('Sauts de page').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Insérer un saut de page'));
+    await tester.pumpAndSettle();
+    await settle(tester);
+    expect((setup()! as Map)['rows'], [3]);
+    expect((setup()! as Map)['cols'], isNull);
+    await tester.tap(find.byTooltip('Zone d’impression').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Définir'));
+    await tester.pumpAndSettle();
+    await settle(tester);
+    expect(hub.doc['book']!.attributes['names'], [
+      {'name': '_xlnm.Print_Area', 'ref': r"'Feuil1'!$A$3:$A$3", 'sheet': 'S1'},
+    ]);
+    await finish(tester);
+  });
+
   testWidgets('fits a phone, its tabs in a list', (tester) async {
     await open(tester, size: const Size(390, 844));
     await tester.tap(find.text('Accueil'));

@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- `xlsx` reads how a sheet prints into its "print" attribute (`Print`):
+  paper, orientation, scale or the pages it is fitted to, margins, page
+  order, first page number, centering, gridlines and headings, the rows and
+  columns pages start at, header and footer. Clients may set it; it is
+  checked, its breaks move with the rows and columns inserted or removed,
+  and it is written back beside what the worksheet keeps of its printer.
+- Dart: `onExport` on the spreadsheet editor adds File > Export as PDF. The
+  sheets in view are cut into the pages they print on: the print area or
+  the cells that hold or show something, the rows and columns every page
+  repeats, manual breaks, the scale asked for or the one that fits, hidden
+  rows and columns left out, header and footer with their codes, charts,
+  chart sheets on a page of their own. Not done: pictures in headers,
+  comments, the cut Excel makes with the metrics of a printer (pages may
+  break a row or a column apart from where Excel breaks them).
+- Dart: the spreadsheet editor has a Page Layout tab: margins, orientation,
+  paper, print area, page breaks, fitting to pages or scale, printed
+  gridlines and headings.
+
 ## 0.10.0 — 2026-10-10
 
 - Dart: the package ships the free fonts that stand in for Office's

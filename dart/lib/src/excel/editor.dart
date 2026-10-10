@@ -20,6 +20,7 @@ import 'formula_text.dart';
 import 'input.dart';
 import 'lists.dart';
 import 'number_format.dart';
+import 'print.dart';
 import 'sheet_view.dart';
 import 'workbook.dart';
 
@@ -617,6 +618,21 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     _edit(Edit([
       Change.set(sheet.id, attributes: {'frozen': rows == 0 && cols == 0 ? null : {'r': ?(rows > 0 ? rows : null), 'c': ?(cols > 0 ? cols : null)}}),
     ]));
+  }
+
+  // printing
+
+  void _print(Map<String, Object?> changes) {
+    final sheet = _sheet;
+    if (sheet != null) _edit(_edits.printSetup(sheet, changes));
+  }
+
+  /// Fits the sheet to [pages] wide or tall, 0 for as many as it takes:
+  /// it prints at its scale again once neither is asked.
+  void _fit({int? wide, int? tall}) {
+    final (w, h) = PrintSetup.of(_sheet!).fit ?? (0, 0);
+    final fit = (wide ?? w, tall ?? h);
+    _print({'fit': fit == (0, 0) ? null : [fit.$1, fit.$2]});
   }
 
   void _closeBackstage() => setState(() => _backstage = false);
@@ -1355,6 +1371,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
             RibbonButton(icon: const Icon(Icons.view_column_outlined), label: _s.insertColumns, onPressed: editable ? () => _insert(rows: false) : null),
           ]),
         ]),
+        if (!_wb.csv) _printTab(editable),
         RibbonTab(_s.formulas, [
           RibbonGroup(_s.functionLibrary, [
             _functionsMenu(),
@@ -1425,6 +1442,97 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
         ]),
       ],
     );
+  }
+
+  RibbonTab _printTab(bool editable) {
+    final sheet = _sheet;
+    final setup = sheet == null ? const PrintSetup({}) : PrintSetup.of(sheet);
+    final (wide, tall) = setup.fit ?? (0, 0);
+    final (row, col) = _selection.active;
+    String pages(int n) => n == 0 ? _s.automatic : _s.fitPages(n);
+    const fits = [0, 1, 2, 3, 4];
+    Map<String, double> margins(double side, double top, double edge) => {'l': side, 'r': side, 't': top, 'b': top, 'head': edge, 'foot': edge};
+    return RibbonTab(_s.layoutTab, [
+      RibbonGroup(_s.pageSetup, [
+        RibbonMenu<Map<String, double>>(
+          icon: const Icon(Icons.margin),
+          label: _s.margins,
+          large: true,
+          enabled: editable,
+          items: [
+            PopupMenuItem(value: margins(0.7, 0.75, 0.3), child: Text('${_s.normalMargins} (1,78 × 1,91 cm)')),
+            PopupMenuItem(value: margins(1, 1, 0.5), child: Text('${_s.wideMargins} (2,54 cm)')),
+            PopupMenuItem(value: margins(0.25, 0.75, 0.3), child: Text('${_s.narrowMargins} (0,64 × 1,91 cm)')),
+          ],
+          onSelected: (m) => _print({'margins': m}),
+        ),
+        RibbonMenu<bool>(
+          icon: const Icon(Icons.crop_rotate),
+          label: _s.orientation,
+          large: true,
+          enabled: editable,
+          items: [
+            CheckedPopupMenuItem(value: false, checked: !setup.landscape, child: Text(_s.portrait)),
+            CheckedPopupMenuItem(value: true, checked: setup.landscape, child: Text(_s.landscape)),
+          ],
+          onSelected: (land) => _print({'land': land}),
+        ),
+        RibbonMenu<int>(
+          icon: const Icon(Icons.description_outlined),
+          label: _s.size,
+          large: true,
+          enabled: editable,
+          items: [
+            for (final (name, paper) in _s.sheetPapers) CheckedPopupMenuItem(value: paper, checked: setup.paper == paper, child: Text(name)),
+          ],
+          onSelected: (paper) => _print({'paper': paper}),
+        ),
+        RibbonMenu<bool>(
+          icon: const Icon(Icons.print_outlined),
+          label: _s.printArea,
+          large: true,
+          enabled: editable,
+          items: [PopupMenuItem(value: true, child: Text(_s.setPrintArea)), PopupMenuItem(value: false, child: Text(_s.clearPrintArea))],
+          onSelected: (set) => _edit(_edits.printArea(sheet!, set ? _selection.area : null)),
+        ),
+        RibbonMenu<String>(
+          icon: const Icon(Icons.insert_page_break_outlined),
+          label: _s.breaks,
+          large: true,
+          enabled: editable,
+          items: [
+            PopupMenuItem(value: 'insert', child: Text(_s.insertPageBreak)),
+            PopupMenuItem(value: 'remove', child: Text(_s.removePageBreak)),
+            PopupMenuItem(value: 'reset', child: Text(_s.resetPageBreaks)),
+          ],
+          onSelected: (v) => v == 'reset' ? _print({'rows': null, 'cols': null}) : _edit(_edits.pageBreak(sheet!, row, col, remove: v == 'remove')),
+        ),
+      ]),
+      RibbonGroup(_s.scaleToFit, [
+        RibbonDropdown(
+          label: _s.width,
+          value: pages(wide),
+          values: [for (final n in {...fits, wide}) pages(n)],
+          onChanged: editable ? (v) => _fit(wide: {...fits, wide}.firstWhere((n) => pages(n) == v)) : null,
+        ),
+        RibbonDropdown(
+          label: _s.height,
+          value: pages(tall),
+          values: [for (final n in {...fits, tall}) pages(n)],
+          onChanged: editable ? (v) => _fit(tall: {...fits, tall}.firstWhere((n) => pages(n) == v)) : null,
+        ),
+        RibbonDropdown(
+          label: _s.scale,
+          value: '${(setup.scale * 100).round()} %',
+          values: [for (final n in {25, 50, 60, 70, 75, 80, 90, 100, 125, 150, 200, (setup.scale * 100).round()}.toList()..sort()) '$n %'],
+          onChanged: editable && setup.fit == null ? (v) => _print({'scale': int.parse(v.split(' ').first)}) : null,
+        ),
+      ]),
+      RibbonGroup(_s.sheetOptions, [
+        RibbonCheck(label: _s.printGridlines, value: setup.gridlines, onChanged: editable ? (on) => _print({'grid': on}) : null),
+        RibbonCheck(label: _s.printHeadings, value: setup.headings, onChanged: editable ? (on) => _print({'heads': on}) : null),
+      ]),
+    ]);
   }
 
   Widget _tabs(BuildContext context) {

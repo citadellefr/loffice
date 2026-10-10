@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:trame/trame.dart';
 
+import 'print.dart';
 import 'workbook.dart';
 
 /// A change made to the format of a cell, at [row] and [col] of the area
@@ -190,6 +191,38 @@ class SheetEdits {
         if (m.intersects(area)) Cell(m.top, m.left, const {'m': null}),
     ];
     return cells.isEmpty ? Edit() : Edit([Change.cells(sheet.id, cells)]);
+  }
+
+  // printing
+
+  /// Changes how a sheet prints: the settings of its "print" given, those
+  /// set to null left out.
+  Edit printSetup(Node sheet, Map<String, Object?> changes) {
+    final setup = PrintSetup.of(sheet).change(changes);
+    return Edit([Change.set(sheet.id, attributes: {'print': setup.isEmpty ? null : setup})]);
+  }
+
+  /// Sets what a sheet prints to an area, or to all it holds for null.
+  Edit printArea(Node sheet, CellArea? area) {
+    final all = tree['book']?.attributes['names'];
+    final names = [
+      for (final n in all is List<Object?> ? all : const <Object?>[])
+        if (!(n is Map<String, Object?> && n['sheet'] == sheet.id && '${n['name']}'.toLowerCase() == printAreaName.toLowerCase())) n,
+    ];
+    if (area != null) {
+      final name = "'${'${sheet.attributes['name']}'.replaceAll("'", "''")}'";
+      final ref = '$name!\$${columnName(area.left)}\$${area.top}:\$${columnName(area.right)}\$${area.bottom}';
+      names.add({'name': printAreaName, 'ref': ref, 'sheet': sheet.id});
+    }
+    return Edit([Change.set('book', attributes: {'names': names.isEmpty ? null : names})]);
+  }
+
+  /// Starts a page over the row and left of the column of a cell, or
+  /// removes the breaks there when [remove].
+  Edit pageBreak(Node sheet, int row, int col, {bool remove = false}) {
+    final setup = PrintSetup.of(sheet);
+    List<int> changed(List<int> breaks, int at) => ({...breaks}..remove(at)..addAll([if (!remove && at > 1) at])).toList()..sort();
+    return printSetup(sheet, {'rows': changed(setup.rowBreaks, row), 'cols': changed(setup.colBreaks, col)});
   }
 
   // sheets

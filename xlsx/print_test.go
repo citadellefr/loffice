@@ -2,6 +2,7 @@ package xlsx
 
 import (
 	"encoding/json"
+	"os"
 	"testing"
 
 	"github.com/citadellefr/loffice/formula"
@@ -66,5 +67,47 @@ func TestPrintChecked(t *testing.T) {
 		if got := checkPrint(json.RawMessage(raw)); got != ok {
 			t.Errorf("%s: got %v", raw, got)
 		}
+	}
+}
+
+// What the page layout tab of the editor sends is taken and saved.
+func TestPrintEdited(t *testing.T) {
+	data, err := os.ReadFile("../testdata/xlsx/blank.xlsx")
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, tree, err := Open(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sheet := firstSheet(tree)
+	name := str(sheet, "name")
+	names := `[{"name":"_xlnm.Print_Area","ref":"'` + name + `'!$A$3:$C$9","sheet":"` + sheet.ID + `"}]`
+	setup := `{"land":true,"fit":[1,0],"rows":[5],"head":"Budget"}`
+	apply(t, d, tree, ot.Edit{
+		{Op: ot.OpSet, ID: sheet.ID, Attrs: ot.Values{printKey: json.RawMessage(setup)}},
+		{Op: ot.OpSet, ID: "book", Attrs: ot.Values{"names": json.RawMessage(names)}},
+	})
+	saved, err := d.Save(tree)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, again, err := Open(saved)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(firstSheet(again).Attrs[printKey]); got != setup {
+		t.Errorf("print read back as %s", got)
+	}
+	if got := string(again.Node("book").Attrs["names"]); got != names {
+		t.Errorf("names read back as %s", got)
+	}
+	apply(t, d, tree, ot.Edit{{Op: ot.OpSet, ID: sheet.ID, Attrs: ot.Values{printKey: json.RawMessage("null")}}})
+	if saved, err = d.Save(tree); err != nil {
+		t.Fatal(err)
+	}
+	_, again, _ = Open(saved)
+	if got := firstSheet(again).Attrs[printKey]; got != nil {
+		t.Errorf("print cleared read back as %s", got)
 	}
 }
