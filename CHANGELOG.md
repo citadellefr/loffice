@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Dart: in a browser, Ctrl+V in Word, Excel and a text box of PowerPoint
+  pastes what the browser hands the page, without reading the clipboard:
+  Firefox no longer asks to confirm with its own « Paste » button. The paste
+  of the ribbon and of the menus still reads it.
+
 ## 0.8.9 — 2026-10-10
 
 - Dart: Word draws its links as links again, not as chips. The card of

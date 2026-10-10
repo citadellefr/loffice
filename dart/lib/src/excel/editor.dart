@@ -8,6 +8,7 @@ import 'package:trame/trame.dart';
 import '../chart/chart.dart';
 import '../chrome/ribbon.dart';
 import '../chrome/strings.dart';
+import '../clipboard.dart';
 import 'charts.dart';
 import 'edits.dart';
 import 'filter.dart';
@@ -58,6 +59,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
   final _view = GlobalKey<SheetViewState>();
   StreamSubscription<String>? _rejections;
   StreamSubscription<Edit>? _changes;
+  void Function()? _unwatchPaste;
   Workbook? _book;
   String? _sheetId;
   var _editing = false;
@@ -83,6 +85,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     _session.addListener(_repaint);
     _selection.addListener(_selected);
     _changes = _session.changes.listen(_changed);
+    _unwatchPaste = watchPaste(_pasted);
     _rejections = _session.rejections.listen((reason) {
       if (!mounted) return;
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text(_s.refused(reason))));
@@ -93,6 +96,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
   void dispose() {
     _session.removeListener(_repaint);
     _selection.removeListener(_selected);
+    _unwatchPaste?.call();
     unawaited(_rejections?.cancel());
     unawaited(_changes?.cancel());
     _selection.dispose();
@@ -345,6 +349,8 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     }
 
     if (ctrl) {
+      // left to the browser, which then tells the page to paste
+      if (key == LogicalKeyboardKey.keyV && _unwatchPaste != null) return KeyEventResult.ignored;
       switch (key) {
         case LogicalKeyboardKey.keyZ:
           _session.undo();
@@ -695,12 +701,18 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     return rows.join('\n');
   }
 
-  Future<void> _paste() async {
+  Future<void> _paste() async => _pasteText((await Clipboard.getData(Clipboard.kTextPlain))?.text);
+
+  bool _pasted(String text) {
+    if (_editing || !_gridFocus.hasFocus) return false;
+    _pasteText(text);
+    return true;
+  }
+
+  void _pasteText(String? text) {
     final sheet = _sheet;
     if (sheet == null || _session.readOnly) return;
     final (r, c) = _selection.active;
-    final data = await Clipboard.getData(Clipboard.kTextPlain);
-    final text = data?.text;
     final clip = _clip;
     if (clip != null && (text == null || text == _tsv(sheet, clip.area) || text.isEmpty)) {
       _edit(_edits.paste(sheet, clip, r, c));

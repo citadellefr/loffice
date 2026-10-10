@@ -11,6 +11,7 @@ import '../chrome/comments.dart';
 import '../chrome/comments_pane.dart' show authorColor;
 import '../chrome/link_card.dart';
 import '../chrome/strings.dart';
+import '../clipboard.dart';
 import '../text/editing.dart';
 import '../text/text_frame.dart' show linkOf, linkProps;
 import 'comments.dart';
@@ -126,6 +127,7 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
   late FocusNode _focus = (widget.focusNode ?? FocusNode())..addListener(_focusChanged);
   TextInputConnection? _input;
   StreamSubscription<Edit>? _changes;
+  void Function()? _unwatchPaste;
   var _local = false;
 
   var _scale = 1.0;
@@ -163,6 +165,7 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
     super.initState();
     _selection.addListener(_selectionChanged);
     _changes = _session.changes.listen(_documentChanged);
+    _unwatchPaste = watchPaste(_pasted);
   }
 
   @override
@@ -183,6 +186,7 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
   @override
   void dispose() {
     _selection.removeListener(_selectionChanged);
+    _unwatchPaste?.call();
     unawaited(_changes?.cancel());
     _commands.dispose();
     _cards.hide();
@@ -767,6 +771,13 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
 
   // keys
 
+  bool _pasted(String text) {
+    final current = _editingNode;
+    if (current == null || _session.readOnly || !_focus.hasFocus) return false;
+    _replace(current, _selection.start, _selection.end, text.replaceAll('\r\n', '\n'));
+    return true;
+  }
+
   KeyEventResult _key(FocusNode node, KeyEvent e) {
     if (_commands.key(e)) return KeyEventResult.handled;
     if (e is KeyUpEvent) return KeyEventResult.ignored;
@@ -893,10 +904,11 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
           }
           return true;
         case LogicalKeyboardKey.keyV:
+          // left to the browser, which then tells the page to paste
+          if (_unwatchPaste != null) return false;
           unawaited(Clipboard.getData(Clipboard.kTextPlain).then((data) {
             final text = data?.text;
-            final current = _editingNode;
-            if (text != null && current != null) _replace(current, _selection.start, _selection.end, text.replaceAll('\r\n', '\n'));
+            if (text != null) _pasted(text);
           }));
           return true;
         case LogicalKeyboardKey.backspace:

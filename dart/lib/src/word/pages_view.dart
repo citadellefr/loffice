@@ -9,6 +9,7 @@ import 'package:trame/trame.dart';
 import '../chrome/commands.dart';
 import '../chrome/link_card.dart';
 import '../chrome/strings.dart';
+import '../clipboard.dart';
 import 'document.dart';
 import 'edits.dart';
 import 'layout.dart';
@@ -91,6 +92,7 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
   final _horizontal = ScrollController();
   TextInputConnection? _input;
   StreamSubscription<Edit>? _changes;
+  void Function()? _unwatchPaste;
   var _local = false;
   Timer? _blink;
   var _caretOn = true;
@@ -112,6 +114,7 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
     _selection.addListener(_selectionChanged);
     _changes = _session.changes.listen(_documentChanged);
     widget.focusNode.addListener(_focusChanged);
+    _unwatchPaste = watchPaste(_pasted);
   }
 
   @override
@@ -131,6 +134,7 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
   void dispose() {
     _selection.removeListener(_selectionChanged);
     widget.focusNode.removeListener(_focusChanged);
+    _unwatchPaste?.call();
     unawaited(_changes?.cancel());
     _commands.dispose();
     _cards.hide();
@@ -499,6 +503,8 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
       return true;
     }
     if (_ctrl) {
+      // left to the browser, which then tells the page to paste
+      if (key == LogicalKeyboardKey.keyV && _unwatchPaste != null) return false;
       switch (key) {
         case LogicalKeyboardKey.keyA || LogicalKeyboardKey.keyC || LogicalKeyboardKey.keyX || LogicalKeyboardKey.keyV:
           return clipboard(flow, key);
@@ -610,17 +616,27 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
       case LogicalKeyboardKey.keyV:
         unawaited(Clipboard.getData(Clipboard.kTextPlain).then((data) {
           final text = data?.text;
-          final current = _flow;
-          if (text == null || current == null) return;
-          final own = _copied;
-          final plain = own?.text.replaceAll('\v', '\n').replaceAll('￼', '');
-          if (own != null && plain == text.replaceAll('\r\n', '\n')) {
-            _pasteRich(current, own);
-          } else {
-            replace(current, _selection.start, _selection.end, text.replaceAll('\r\n', '\n').replaceAll('\r', '\n'));
-          }
+          if (text != null) _pasteText(text);
         }));
     }
+    return true;
+  }
+
+  void _pasteText(String text) {
+    final current = _flow;
+    if (current == null) return;
+    final own = _copied;
+    final plain = own?.text.replaceAll('\v', '\n').replaceAll('￼', '');
+    if (own != null && plain == text.replaceAll('\r\n', '\n')) {
+      _pasteRich(current, own);
+    } else {
+      replace(current, _selection.start, _selection.end, text.replaceAll('\r\n', '\n').replaceAll('\r', '\n'));
+    }
+  }
+
+  bool _pasted(String text) {
+    if (_session.readOnly || !widget.focusNode.hasFocus || _flow == null) return false;
+    _pasteText(text);
     return true;
   }
 
