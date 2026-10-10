@@ -281,6 +281,10 @@ String substituteFont(String name) => switch (name) {
   _ => name,
 };
 
+/// The font that draws the text of a font the platform does not have: one
+/// an export can embed.
+const fallbackFonts = ['Carlito'];
+
 /// The size of the rows and columns of a sheet, in pixels at 100 %, its
 /// merged cells and its frozen panes.
 class SheetLayout {

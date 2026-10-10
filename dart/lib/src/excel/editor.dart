@@ -10,8 +10,10 @@ import '../chrome/ribbon.dart';
 import '../chrome/strings.dart';
 import '../clipboard.dart';
 import '../fonts.dart';
+import '../pdf/document.dart' show pdfName;
 import 'charts.dart';
 import 'edits.dart';
+import 'export.dart';
 import 'filter.dart';
 import 'filter_panel.dart';
 import 'formula_text.dart';
@@ -29,6 +31,7 @@ class SpreadsheetEditor extends StatefulWidget {
     required this.session,
     this.title = '',
     this.onClose,
+    this.onExport,
     this.strings = const LofficeStrings(),
     this.fonts,
     this.hosted = false,
@@ -37,6 +40,11 @@ class SpreadsheetEditor extends StatefulWidget {
   final DocSession session;
   final String title;
   final VoidCallback? onClose;
+
+  /// Takes the workbook exported as a PDF, under the name of a file: the
+  /// host saves it where its documents are. File > Export is left out
+  /// without it.
+  final Future<void> Function(Uint8List pdf, String name)? onExport;
   final LofficeStrings strings;
 
   /// The package bundling the free fonts standing in for Office's.
@@ -69,6 +77,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
   var _editCell = (1, 1);
   var _zoom = 1.0;
   var _backstage = false;
+  var _exporting = false;
   Clip? _clip;
 
   static const _locale = NumberLocale.fr;
@@ -611,6 +620,27 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
   }
 
   void _closeBackstage() => setState(() => _backstage = false);
+
+  /// Hands the host the workbook as a PDF, its sheets on the pages they
+  /// print on.
+  Future<void> _exportPdf() async {
+    final export = widget.onExport;
+    if (export == null || _exporting) return;
+    setState(() => _exporting = true);
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    try {
+      var missing = <String>{};
+      final pdf = await workbookPdf(_wb, locale: _locale, fonts: widget.fonts, title: widget.title, missing: (m) => missing = m);
+      await export(pdf, pdfName(widget.title));
+      if (missing.isNotEmpty) messenger?.showSnackBar(SnackBar(content: Text(_s.exportMissing(missing.join(' ')))));
+    } on NothingToPrint {
+      messenger?.showSnackBar(SnackBar(content: Text(_s.nothingToPrint)));
+    } on Object catch (error) {
+      messenger?.showSnackBar(SnackBar(content: Text(_s.exportFailed('$error'))));
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
 
   void _goToSheet(Node sheet) {
     if (_editing) _commit();
@@ -1593,6 +1623,14 @@ class _Backstage extends StatelessWidget {
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 ListTile(leading: const Icon(Icons.arrow_back), title: Text(s.back), onTap: editor._closeBackstage),
                 ListTile(leading: const Icon(Icons.info_outline), title: Text(s.info), selected: true, selectedColor: Colors.white),
+                if (editor.widget.onExport != null)
+                  ListTile(
+                    leading: editor._exporting
+                        ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Icon(Icons.picture_as_pdf_outlined),
+                    title: Text(editor._exporting ? s.exporting : s.exportPdf),
+                    onTap: editor._exporting ? null : editor._exportPdf,
+                  ),
                 if (editor.widget.onClose != null) ListTile(leading: const Icon(Icons.close), title: Text(s.close), onTap: editor.widget.onClose),
               ]),
             ),

@@ -242,6 +242,7 @@ class CellPainter {
     final f = style.font;
     final ts = TextStyle(
       fontFamily: substituteFont(f.name),
+      fontFamilyFallback: fallbackFonts,
       package: fonts,
       fontSize: f.size * 4 / 3 * zoom,
       fontWeight: f.bold ? FontWeight.bold : FontWeight.normal,

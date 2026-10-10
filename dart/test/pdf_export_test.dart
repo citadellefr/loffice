@@ -5,6 +5,9 @@ import 'dart:ui' as ui;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:loffice/loffice.dart';
+import 'package:loffice/src/excel/export.dart';
+import 'package:loffice/src/excel/page_painter.dart';
+import 'package:loffice/src/excel/workbook.dart';
 import 'package:loffice/src/powerpoint/deck.dart';
 import 'package:loffice/src/powerpoint/export.dart';
 import 'package:loffice/src/powerpoint/slide_painter.dart';
@@ -69,6 +72,17 @@ void main() {
       final pdf = await deckPdf(deck, painter, title: name(file), missing: (m) => missing = m);
       check(name(file), pdf, deck.slides.length, missing);
       await screen(name(file), deck.size, (c) => painter.paint(c, deck.slides.first));
+    }
+  });
+
+  test('workbooks', () async {
+    for (final file in trees('xlsx')) {
+      final book = Workbook(tree(file));
+      final pages = workbookPages(book, title: name(file));
+      var missing = <String>{};
+      final pdf = await workbookPdf(book, title: name(file), missing: (m) => missing = m);
+      check(name(file), pdf, pages.length, missing);
+      await screen(name(file), pages.first.size, pages.first.paint);
     }
   });
 }
