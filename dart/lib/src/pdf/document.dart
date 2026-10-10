@@ -17,6 +17,13 @@ String pdfNumber(double v) {
   return out == '-0' ? '0' : out;
 }
 
+/// The name of the PDF of a document: its own, with the extension changed.
+String pdfName(String title) {
+  final dot = title.lastIndexOf('.');
+  final base = dot > 0 ? title.substring(0, dot) : title;
+  return '${base.isEmpty ? 'document' : base}.pdf';
+}
+
 /// A PDF being written: pages of drawing operators, and what they draw
 /// with — fonts, pictures, opacities and gradients — shared by all of them.
 class PdfDocument {
@@ -166,9 +173,9 @@ class PdfDocument {
     final file = font.subset(glyphs.toSet());
     final fileId = _packed('/Length1 ${file.length}', file);
     // six letters before the name tell a reader the font is a subset
-    var tag = '';
+    final tag = StringBuffer();
     for (var i = 0, seed = glyphs.fold(glyphs.length, (a, g) => (a * 31 + g) & 0xFFFFFF); i < 6; i++, seed ~/= 26) {
-      tag += String.fromCharCode(0x41 + seed % 26);
+      tag.writeCharCode(0x41 + seed % 26);
     }
     final name = '$tag+${font.name}';
     final flags = 32 | (font.fixedPitch ? 1 : 0) | (font.italicAngle != 0 ? 64 : 0);
@@ -192,7 +199,7 @@ class PdfDocument {
       final chunk = glyphs.sublist(i, i + 100 > glyphs.length ? glyphs.length : i + 100);
       map.write('${chunk.length} beginbfchar\n');
       for (final g in chunk) {
-        final units = String.fromCharCodes(f._used[g]!).codeUnits;
+        final units = String.fromCharCode(f._used[g]!).codeUnits;
         map.write('<${_hex4(g)}> <${units.map(_hex4).join()}>\n');
       }
       map.write('endbfchar\n');
@@ -216,16 +223,15 @@ class PdfFont {
   final String name;
   final TrueTypeFont font;
 
-  /// The characters each glyph used stands for.
-  final _used = <int, List<int>>{};
+  /// The character each glyph used stands for.
+  final _used = <int, int>{};
 
   /// The glyph of a character, as the page writes it; null when the font
-  /// has none. [characters] is what the glyph reads as: the character, or
-  /// the cluster it starts.
-  String? glyph(int character, [List<int>? characters]) {
+  /// has none.
+  String? glyph(int character) {
     final g = font.glyph(character);
     if (g == 0) return null;
-    _used.putIfAbsent(g, () => characters ?? [character]);
+    _used.putIfAbsent(g, () => character);
     return _hex4(g);
   }
 

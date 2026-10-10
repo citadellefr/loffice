@@ -1583,17 +1583,19 @@ class _Backstage extends StatelessWidget {
     return Material(
       color: scheme.surface,
       child: Row(children: [
-        Container(
+        SizedBox(
           width: 220,
-          color: const Color(0xFF217346),
-          child: ListTileTheme(
-            textColor: Colors.white,
-            iconColor: Colors.white,
-            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              ListTile(leading: const Icon(Icons.arrow_back), title: Text(s.back), onTap: editor._closeBackstage),
-              ListTile(leading: const Icon(Icons.info_outline), title: Text(s.info), selected: true, selectedColor: Colors.white),
-              if (editor.widget.onClose != null) ListTile(leading: const Icon(Icons.close), title: Text(s.close), onTap: editor.widget.onClose),
-            ]),
+          child: Material(
+            color: const Color(0xFF217346),
+            child: ListTileTheme(
+              textColor: Colors.white,
+              iconColor: Colors.white,
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                ListTile(leading: const Icon(Icons.arrow_back), title: Text(s.back), onTap: editor._closeBackstage),
+                ListTile(leading: const Icon(Icons.info_outline), title: Text(s.info), selected: true, selectedColor: Colors.white),
+                if (editor.widget.onClose != null) ListTile(leading: const Icon(Icons.close), title: Text(s.close), onTap: editor.widget.onClose),
+              ]),
+            ),
           ),
         ),
         Expanded(

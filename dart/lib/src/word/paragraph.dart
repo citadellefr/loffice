@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/widgets.dart';
 import 'package:trame/trame.dart';
 
+import '../pdf/canvas.dart';
 import '../text/text_frame.dart';
 import 'document.dart';
 
@@ -373,11 +374,11 @@ class ParaBox {
     if (label != null && from == 0) {
       final metrics = label.computeLineMetrics().firstOrNull;
       final base = lines.first.baseline;
-      label.paint(canvas, shift + Offset(_labelX, base - (metrics?.baseline ?? label.height)));
+      paintText(canvas, label, shift + Offset(_labelX, base - (metrics?.baseline ?? label.height)));
     }
     for (final piece in _pieces) {
       final at = shift + Offset(piece.x, piece.y);
-      piece.painter.paint(canvas, at);
+      paintText(canvas, piece.painter, at);
       final boxes = piece.painter.inlinePlaceholderBoxes ?? const [];
       for (var i = 0; i < boxes.length && i < piece.slots.length; i++) {
         _paintSlot(canvas, piece.slots[i], boxes[i].toRect().shift(at), objects);
@@ -391,7 +392,7 @@ class ParaBox {
       case _SlotKind.glyph:
         final p = TextPainter(text: TextSpan(text: slot.text, style: slot.style), textDirection: TextDirection.ltr)..layout();
         final base = p.computeLineMetrics().firstOrNull?.baseline ?? p.height;
-        p.paint(canvas, Offset(box.left, box.bottom - base - slot.rise));
+        paintText(canvas, p, Offset(box.left, box.bottom - base - slot.rise));
       case _SlotKind.image:
         if (objects == null || !objects(canvas, slot.picture ?? const {}, box)) {
           canvas.drawRect(box, Paint()..color = const Color(0xFFE8E8E8));
@@ -414,7 +415,7 @@ class ParaBox {
         final n = (box.width / unit.width).floor();
         final dots = TextPainter(text: TextSpan(text: char * n, style: style), textDirection: TextDirection.ltr)..layout();
         final base = dots.computeLineMetrics().firstOrNull?.baseline ?? dots.height;
-        dots.paint(canvas, Offset(box.right - dots.width, box.bottom - base));
+        paintText(canvas, dots, Offset(box.right - dots.width, box.bottom - base));
       case _SlotKind.hidden || _SlotKind.lead:
     }
   }

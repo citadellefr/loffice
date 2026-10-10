@@ -6,6 +6,7 @@ import 'package:flutter/painting.dart';
 import '../drawing/color.dart';
 import '../drawing/paint.dart';
 import '../excel/number_format.dart';
+import '../pdf/canvas.dart';
 import '../text/text_frame.dart';
 import 'chart.dart';
 import 'scale.dart';
@@ -236,7 +237,7 @@ class ChartPainter {
     canvas.save();
     canvas.translate(center.dx, center.dy);
     canvas.rotate(degrees * math.pi / 180);
-    tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
+    paintText(canvas, tp, Offset(-tp.width / 2, -tp.height / 2));
     canvas.restore();
   }
 
@@ -265,7 +266,7 @@ class ChartPainter {
     final l = t.layout;
     if (l != null && l.edge && l.edgeY) at = Offset(box.left + l.x * box.width, box.top + l.y * box.height);
     _box(canvas, (at & tp.size).inflate(2), t.shape);
-    tp.paint(canvas, at);
+    paintText(canvas, tp, at);
     if (t.overlay || l != null) return inner;
     return Rect.fromLTRB(inner.left, inner.top + tp.height + _pad, inner.right, inner.bottom);
   }
@@ -359,7 +360,7 @@ class ChartPainter {
         if (y + t.height > rect.bottom + 1 && vertical) break;
         final mid = y + t.preferredLineHeight / 2;
         _key(canvas, entries[i], Rect.fromCenter(center: Offset(x + keyWidth / 2, mid), width: keyWidth, height: key));
-        t.paint(canvas, Offset(x + keyWidth + gap, y));
+        paintText(canvas, t, Offset(x + keyWidth + gap, y));
         x += widths[i] + 10;
         rowHeight = math.max(rowHeight, t.height);
       }
@@ -536,11 +537,11 @@ class ChartPainter {
               final cx = rot < 0 ? x - w / 2 + tp.height / 2 : x + w / 2 - tp.height / 2;
               _paintRotated(canvas, tp, Offset(cx, cy), rot);
             } else {
-              tp.paint(canvas, Offset(x - tp.width / 2, after ? edge + outside + 2 : edge - outside - 2 - tp.height));
+              paintText(canvas, tp, Offset(x - tp.width / 2, after ? edge + outside + 2 : edge - outside - 2 - tp.height));
             }
           } else {
             final y = area.bottom - at * area.height;
-            tp.paint(canvas, Offset(after ? edge + outside + 3 : edge - outside - 3 - tp.width, y - tp.height / 2));
+            paintText(canvas, tp, Offset(after ? edge + outside + 3 : edge - outside - 3 - tp.width, y - tp.height / 2));
           }
         }
       }
@@ -550,7 +551,7 @@ class ChartPainter {
         final room = a.labelRoom;
         if (horizontal) {
           final y = spec.position == 't' ? area.top - room - _pad - tp.height : area.bottom + room + _pad;
-          tp.paint(canvas, Offset(area.center.dx - tp.width / 2, y));
+          paintText(canvas, tp, Offset(area.center.dx - tp.width / 2, y));
         } else {
           final degrees = title.rotation ?? -90;
           final x = spec.position == 'r' ? area.right + room + _pad + tp.height / 2 : area.left - room - _pad - tp.height / 2;
@@ -641,7 +642,7 @@ class ChartPainter {
           _ => Offset(rect.center.dx, end + dir * (tp.height / 2 + 2)),
         };
       }
-      tp.paint(canvas, c - Offset(tp.width / 2, tp.height / 2));
+      paintText(canvas, tp, c - Offset(tp.width / 2, tp.height / 2));
     }
   }
 
@@ -785,7 +786,7 @@ class ChartPainter {
           'b' => c + Offset(-tp.width / 2, 4),
           _ => c + Offset(5, -tp.height / 2),
         };
-        tp.paint(canvas, at);
+        paintText(canvas, tp, at);
       }
     }
   }
@@ -937,7 +938,7 @@ class ChartPainter {
       }
     }
     for (final (tp, at) in labels) {
-      tp.paint(canvas, at - Offset(tp.width / 2, tp.height / 2));
+      paintText(canvas, tp, at - Offset(tp.width / 2, tp.height / 2));
     }
   }
 
@@ -975,13 +976,13 @@ class ChartPainter {
       final tp = labels[i];
       final a = -math.pi / 2 + i * 2 * math.pi / n;
       final c = center + Offset(math.cos(a), math.sin(a)) * (radius + 4 + math.max(tp.width, tp.height) / 2);
-      tp.paint(canvas, c - Offset(tp.width / 2, tp.height / 2));
+      paintText(canvas, tp, c - Offset(tp.width / 2, tp.height / 2));
     }
     if (valAxis == null || !valAxis.deleted) {
       for (final t in scale.ticks) {
         final tp = _text(_format(t, valAxis?.format ?? ''), valAxis?.text ?? const {}, size: 8);
         final c = at(0, scale.fraction(t));
-        tp.paint(canvas, c + Offset(-tp.width - 3, -tp.height / 2));
+        paintText(canvas, tp, c + Offset(-tp.width - 3, -tp.height / 2));
       }
     }
     for (final s in p.series) {

@@ -6,6 +6,7 @@ import 'package:trame/trame.dart';
 
 import '../drawing/color.dart';
 import '../drawing/paint.dart';
+import '../pdf/canvas.dart';
 
 /// Text properties as the flow's attributes have them, see the Go package
 /// drawingml.
@@ -519,9 +520,9 @@ class ParagraphLayout {
       final lines = _painter.computeLineMetrics();
       final baseline = lines.isEmpty ? _painter.height : lines.first.baseline;
       final bulletBaseline = bullet.computeLineMetrics().firstOrNull?.baseline ?? bullet.height;
-      bullet.paint(canvas, origin + Offset(_bulletX, baseline - bulletBaseline));
+      paintText(canvas, bullet, origin + Offset(_bulletX, baseline - bulletBaseline));
     }
-    _painter.paint(canvas, origin + Offset(_x, 0));
+    paintText(canvas, _painter, origin + Offset(_x, 0));
   }
 
   int offsetAt(Offset point) {

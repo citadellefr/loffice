@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/painting.dart';
 
+import '../pdf/canvas.dart';
 import 'color.dart';
 import 'geometry.dart';
 
@@ -81,7 +82,7 @@ class DrawingPainter {
         final radius = [box.topLeft, box.topRight, box.bottomLeft, box.bottomRight]
             .map((p) => (p - center).distance)
             .reduce(math.max);
-        return Paint()..shader = ui.Gradient.radial(center, radius, list, positions);
+        return Paint()..shader = gradient(GradientSpec.radial(center, radius, list, positions));
       }
       var angle = (grad['lin'] is num ? (grad['lin']! as num) / 60000 : 0) * math.pi / 180;
       if (grad['scaled'] == true && box.width > 0 && box.height > 0) {
@@ -90,13 +91,13 @@ class DrawingPainter {
       final dx = math.cos(angle), dy = math.sin(angle);
       final half = (box.width * dx.abs() + box.height * dy.abs()) / 2;
       final from = box.center - Offset(dx, dy) * half, to = box.center + Offset(dx, dy) * half;
-      return Paint()..shader = ui.Gradient.linear(from, to, list, positions);
+      return Paint()..shader = gradient(GradientSpec.linear(from, to, list, positions));
     }
     final patt = fill['patt'];
     if (patt is Map<String, Object?>) {
       final fg = colors.resolve(patt['fg']) ?? const Color(0xFF000000);
       final bg = colors.resolve(patt['bg']) ?? const Color(0xFFFFFFFF);
-      return Paint()..shader = _pattern(patt['prst'] as String? ?? '', shade(fg), shade(bg));
+      return Paint()..shader = flat(_pattern(patt['prst'] as String? ?? '', shade(fg), shade(bg)), Color.lerp(shade(bg), shade(fg), 0.5)!);
     }
     return null;
   }

@@ -326,6 +326,10 @@ class LofficeStrings {
   String get info => 'Informations';
   String get close => 'Fermer';
   String get back => 'Retour';
+  String get exportPdf => 'Exporter en PDF';
+  String get exporting => 'Export en cours…';
+  String exportFailed(String reason) => 'Échec de l’export en PDF : $reason';
+  String exportMissing(String characters) => 'Aucune police de l’export ne dessine ces caractères, laissés en blanc : $characters';
   String get editedBy => 'Modifié par';
 
   // status

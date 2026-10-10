@@ -7,6 +7,16 @@
   load them when one first opens, through `OfficeFonts`, and lay out no text
   before: lines break where Office breaks them without the host bundling
   anything. `OfficeFonts.register` takes them from elsewhere.
+- Dart: `onExport` on the Word and PowerPoint editors adds File > Export as
+  PDF. The pages are drawn as on screen, then written as lines, curves and
+  text set in the fonts of the package, embedded as subsets: the text is
+  selected, searched and copied, and the lines break where the editor
+  breaks them. JPEG pictures are embedded as they are. Left out: shadows
+  and blurs, tiled pictures; a pattern fill is a plain color; characters no
+  font of the package has are left blank, and told. The spreadsheet editor
+  does not export yet.
+- Dart: the column of the backstage is a Material of its own, as its tiles
+  ask.
 
 ## 0.9.0 — 2026-10-10
 

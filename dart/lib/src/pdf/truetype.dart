@@ -210,8 +210,7 @@ class TrueTypeFont {
       'head': head,
       'glyf': outlines.takeBytes(),
       'loca': offsets.buffer.asUint8List(),
-      for (final tag in ['hhea', 'maxp', 'hmtx', 'cvt ', 'fpgm', 'prep'])
-        if (_bytesOf(tag) case final table?) tag: table,
+      for (final tag in ['hhea', 'maxp', 'hmtx', 'cvt ', 'fpgm', 'prep']) tag: ?_bytesOf(tag),
     };
     return _assemble(tables);
   }

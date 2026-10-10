@@ -10,6 +10,7 @@ import '../chart/chart_painter.dart';
 import '../drawing/color.dart';
 import '../drawing/geometry.dart';
 import '../drawing/paint.dart';
+import '../pdf/canvas.dart';
 import '../text/text_frame.dart';
 import 'deck.dart';
 import 'table.dart';
@@ -29,14 +30,26 @@ class MediaCache extends ChangeNotifier {
   ui.Image? operator [](String media) {
     if (_images.containsKey(media)) return _images[media];
     _images[media] = null;
-    _load(media);
+    _loading.add(_load(media));
     return null;
+  }
+
+  final _loading = <Future<void>>[];
+
+  /// Completes once the pictures asked for so far are loaded, or known
+  /// not to load.
+  Future<void> get settled async {
+    while (_loading.isNotEmpty) {
+      await _loading.removeLast();
+    }
   }
 
   Future<void> _load(String media) async {
     try {
-      final codec = await ui.instantiateImageCodec(await _fetch(media));
+      final file = await _fetch(media);
+      final codec = await ui.instantiateImageCodec(file);
       final frame = await codec.getNextFrame();
+      pictureFiles[frame.image] = file;
       _images[media] = frame.image;
       notifyListeners();
     } on Object {

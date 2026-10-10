@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -13,12 +14,14 @@ import '../chrome/link_card.dart';
 import '../chrome/ribbon.dart';
 import '../chrome/strings.dart';
 import '../fonts.dart';
+import '../pdf/document.dart' show pdfName;
 import '../powerpoint/slide_painter.dart' show MediaCache, MediaFetcher;
 import '../text/text_frame.dart' show Fonts, Props;
 import 'blocks.dart';
 import 'comments.dart';
 import 'document.dart';
 import 'edits.dart';
+import 'export.dart';
 import 'layout.dart';
 import 'page_painter.dart';
 import 'pages_view.dart';
@@ -34,6 +37,7 @@ class WordEditor extends StatefulWidget {
     required this.media,
     this.title = '',
     this.onClose,
+    this.onExport,
     this.strings = const LofficeStrings(),
     this.fonts,
     this.onPicture,
@@ -62,6 +66,11 @@ class WordEditor extends StatefulWidget {
   final String title;
   final VoidCallback? onClose;
   final LofficeStrings strings;
+
+  /// Takes the document exported as a PDF, under the name of a file: the
+  /// host saves it or hands it to the browser. Without it the editor does
+  /// not offer to export.
+  final Future<void> Function(Uint8List pdf, String name)? onExport;
 
   /// The package bundling the free fonts standing in for Office's.
   final String? fonts;
@@ -100,6 +109,7 @@ class _WordEditorState extends State<WordEditor> {
   var _zoom = 1.0;
   var _fitWidth = false;
   var _backstage = false;
+  var _exporting = false;
 
   /// Whether the comments are shown, by default when the document has some;
   /// the thread whose card is open; the range of the comment being
@@ -437,6 +447,34 @@ class _WordEditorState extends State<WordEditor> {
   }
 
   void _closeBackstage() => setState(() => _backstage = false);
+
+  /// Hands the host the document as a PDF, its pages drawn as they are
+  /// here.
+  Future<void> _exportPdf() async {
+    final export = widget.onExport;
+    if (export == null || _exporting) return;
+    setState(() => _exporting = true);
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    try {
+      final layout = _current;
+      final painter = PagePainter(images: (m) => _media[m], context: _context);
+      // drawing a page asks for its pictures, which are waited for
+      for (final page in layout.pages) {
+        final recorder = ui.PictureRecorder();
+        painter.paint(Canvas(recorder), page);
+        recorder.endRecording().dispose();
+      }
+      await _media.settled;
+      var missing = <String>{};
+      final pdf = await wordPdf(layout, painter, title: widget.title, missing: (m) => missing = m);
+      await export(pdf, pdfName(widget.title));
+      if (missing.isNotEmpty) messenger?.showSnackBar(SnackBar(content: Text(_s.exportMissing(missing.join(' ')))));
+    } on Object catch (error) {
+      messenger?.showSnackBar(SnackBar(content: Text(_s.exportFailed('$error'))));
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
 
   void _closeHeaderFooter() {
     final body = flowsOf(_session.document).firstOrNull;
@@ -1550,19 +1588,29 @@ class _Backstage extends StatelessWidget {
       color: scheme.surface,
       child: Row(
         children: [
-          Container(
+          SizedBox(
             width: 220,
-            color: scheme.primary,
-            child: ListTileTheme(
-              textColor: scheme.onPrimary,
-              iconColor: scheme.onPrimary,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  ListTile(leading: const Icon(Icons.arrow_back), title: Text(s.back), onTap: editor._closeBackstage),
-                  ListTile(leading: const Icon(Icons.info_outline), title: Text(s.info), selected: true, selectedColor: scheme.onPrimary),
-                  if (editor.widget.onClose != null) ListTile(leading: const Icon(Icons.close), title: Text(s.close), onTap: editor.widget.onClose),
-                ],
+            child: Material(
+              color: scheme.primary,
+              child: ListTileTheme(
+                textColor: scheme.onPrimary,
+                iconColor: scheme.onPrimary,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ListTile(leading: const Icon(Icons.arrow_back), title: Text(s.back), onTap: editor._closeBackstage),
+                    ListTile(leading: const Icon(Icons.info_outline), title: Text(s.info), selected: true, selectedColor: scheme.onPrimary),
+                    if (editor.widget.onExport != null)
+                      ListTile(
+                        leading: editor._exporting
+                            ? SizedBox.square(dimension: 24, child: CircularProgressIndicator(strokeWidth: 2, color: scheme.onPrimary))
+                            : const Icon(Icons.picture_as_pdf_outlined),
+                        title: Text(editor._exporting ? s.exporting : s.exportPdf),
+                        onTap: editor._exporting ? null : editor._exportPdf,
+                      ),
+                    if (editor.widget.onClose != null) ListTile(leading: const Icon(Icons.close), title: Text(s.close), onTap: editor.widget.onClose),
+                  ],
+                ),
               ),
             ),
           ),

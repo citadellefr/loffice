@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:trame/trame.dart';
 
+import '../pdf/canvas.dart';
 import 'charts.dart';
 import 'conditional.dart';
 import 'filter.dart';
@@ -944,7 +945,7 @@ class _SheetPainter extends CustomPainter {
     };
     canvas.save();
     canvas.clipRect(clip.deflate(0.5));
-    painter.paint(canvas, Offset(dx, dy));
+    paintText(canvas, painter, Offset(dx, dy));
     canvas.restore();
   }
 
