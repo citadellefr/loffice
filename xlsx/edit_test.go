@@ -23,10 +23,16 @@ func cell(r, c int, fields string) ot.Cell {
 	return ot.Cell{Row: r, Col: c, Fields: json.RawMessage(fields)}
 }
 
+const printed = `{"paper":9,"land":true,"fit":[1,0],"across":true,"first":3,` +
+	`"margins":{"l":0.25,"r":0.25,"t":0.75,"b":0.75,"head":0.3,"foot":0.3},"ch":true,"grid":true,"heads":true,` +
+	`"rows":[5,40],"cols":[4],"head":"&C&\"Arial,Bold\"Titre <&&>","foot":"&LPage &P sur &N&R&D",` +
+	`"firstPage":["","&CPremière"]}`
+
 // Every workbook of the corpus takes the same edits: cells set, a format
-// made, cells merged, rows frozen, a filter set, a sheet renamed, one added
-// before the others and the last one deleted. When LOFFICE_EDITED is set, the packages
-// are written there for the validator.
+// made, cells merged, rows frozen, a filter and the way it prints set, a
+// sheet renamed, one added before the others and the last one deleted.
+// When LOFFICE_EDITED is set, the packages are written there for the
+// validator.
 func TestCorpusEdits(t *testing.T) {
 	out := os.Getenv("LOFFICE_EDITED")
 	edited := 0
@@ -65,7 +71,8 @@ func TestCorpusEdits(t *testing.T) {
 			}},
 			{Op: ot.OpSet, ID: first, Attrs: ot.Values{"name": json.RawMessage(`"Édité"`), "frozen": json.RawMessage(`{"r":1}`),
 				"tab": json.RawMessage(`{"rgb":"00B050"}`), "zoom": json.RawMessage(`150`),
-				filterKey: json.RawMessage(`{"ref":"A1:E6","cols":[{"col":1,"vals":["3,5","x"],"blank":true}]}`)}},
+				filterKey: json.RawMessage(`{"ref":"A1:E6","cols":[{"col":1,"vals":["3,5","x"],"blank":true}]}`),
+				printKey:  json.RawMessage(printed)}},
 			{Op: ot.OpNew, ID: "added", Type: "sheet", Parent: "book", Key: ot.KeyBetween("", all[0].Key),
 				Attrs: ot.Values{"name": json.RawMessage(`"Nouvelle"`)}, Cells: []ot.Cell{
 					cell(1, 1, `{"v":"a\r\nb <&> _x0041_"}`),
@@ -119,6 +126,11 @@ func TestCorpusEdits(t *testing.T) {
 		}
 		if got := string(ed.Attrs[filterKey]); got != `{"ref":"A1:E6","cols":[{"col":1,"vals":["3,5","x"],"blank":true}]}` {
 			t.Fatalf("%s: filter read back as %s", f, got)
+		}
+		var want Print
+		_ = json.Unmarshal([]byte(printed), &want)
+		if got := string(ed.Attrs[printKey]); got != string(mustJSON(want)) {
+			t.Fatalf("%s: print settings read back as %s", f, got)
 		}
 		if out != "" {
 			rel, _ := filepath.Rel(filepath.Join("..", "corpus", "files"), f)

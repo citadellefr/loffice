@@ -135,6 +135,9 @@ func (w *writer) settings(root *xmldom.Element, old, attrs ot.Values) {
 	if changed(filterKey) {
 		writeFilter(root, old[filterKey], attrs[filterKey])
 	}
+	if changed(printKey) {
+		writePrint(root, attrs[printKey])
+	}
 	if changed("dw") || changed("dh") {
 		f := child(root, "sheetFormatPr", worksheetOrder)
 		var dw, dh float64

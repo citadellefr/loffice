@@ -461,6 +461,10 @@ func (f *follow) shift(ch ot.Change) {
 		setList(f, ch.ID, chartsKey, charts)
 	}
 	f.shiftFilter(ch.ID, sheet, rows, ch.At, n)
+	var setup *Print
+	if f.attr(ch.ID, printKey, &setup); setup != nil && len(setup.Rows)+len(setup.Cols) > 0 {
+		f.set(ch.ID, printKey, mustJSON(setup.shifted(rows, ch.At, n)))
+	}
 	if looks := looksID(ch.ID); c.tree.Node(looks) != nil {
 		mv := ot.Edit{{Op: ch.Op, ID: looks, Dim: ch.Dim, At: ch.At, N: ch.N}}
 		if c.tree.Apply(mv) == nil {

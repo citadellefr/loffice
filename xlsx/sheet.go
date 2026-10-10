@@ -116,6 +116,9 @@ func (r *reader) sheet(s *xmldom.Element, key string) (string, error) {
 	if c := d.sheetCharts(name, root); len(c) > 0 {
 		attrs[chartsKey] = mustJSON(c)
 	}
+	if p := readPrint(root); p != nil {
+		attrs[printKey] = mustJSON(p)
+	}
 	if f := root.Child(mainNS, "sheetFormatPr"); f != nil {
 		if w := parseFloat(f.Get("defaultColWidth")); w > 0 {
 			attrs["dw"] = mustJSON(w)

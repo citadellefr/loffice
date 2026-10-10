@@ -6,8 +6,8 @@
 // one "xf" node per cell format at its root:
 //
 //	book "book"     theme, date1904, active, names
-//	  sheet "S1"    name, state, frozen, grid, zoom, tab, dw, dh, tail;
-//	                its cells in a grid (see below)
+//	  sheet "S1"    name, state, frozen, grid, zoom, tab, dw, dh, tail,
+//	                print (a Print); its cells in a grid (see below)
 //	  kept "S4"     a chart, macro or dialog sheet, kept: name, state, and
 //	                the chart a chart sheet shows (package chart)
 //	xf "x0"         a Style

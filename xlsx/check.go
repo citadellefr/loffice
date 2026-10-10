@@ -23,7 +23,7 @@ const (
 // editable are the attributes a change may set, by node type.
 var editable = map[string]map[string]bool{
 	"book":  {"names": true},
-	"sheet": {"name": true, "state": true, "frozen": true, "grid": true, "rtl": true, "zoom": true, "tab": true, "dw": true, "dh": true, "filter": true},
+	"sheet": {"name": true, "state": true, "frozen": true, "grid": true, "rtl": true, "zoom": true, "tab": true, "dw": true, "dh": true, "filter": true, "print": true},
 	"kept":  {"name": true, "state": true},
 }
 
@@ -138,6 +138,8 @@ func (d *Document) checkAttrs(typ string, attrs ot.Values) bool {
 			ok = true
 		case filterKey:
 			ok = checkFilter(v)
+		case printKey:
+			ok = checkPrint(v)
 		}
 		if !ok {
 			return false
