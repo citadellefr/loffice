@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Dart: the package ships the free fonts that stand in for Office's
+  (Carlito, Caladea, Liberation Sans, Serif and Mono) as assets. The editors
+  load them when one first opens, through `OfficeFonts`, and lay out no text
+  before: lines break where Office breaks them without the host bundling
+  anything. `OfficeFonts.register` takes them from elsewhere.
+
 ## 0.9.0 — 2026-10-10
 
 - `legacy` converts the Excel workbooks of 97 to 2003 (`.xls`) into `.xlsx`

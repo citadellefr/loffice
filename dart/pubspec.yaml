@@ -25,3 +25,9 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+
+flutter:
+  # the free fonts standing in for Office's: plain assets, loaded when an
+  # editor opens (lib/src/fonts.dart), not fonts the app loads as it starts
+  assets:
+    - fonts/

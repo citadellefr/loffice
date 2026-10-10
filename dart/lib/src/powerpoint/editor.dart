@@ -12,6 +12,7 @@ import '../chrome/link_card.dart';
 import '../chrome/ribbon.dart';
 import '../chrome/strings.dart';
 import '../drawing/geometry.dart';
+import '../fonts.dart';
 import '../plain_text_editor.dart';
 import '../text/editing.dart';
 import '../text/text_frame.dart';
@@ -100,6 +101,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
   @override
   void initState() {
     super.initState();
+    if (!OfficeFonts.settled) OfficeFonts.load().whenComplete(_repaint);
     _session.addListener(_repaint);
     _selection.addListener(_repaint);
     _changes = _session.changes.listen(_changed);
@@ -732,7 +734,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
   @override
   Widget build(BuildContext context) {
     final status = _session.status;
-    if (!_session.loaded) {
+    if (!_session.loaded || !OfficeFonts.settled) {
       final failure = _session.failure;
       return Center(
         child: status == DocStatus.closed

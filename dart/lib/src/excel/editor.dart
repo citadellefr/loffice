@@ -9,6 +9,7 @@ import '../chart/chart.dart';
 import '../chrome/ribbon.dart';
 import '../chrome/strings.dart';
 import '../clipboard.dart';
+import '../fonts.dart';
 import 'charts.dart';
 import 'edits.dart';
 import 'filter.dart';
@@ -81,6 +82,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
   @override
   void initState() {
     super.initState();
+    if (!OfficeFonts.settled) OfficeFonts.load().whenComplete(_repaint);
     _nameBox.text = 'A1';
     _session.addListener(_repaint);
     _selection.addListener(_selected);
@@ -928,7 +930,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_session.loaded) {
+    if (!_session.loaded || !OfficeFonts.settled) {
       final failure = _session.failure;
       return Center(
         child: _session.status == DocStatus.closed
