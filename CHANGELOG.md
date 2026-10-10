@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.9.0 — 2026-10-10
+
 - `legacy` converts the Excel workbooks of 97 to 2003 (`.xls`) into `.xlsx`
   files: sheets, cells with their values, formulas (shared and array ones
   included) and formats, sizes of rows and columns, merged cells, frozen
