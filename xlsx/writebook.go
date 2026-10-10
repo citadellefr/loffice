@@ -10,7 +10,8 @@ import (
 )
 
 // workbook writes the list of sheets, the names defined, the active
-// sheet, and asks Excel to calculate again when cells were rewritten.
+// sheet, the date system when it is no longer the one read, and asks
+// Excel to calculate again when cells were rewritten.
 func (w *writer) workbook(sheets []sheet, rewritten bool) error {
 	root := w.d.book.Root.Clone()
 	list := child(root, "sheets", workbookOrder)
@@ -67,6 +68,11 @@ func (w *writer) workbook(sheets []sheet, rewritten bool) error {
 		}
 	}
 
+	var date1904 bool
+	_ = json.Unmarshal(book.Attrs["date1904"], &date1904)
+	if date1904 != w.d.date1904 {
+		setAttr(child(root, "workbookPr", workbookOrder), "date1904", boolAttr(date1904))
+	}
 	w.definedNames(root, book, index)
 	if rewritten {
 		child(root, "calcPr", workbookOrder).Set("fullCalcOnLoad", "1")

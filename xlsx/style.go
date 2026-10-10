@@ -162,10 +162,25 @@ func (s *styles) format(id int) string {
 	if code, ok := s.formats[id]; ok {
 		return code
 	}
+	return BuiltinFormat(id)
+}
+
+// BuiltinFormat is the number format Excel does not write out for an id,
+// "General" when it has none.
+func BuiltinFormat(id int) string {
 	if code, ok := builtinFormats[id]; ok {
 		return code
 	}
 	return "General"
+}
+
+// IndexedColor is the color at an index of the palette of a workbook that
+// does not list its own, "" past its end.
+func IndexedColor(i int) string {
+	if i < 0 || i >= len(defaultPalette) {
+		return ""
+	}
+	return defaultPalette[i]
 }
 
 func (s *styles) font(e *xmldom.Element) *Font {

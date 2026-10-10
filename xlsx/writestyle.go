@@ -32,10 +32,13 @@ type styleWriter struct {
 	root                                 *xmldom.Element
 	fonts, fills, borders, cellXfs, fmts *xmldom.Element
 	formats                              map[string]int
+	// held are the elements of the lists of fonts, fills and borders, as
+	// written, with their index.
+	held map[*xmldom.Element]map[string]int
 }
 
 func newStyleWriter(w *writer) (*styleWriter, error) {
-	s := &styleWriter{d: w.d, w: w, ids: map[string]int{}}
+	s := &styleWriter{d: w.d, w: w, ids: map[string]int{}, held: map[*xmldom.Element]map[string]int{}}
 	var created []*ot.Node
 	for _, n := range w.tree.Children("") {
 		if n.Type != "xf" {
@@ -160,15 +163,15 @@ func (s *styleWriter) add(n *ot.Node) int {
 			font = xmldom.New(mainNS, prefixOf(s.fonts)+"font")
 		}
 		patchFont(font, st.Font)
-		xf.Set("fontId", strconv.Itoa(appendTo(s.fonts, font)))
+		xf.Set("fontId", strconv.Itoa(s.share(s.fonts, font)))
 		xf.Set("applyFont", "1")
 	}
 	if !reflect.DeepEqual(st.Fill, base.Fill) {
-		xf.Set("fillId", strconv.Itoa(appendTo(s.fills, fillElement(s.fills, st.Fill))))
+		xf.Set("fillId", strconv.Itoa(s.share(s.fills, fillElement(s.fills, st.Fill))))
 		xf.Set("applyFill", "1")
 	}
 	if !reflect.DeepEqual(st.Border, base.Border) {
-		xf.Set("borderId", strconv.Itoa(appendTo(s.borders, borderElement(s.borders, st.Border))))
+		xf.Set("borderId", strconv.Itoa(s.share(s.borders, borderElement(s.borders, st.Border))))
 		xf.Set("applyBorder", "1")
 	}
 	if !reflect.DeepEqual(st.Align, base.Align) {
@@ -201,6 +204,26 @@ func (s *styleWriter) format(code string) int {
 	appendTo(s.fmts, xmldom.New(mainNS, prefixOf(s.fmts)+"numFmt", "numFmtId", strconv.Itoa(id), "formatCode", code))
 	s.formats[code] = id
 	return id
+}
+
+// share is the index of a font, a fill or a border in its list, added
+// unless the list holds the same already: Excel bounds how many of them a
+// workbook has.
+func (s *styleWriter) share(list, e *xmldom.Element) int {
+	held := s.held[list]
+	if held == nil {
+		held = map[string]int{}
+		for i, old := range slices.Backward(elements(list, e.Local)) {
+			held[string(old.Bytes())] = i
+		}
+		s.held[list] = held
+	}
+	key := string(e.Bytes())
+	if i, ok := held[key]; ok {
+		return i
+	}
+	held[key] = appendTo(list, e)
+	return held[key]
 }
 
 // appendTo adds an element to a list of the styles, and returns its index.
