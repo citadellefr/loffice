@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- `legacy` converts the Excel workbooks of 97 to 2003 (`.xls`) into `.xlsx`
+  files: sheets, cells with their values, formulas (shared and array ones
+  included) and formats, sizes of rows and columns, merged cells, frozen
+  panes, filtered areas, names, the 1904 date system. `legacy.Workbook`
+  returns the workbook and what the file held that it does not (charts,
+  drawings, comments, links, conditional formats, validation, pivot tables,
+  macros…). Workbooks protected by a password and those of before Excel 97
+  are refused for what they are. `loffice.Convert` picks the conversion by
+  the extension of the file, `loffice.Legacy` lists those it takes.
+- `xlsx` writes a font, a fill or a border once however many cell formats
+  share it, and the date system of a workbook when it changes.
 - Dart: in a browser, Ctrl+V in Word, Excel and a text box of PowerPoint
   pastes what the browser hands the page, without reading the clipboard:
   Firefox no longer asks to confirm with its own « Paste » button. The paste

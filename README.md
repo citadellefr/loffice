@@ -30,6 +30,7 @@ license.
 | [`pptx`](pptx) | Presentations as trees: masters, layouts, slides, shapes, tables of rows and cells, and notes; table styles, Office's built-in ones included. Only what changed is written back; a copied shape keeps its pictures and links. |
 | [`xlsx`](xlsx) | Workbooks as trees: sheets, grids of cells and cell formats. Only the sheets that changed are written back; what the file keeps as XML moves with the rows and columns inserted and removed. CSV files are read as workbooks of one sheet and written back as they were read. |
 | [`docx`](docx) | Word documents as trees: the body and the headers and footers as blocks, paragraphs as flows whose attributes are their formatting and that of their characters, tables of rows and cells; styles, lists and sections read for the editor. Only the parts that changed are written back, and what the model does not cover rides along in the nodes. |
+| [`legacy`](legacy) | The documents of Office 97 to 2003, converted once into those of today: Excel workbooks (`.xls`) with their cells, formulas, formats, sizes, merged cells, frozen panes and names. What a file held that its conversion leaves out is told, never lost in silence. |
 | [`formula`](formula) | Excel formulas parsed and calculated in the French locale, 223 functions, number formats, and an engine that calculates again only what a change reaches. |
 | [`opc`](opc) | The zip container of Office documents: parts, content types, relationships. Untouched parts are copied without being decompressed. Guards against zip bombs, unsafe paths and forged sizes. |
 | `internal/xmltok` | An XML tokenizer that allocates nothing per token and keeps the exact bytes of every element, several times faster than `encoding/xml` and checked against it. |
@@ -53,6 +54,7 @@ go test -race -short ./...        # without the corpus
 go test ./...
 (cd dart && flutter test)
 go test ./opc -run '^$' -fuzz FuzzOpen
+go test ./legacy -run '^$' -fuzz FuzzWorkbook
 go test ./internal/xmltok -run '^$' -fuzz FuzzSameAsEncodingXML
 ```
 

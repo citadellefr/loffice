@@ -47,6 +47,8 @@ jobs:
       - run: LOFFICE_EDITED=1 dotnet run --project tools/validate -c Release -- corpus/files $RUNNER_TEMP/xlsx-edited
       - run: LOFFICE_MOVED=$RUNNER_TEMP/xlsx-moved go test ./xlsx -run CorpusMoves
       - run: LOFFICE_EDITED=1 dotnet run --project tools/validate -c Release -- corpus/files $RUNNER_TEMP/xlsx-moved
+      - run: LOFFICE_OUT=$RUNNER_TEMP/xls go test ./legacy -run CorpusWorkbooks
+      - run: LOFFICE_EDITED=1 dotnet run --project tools/validate -c Release -- $RUNNER_TEMP/xls/blank $RUNNER_TEMP/xls/converted
       - run: LOFFICE_OUT=$RUNNER_TEMP/docx go test ./docx -run CorpusRewrite
       - run: dotnet run --project tools/validate -c Release -- corpus/files $RUNNER_TEMP/docx
       - run: LOFFICE_EDITED=$RUNNER_TEMP/docx-edited go test ./docx -run CorpusEdit
