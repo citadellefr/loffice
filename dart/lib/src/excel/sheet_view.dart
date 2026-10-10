@@ -5,9 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:trame/trame.dart';
 
-import '../pdf/canvas.dart';
+import 'cell_painter.dart';
 import 'charts.dart';
-import 'conditional.dart';
 import 'filter.dart';
 import 'number_format.dart';
 import 'workbook.dart';
@@ -86,7 +85,6 @@ class PeerSelection {
 }
 
 const _headerHeight = 22.0;
-const _gridColor = Color(0xFFD9D9D9);
 const _headerColor = Color(0xFFF3F3F3);
 const _selectColor = Color(0xFF217346);
 
@@ -161,7 +159,7 @@ class SheetViewState extends State<SheetView> {
   var _scroll = Offset.zero;
   Size _size = Size.zero;
   _Drag? _drag;
-  final _texts = _TextCache();
+  final _texts = TextCache();
 
   /// The fingers on the sheet, and the gap between two of them and the
   /// zoom when they came, for a pinch.
@@ -634,20 +632,6 @@ class _Drag {
   CellArea? target;
 }
 
-/// Text laid out once for as long as it is drawn the same.
-class _TextCache {
-  final _cache = <(String, TextStyle, double, bool), TextPainter>{};
-
-  TextPainter get(String text, TextStyle style, double width, bool wrap) {
-    final key = (text, style, wrap ? width : 0.0, wrap);
-    final hit = _cache[key];
-    if (hit != null) return hit;
-    if (_cache.length > 4000) _cache.clear();
-    final p = TextPainter(text: TextSpan(text: text, style: style), textDirection: TextDirection.ltr, maxLines: wrap ? null : 1)
-      ..layout(maxWidth: wrap ? math.max(width, 1) : double.infinity);
-    return _cache[key] = p;
-  }
-}
 
 class _SheetPainter extends CustomPainter {
   _SheetPainter({
@@ -676,7 +660,7 @@ class _SheetPainter extends CustomPainter {
   final List<PeerSelection> peers;
   final NumberLocale locale;
   final String? fonts;
-  final _TextCache texts;
+  final TextCache texts;
   final CellArea? fillTarget;
   final (String, int, double)? resizing;
   final bool editing;
@@ -684,17 +668,23 @@ class _SheetPainter extends CustomPainter {
 
   double get z => view._z;
 
-  late final looks = book.looks(sheet);
-
-  /// The format of a cell, with what its conditional formats change.
-  CellStyle _style(Cell c) {
-    final id = c.fields['s'] as String?;
-    return looks.style(book.style(id), id, c.row, c.col);
-  }
-
   double width(int col) => resizing != null && resizing!.$1 == 'c' && resizing!.$2 == col ? resizing!.$3 : layout.width(col);
 
   double height(int row) => resizing != null && resizing!.$1 == 'r' && resizing!.$2 == row ? resizing!.$3 : layout.height(row);
+
+  late final cells = CellPainter(
+    book: book,
+    sheet: sheet,
+    locale: locale,
+    x: view.screenX,
+    y: view.screenY,
+    zoom: z,
+    fonts: fonts,
+    gridlines: layout.gridlines,
+    width: width,
+    height: height,
+    texts: texts,
+  );
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -715,7 +705,7 @@ class _SheetPainter extends CustomPainter {
       if (rect.isEmpty) continue;
       canvas.save();
       canvas.clipRect(rect);
-      _cells(canvas, area);
+      cells.paint(canvas, area);
       _selection(canvas);
       for (final c in SheetChart.of(sheet)) {
         paintSheetChart(canvas, view.screenRect(c.rect(l)), c.spec, book, sheet, zoom: z, fonts: fonts);
@@ -725,228 +715,6 @@ class _SheetPainter extends CustomPainter {
     _headers(canvas, size, panes);
     if (l.frozenCols > 0) canvas.drawLine(Offset(fx, top), Offset(fx, size.height), Paint()..color = const Color(0xFF9E9E9E));
     if (l.frozenRows > 0) canvas.drawLine(Offset(left, fy), Offset(size.width, fy), Paint()..color = const Color(0xFF9E9E9E));
-  }
-
-  Rect _rect(int r1, int c1, int r2, int c2) => Rect.fromLTRB(
-    view.screenX(c1),
-    view.screenY(r1),
-    view.screenX(c2) + width(c2) * z,
-    view.screenY(r2) + height(r2) * z,
-  );
-
-  void _cells(Canvas canvas, CellArea area) {
-    final grid = sheet.grid ?? const Grid.empty();
-    final l = layout;
-    // cells whose merged area starts before the pane still show
-    final merges = [for (final m in l.merges) if (m.intersects(area)) m];
-    final covered = <(int, int)>{};
-    for (final m in merges) {
-      for (var r = m.top; r <= m.bottom; r++) {
-        for (var c = m.left; c <= m.right; c++) {
-          if (r != m.top || c != m.left) covered.add((r, c));
-        }
-      }
-    }
-    // the style of whole rows and columns
-    final rowStyles = <int, String>{};
-    final colStyles = <int, String>{};
-    for (final c in grid.rows(0, 0)) {
-      if (c.fields['s'] is String) colStyles[c.col] = c.fields['s']! as String;
-    }
-
-    // fills
-    final cells = <Cell>[];
-    for (final c in grid.rows(area.top, area.bottom)) {
-      if (c.col == 0) {
-        if (c.fields['s'] is String) rowStyles[c.row] = c.fields['s']! as String;
-        continue;
-      }
-      if (c.col < area.left || c.col > area.right) continue;
-      cells.add(c);
-    }
-    for (final m in merges) {
-      if (!area.contains(m.top, m.left)) {
-        final f = grid.cell(m.top, m.left);
-        if (f != null) cells.add(Cell(m.top, m.left, f));
-      }
-    }
-    // empty cells a conditional format fills
-    if (!looks.isEmpty) {
-      final held = {for (final c in cells) (c.row, c.col)};
-      for (final c in looks.grid.rows(area.top, area.bottom)) {
-        if (c.col >= area.left && c.col <= area.right && !held.contains((c.row, c.col))) cells.add(Cell(c.row, c.col, const {}));
-      }
-    }
-    for (final e in colStyles.entries) {
-      if (e.key < area.left || e.key > area.right) continue;
-      final fill = book.style(e.value).fill;
-      if (fill != null) canvas.drawRect(_rect(area.top, e.key, area.bottom, e.key), Paint()..color = fill);
-    }
-    for (final e in rowStyles.entries) {
-      final fill = book.style(e.value).fill;
-      if (fill != null) canvas.drawRect(_rect(e.key, area.left, e.key, area.right), Paint()..color = fill);
-    }
-    for (final c in cells) {
-      if (covered.contains((c.row, c.col))) continue;
-      final fill = _style(c).fill;
-      if (fill == null) continue;
-      final m = l.mergeAt(c.row, c.col);
-      canvas.drawRect(m == null ? _rect(c.row, c.col, c.row, c.col) : _rect(m.top, m.left, m.bottom, m.right), Paint()..color = fill);
-    }
-
-    // gridlines, which merged cells and fills hide
-    if (l.gridlines) {
-      final p = Paint()
-        ..color = _gridColor
-        ..strokeWidth = 1;
-      final y1 = view.screenY(area.top), y2 = view.screenY(area.bottom) + height(area.bottom) * z;
-      final x1 = view.screenX(area.left), x2 = view.screenX(area.right) + width(area.right) * z;
-      for (var c = area.left; c <= area.right + 1; c++) {
-        final x = view.screenX(c) - 0.5;
-        canvas.drawLine(Offset(x, y1), Offset(x, y2), p);
-      }
-      for (var r = area.top; r <= area.bottom + 1; r++) {
-        final y = view.screenY(r) - 0.5;
-        canvas.drawLine(Offset(x1, y), Offset(x2, y), p);
-      }
-      final white = Paint()..color = Colors.white;
-      for (final m in merges) {
-        final f = grid.cell(m.top, m.left);
-        if (book.style(f?['s'] as String?).fill == null) canvas.drawRect(_rect(m.top, m.left, m.bottom, m.right).deflate(0.5), white);
-      }
-    }
-
-    // data bars and icons
-    final icons = <(int, int)>{};
-    for (final c in cells) {
-      if (covered.contains((c.row, c.col))) continue;
-      final bar = looks.bar(c.row, c.col);
-      final icon = looks.icon(c.row, c.col);
-      if (bar == null && icon == null) continue;
-      final r = _rect(c.row, c.col, c.row, c.col);
-      if (r.height < 6 || r.width < 6) continue;
-      if (bar != null) {
-        final b = Rect.fromLTWH(r.left + 1, r.top + 2, (r.width - 2) * bar.$1 / 100, r.height - 4);
-        canvas.drawRect(b, Paint()..shader = LinearGradient(colors: [bar.$2, Color.lerp(bar.$2, Colors.white, 0.85)!]).createShader(b));
-      }
-      if (icon != null) {
-        final side = math.min(r.height - 4, 14 * z);
-        paintIcon(canvas, Rect.fromLTWH(r.left + 2 * z, r.bottom - side - 2, side, side), icon.$1, icon.$2);
-        icons.add((c.row, c.col));
-      }
-    }
-
-    // texts
-    final occupied = <(int, int)>{for (final c in cells) if (_shows(c.fields)) (c.row, c.col)};
-    for (final c in cells) {
-      if (covered.contains((c.row, c.col)) || !_shows(c.fields) || looks.hidesValue(c.row, c.col)) continue;
-      _text(canvas, c, occupied, area, icon: icons.contains((c.row, c.col)));
-    }
-
-    // borders
-    for (final c in cells) {
-      if (covered.contains((c.row, c.col))) continue;
-      final s = _style(c);
-      if (s.left == null && s.right == null && s.top == null && s.bottom == null) continue;
-      final m = l.mergeAt(c.row, c.col);
-      final r = m == null ? _rect(c.row, c.col, c.row, c.col) : _rect(m.top, m.left, m.bottom, m.right);
-      _edge(canvas, s.top, r.topLeft, r.topRight);
-      _edge(canvas, s.bottom, r.bottomLeft, r.bottomRight);
-      _edge(canvas, s.left, r.topLeft, r.bottomLeft);
-      _edge(canvas, s.right, r.topRight, r.bottomRight);
-    }
-  }
-
-  static bool _shows(Map<String, Object?> f) => f['v'] != null || f['e'] != null;
-
-  void _edge(Canvas canvas, Edge? e, Offset a, Offset b) {
-    if (e == null) return;
-    final p = Paint()
-      ..color = e.color
-      ..strokeWidth = e.width * math.min(z, 1.5);
-    if (e.style == 'double') {
-      final n = a.dx == b.dx ? const Offset(1.5, 0) : const Offset(0, 1.5);
-      p.strokeWidth = 1;
-      canvas.drawLine(a - n, b - n, p);
-      canvas.drawLine(a + n, b + n, p);
-      return;
-    }
-    if (e.style.contains('ash') || e.style.contains('ot') || e.style == 'hair') {
-      final dash = e.style == 'dotted' || e.style == 'hair' ? 1.5 : 4.0;
-      final len = (b - a).distance;
-      final dir = (b - a) / len;
-      for (var t = 0.0; t < len; t += dash * 2) {
-        canvas.drawLine(a + dir * t, a + dir * math.min(t + dash, len), p);
-      }
-      return;
-    }
-    canvas.drawLine(a, b, p);
-  }
-
-  /// Paints the text of a cell, past the icon a conditional format gives
-  /// it if any.
-  void _text(Canvas canvas, Cell c, Set<(int, int)> occupied, CellArea area, {bool icon = false}) {
-    final l = layout;
-    final style = _style(c);
-    final shown = cellText(c.fields, style, locale, date1904: book.date1904);
-    if (shown.text.isEmpty) return;
-    final m = l.mergeAt(c.row, c.col);
-    final rect = m == null ? _rect(c.row, c.col, c.row, c.col) : _rect(m.top, m.left, m.bottom, m.right);
-    final f = style.font;
-    final ts = TextStyle(
-      fontFamily: substituteFont(f.name),
-      package: fonts,
-      fontSize: f.size * 4 / 3 * z,
-      fontWeight: f.bold ? FontWeight.bold : FontWeight.normal,
-      fontStyle: f.italic ? FontStyle.italic : FontStyle.normal,
-      decoration: TextDecoration.combine([
-        if (f.underline) TextDecoration.underline,
-        if (f.strike) TextDecoration.lineThrough,
-      ]),
-      color: shown.color ?? f.color ?? Colors.black,
-      height: 1.2,
-    );
-    final pad = 2 * z + style.indent * 9 * z;
-    var text = shown.text;
-    var painter = texts.get(text, ts, rect.width - 2 * pad, style.wrap);
-    // numbers that do not fit show ###
-    if (shown.number && !style.wrap && painter.width > rect.width - 2 * pad && m == null) {
-      final hash = texts.get('#', ts, 0, false).width;
-      text = '#' * math.max(1, ((rect.width - 2 * pad) / math.max(hash, 1)).floor());
-      painter = texts.get(text, ts, 0, false);
-    }
-    // text runs over the empty cells next to it
-    var clip = rect;
-    if (!style.wrap && m == null && !shown.number && painter.width > rect.width - 2 * pad) {
-      if (shown.align == 'left' || shown.align == 'center') {
-        var col = c.col + 1;
-        while (col <= area.right + 1 && !occupied.contains((c.row, col)) && clip.right < rect.left + painter.width + 2 * pad) {
-          clip = Rect.fromLTRB(clip.left, clip.top, view.screenX(col) + width(col) * z, clip.bottom);
-          col++;
-        }
-      }
-      if (shown.align == 'right' || shown.align == 'center') {
-        var col = c.col - 1;
-        while (col >= 1 && !occupied.contains((c.row, col)) && clip.left > rect.right - painter.width - 2 * pad) {
-          clip = Rect.fromLTRB(view.screenX(col), clip.top, clip.right, clip.bottom);
-          col--;
-        }
-      }
-    }
-    final dx = switch (shown.align) {
-      'right' => rect.right - pad - painter.width,
-      'center' => rect.center.dx - painter.width / 2,
-      _ => rect.left + pad + (icon ? 16 * z : 0),
-    };
-    final dy = switch (style.vertical) {
-      'top' => rect.top + 1,
-      'center' || 'justify' || 'distributed' => rect.center.dy - painter.height / 2,
-      _ => rect.bottom - painter.height - 1,
-    };
-    canvas.save();
-    canvas.clipRect(clip.deflate(0.5));
-    paintText(canvas, painter, Offset(dx, dy));
-    canvas.restore();
   }
 
   void _selection(Canvas canvas) {
