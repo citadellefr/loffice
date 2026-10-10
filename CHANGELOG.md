@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.10.0 — 2026-10-10
+
 - Dart: the package ships the free fonts that stand in for Office's
   (Carlito, Caladea, Liberation Sans, Serif and Mono) as assets. The editors
   load them when one first opens, through `OfficeFonts`, and lay out no text
