@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.11.0 — 2026-10-11
+
 - `xlsx` reads how a sheet prints into its "print" attribute (`Print`):
   paper, orientation, scale or the pages it is fitted to, margins, page
   order, first page number, centering, gridlines and headings, the rows and
