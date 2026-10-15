@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.11.1 — 2026-10-15
+
+- trame 0.5.0: the hub beats with every ping, and the Dart session takes a
+  link that beat and then stayed quiet for 65 s for gone and reconnects,
+  where a link the network dropped without a word looked open for minutes.
+  Reconnection delays are spread so that the clients a cut dropped do not
+  all come back in the same second.
+
 ## 0.11.0 — 2026-10-11
 
 - `xlsx` reads how a sheet prints into its "print" attribute (`Print`):
