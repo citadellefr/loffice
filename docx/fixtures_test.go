@@ -20,7 +20,7 @@ func TestFixtures(t *testing.T) {
 	for _, name := range fixtures {
 		data, err := os.ReadFile(filepath.Join("../corpus/files/python-docx", name))
 		if err != nil {
-			t.Skip("no corpus: corpus/fetch.sh")
+			t.Skip("no corpus: go run ./tools/corpus")
 		}
 		_, tree, err := Open(data)
 		if err != nil {

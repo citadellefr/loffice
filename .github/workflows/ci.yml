@@ -16,7 +16,7 @@ jobs:
       - run: go vet ./...
       - run: test -z "$(gofmt -l .)"
       - run: sudo apt-get install -y fonts-crosextra-carlito fonts-crosextra-caladea fonts-liberation2
-      - run: corpus/fetch.sh
+      - run: go run ./tools/corpus
       - run: go test -race -short ./...
       - run: go test ./...
         env:
@@ -34,7 +34,7 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-      - run: corpus/fetch.sh
+      - run: go run ./tools/corpus
       - run: LOFFICE_OUT=$RUNNER_TEMP/out go test ./opc -run Corpus
       - run: dotnet run --project tools/validate -c Release -- corpus/files $RUNNER_TEMP/out
       - run: LOFFICE_OUT=$RUNNER_TEMP/pptx go test ./pptx -run Corpus

@@ -16,7 +16,7 @@ import (
 func TestDocumentsAreEditedAndSaved(t *testing.T) {
 	data, err := os.ReadFile("corpus/files/python-docx/having-images.docx")
 	if err != nil {
-		t.Skip("no corpus: corpus/fetch.sh")
+		t.Skip("no corpus: go run ./tools/corpus")
 	}
 	store := trametest.NewStore()
 	store.Data["letter.docx"] = data

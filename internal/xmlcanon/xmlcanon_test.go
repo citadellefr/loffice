@@ -89,7 +89,7 @@ func TestCorpus(t *testing.T) {
 	}
 	paths, _ := filepath.Glob(filepath.Join("..", "..", "corpus", "files", "*", "*.*x"))
 	if len(paths) == 0 {
-		t.Skip("no corpus: run corpus/fetch.sh")
+		t.Skip("no corpus: run ./tools/corpus")
 	}
 	for _, path := range paths {
 		t.Run(filepath.Base(path), func(t *testing.T) {

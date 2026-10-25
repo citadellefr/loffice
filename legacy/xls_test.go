@@ -20,7 +20,7 @@ func converted(t *testing.T, name string) (*ot.Tree, []Loss) {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join("../corpus/files/poi", name))
 	if err != nil {
-		t.Skip("no corpus: corpus/fetch.sh")
+		t.Skip("no corpus: go run ./tools/corpus")
 	}
 	book, lost, err := Workbook(data)
 	if err != nil {
@@ -137,7 +137,7 @@ func TestWorkbookRefused(t *testing.T) {
 	} {
 		data, err := os.ReadFile(filepath.Join("../corpus/files/poi", name))
 		if err != nil {
-			t.Skip("no corpus: corpus/fetch.sh")
+			t.Skip("no corpus: go run ./tools/corpus")
 		}
 		if _, _, err := Workbook(data); !errors.Is(err, want) {
 			t.Errorf("%s: %v, want %v", name, err, want)
@@ -150,7 +150,7 @@ func TestWorkbookRefused(t *testing.T) {
 func TestWorkbookTooLarge(t *testing.T) {
 	data, err := os.ReadFile("../corpus/files/poi/SampleSS.xls")
 	if err != nil {
-		t.Skip("no corpus: corpus/fetch.sh")
+		t.Skip("no corpus: go run ./tools/corpus")
 	}
 	defer func(n int) { MaxCells = n }(MaxCells)
 	MaxCells = 10
@@ -185,7 +185,7 @@ func corpus(t *testing.T, ext string) []string {
 	}
 	files, _ := filepath.Glob("../corpus/files/*/*")
 	if len(files) == 0 {
-		t.Skip("no corpus: corpus/fetch.sh")
+		t.Skip("no corpus: go run ./tools/corpus")
 	}
 	var out []string
 	for _, f := range files {

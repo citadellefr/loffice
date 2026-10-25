@@ -20,7 +20,7 @@ func presentationParts(t *testing.T, visit func(file, name string, doc *xmldom.D
 	}
 	files, _ := filepath.Glob("../corpus/files/*/*")
 	if len(files) == 0 {
-		t.Skip("no corpus: corpus/fetch.sh")
+		t.Skip("no corpus: go run ./tools/corpus")
 	}
 	for _, f := range files {
 		switch strings.ToLower(filepath.Ext(f)) {

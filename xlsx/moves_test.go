@@ -30,7 +30,7 @@ func moveRows(t *testing.T, d *Document, tree *ot.Tree, e ot.Edit) error {
 func TestMovedFormats(t *testing.T) {
 	data, err := os.ReadFile("../corpus/files/poi/xssf-enum.xltx.xlsx")
 	if err != nil {
-		t.Skip("no corpus: corpus/fetch.sh")
+		t.Skip("no corpus: go run ./tools/corpus")
 	}
 	d, tree, err := Open(data)
 	if err != nil {

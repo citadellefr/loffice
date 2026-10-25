@@ -20,7 +20,7 @@ func TestCorpus(t *testing.T) {
 	}
 	files, _ := filepath.Glob("../corpus/files/*/*")
 	if len(files) == 0 {
-		t.Skip("no corpus: corpus/fetch.sh")
+		t.Skip("no corpus: go run ./tools/corpus")
 	}
 	kinds := map[string]int{}
 	charts, empty, others := 0, 0, 0
