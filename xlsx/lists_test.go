@@ -19,7 +19,7 @@ func TestListsRead(t *testing.T) {
 	} {
 		data, err := os.ReadFile("../corpus/files/" + x.file)
 		if err != nil {
-			t.Skip("no corpus: corpus/fetch.sh")
+			t.Skip("no corpus: go run ./tools/corpus")
 		}
 		_, tree, err := Open(data)
 		if err != nil {

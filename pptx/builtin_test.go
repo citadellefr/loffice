@@ -46,7 +46,7 @@ func TestBuiltinStyles(t *testing.T) {
 	seen := map[string]map[string]int{}
 	files, _ := filepath.Glob("../corpus/files/*/*.pptx")
 	if len(files) == 0 {
-		t.Skip("no corpus: corpus/fetch.sh")
+		t.Skip("no corpus: go run ./tools/corpus")
 	}
 	for _, f := range files {
 		data, _ := os.ReadFile(f)

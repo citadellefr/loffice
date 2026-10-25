@@ -17,7 +17,7 @@ func TestConvert(t *testing.T) {
 	}
 	data, err := os.ReadFile("corpus/files/poi/SampleSS.xls")
 	if err != nil {
-		t.Skip("no corpus: corpus/fetch.sh")
+		t.Skip("no corpus: go run ./tools/corpus")
 	}
 	out, ext, lost, err := Convert("Sample.xls", data)
 	if err != nil || ext != ".xlsx" || len(lost) != 0 {

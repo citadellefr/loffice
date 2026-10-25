@@ -16,7 +16,7 @@ import (
 func TestPresentationsAreEditedAndSaved(t *testing.T) {
 	data, err := os.ReadFile("corpus/files/poi/aptia.pptx")
 	if err != nil {
-		t.Skip("no corpus: corpus/fetch.sh")
+		t.Skip("no corpus: go run ./tools/corpus")
 	}
 	store := trametest.NewStore()
 	store.Data["deck.pptx"] = data

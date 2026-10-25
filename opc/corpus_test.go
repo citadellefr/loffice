@@ -19,7 +19,7 @@ var ooxmlExtensions = []string{
 	".pptx", ".pptm", ".potx", ".potm", ".ppsx", ".ppsm",
 }
 
-// corpus lists the OOXML files fetched by corpus/fetch.sh.
+// corpus lists the OOXML files fetched by tools/corpus.
 func corpus(t *testing.T) []string {
 	if testing.Short() {
 		t.Skip("the corpus is not read in -short mode")
@@ -27,7 +27,7 @@ func corpus(t *testing.T) []string {
 	t.Helper()
 	root := filepath.Join("..", "corpus", "files")
 	if _, err := os.Stat(root); err != nil {
-		t.Skip("no corpus: run corpus/fetch.sh")
+		t.Skip("no corpus: run ./tools/corpus")
 	}
 	var files []string
 	filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {

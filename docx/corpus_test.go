@@ -21,7 +21,7 @@ func documents(t *testing.T) []string {
 	}
 	files, _ := filepath.Glob("../corpus/files/*/*")
 	if len(files) == 0 {
-		t.Skip("no corpus: corpus/fetch.sh")
+		t.Skip("no corpus: go run ./tools/corpus")
 	}
 	var out []string
 	for _, f := range files {

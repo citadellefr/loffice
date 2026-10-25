@@ -49,7 +49,7 @@ makes of its file is described by the package that reads it.
 ## Tests
 
 ```sh
-corpus/fetch.sh   # test files from Apache POI, LibreOffice, python-docx and python-pptx
+go run ./tools/corpus   # test files from Apache POI, LibreOffice, python-docx and python-pptx
 go test -race -short ./...        # without the corpus
 go test ./...
 (cd dart && flutter test)

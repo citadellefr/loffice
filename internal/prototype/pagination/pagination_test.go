@@ -31,7 +31,7 @@ func measure(t *testing.T, o Options) []measured {
 	fs := fonts(t)
 	paths, _ := filepath.Glob(filepath.Join("..", "..", "..", "corpus", "files", "*", "*.docx"))
 	if len(paths) == 0 {
-		t.Skip("no corpus: run corpus/fetch.sh")
+		t.Skip("no corpus: run ./tools/corpus")
 	}
 	var out []measured
 	for _, path := range paths {
@@ -130,7 +130,7 @@ func TestAgainstWord(t *testing.T) {
 func BenchmarkPaginate(b *testing.B) {
 	data, err := os.ReadFile(filepath.Join("..", "..", "..", "corpus", "files", "poi", "bug65649.docx"))
 	if err != nil {
-		b.Skip("no corpus: run corpus/fetch.sh")
+		b.Skip("no corpus: run ./tools/corpus")
 	}
 	d, err := Load(data, fonts(b))
 	if err != nil {

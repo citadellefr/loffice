@@ -174,7 +174,7 @@ func TestCorpusCSV(t *testing.T) {
 	}
 	files, _ := filepath.Glob("../corpus/files/*/*.csv")
 	if len(files) == 0 {
-		t.Skip("no corpus: corpus/fetch.sh")
+		t.Skip("no corpus: go run ./tools/corpus")
 	}
 	for _, f := range files {
 		data, _ := os.ReadFile(f)

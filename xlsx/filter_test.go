@@ -15,7 +15,7 @@ func openCorpus(t *testing.T, name string) (*Document, *ot.Tree) {
 	t.Helper()
 	data, err := os.ReadFile("../corpus/files/" + name)
 	if err != nil {
-		t.Skip("no corpus: corpus/fetch.sh")
+		t.Skip("no corpus: go run ./tools/corpus")
 	}
 	d, tree, err := Open(data)
 	if err != nil {
