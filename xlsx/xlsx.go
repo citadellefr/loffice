@@ -29,6 +29,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/maphash"
+	"slices"
 	"strconv"
 	"sync"
 
@@ -61,6 +62,7 @@ const maxExpanded = 2048
 
 var (
 	ErrNotWorkbook = errors.New("xlsx: not a workbook")
+	ErrNoSheet     = errors.New("xlsx: a workbook needs a sheet")
 	ErrStrict      = errors.New("xlsx: Strict Open XML workbooks are not supported")
 )
 
@@ -259,6 +261,9 @@ func (r *reader) workbook() error {
 		ids = append(ids, id)
 	}
 	d.order = ids
+	if !slices.ContainsFunc(ids, func(id string) bool { return id != "" }) {
+		return ErrNoSheet
+	}
 
 	if views := elements(book.Root.Child(mainNS, "bookViews"), "workbookView"); len(views) > 0 {
 		if active := atoi(views[0].Get("activeTab")); active < len(ids) && ids[active] != "" {

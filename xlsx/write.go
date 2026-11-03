@@ -104,7 +104,7 @@ func (w *writer) save() error {
 		sheets = append(sheets, sheet{n, p})
 	}
 	if len(sheets) == 0 {
-		return fmt.Errorf("xlsx: a workbook needs a sheet")
+		return ErrNoSheet
 	}
 	if len(w.moves) > 0 {
 		if err := w.moveParts(sheets); err != nil {
