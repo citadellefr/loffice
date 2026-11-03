@@ -529,34 +529,40 @@ func init() {
 					return *err
 				}
 			}
-			a, b = math.Floor(a), math.Floor(b)
-			if a > b {
-				a, b = b, a
-			}
-			da, db := dayOf(a, c.Date1904), dayOf(b, c.Date1904)
-			switch int(basis) {
-			case 0:
-				return Num(days360(da, db, false) / 360)
-			case 1:
-				years := float64(db.y - da.y + 1)
-				total := c.date(db.y+1, 1, 1).Num - c.date(da.y, 1, 1).Num
-				if da.y == db.y || da.y+1 == db.y && (db.m < da.m || db.m == da.m && db.d <= da.d) {
-					total, years = 365, 1
-					if isLeap(da.y) && (da.m <= 2) || isLeap(db.y) && (db.m > 2 || db.m == 2 && db.d == 29) {
-						total = 366
-					}
-				}
-				return Num((b - a) / (total / years))
-			case 2:
-				return Num((b - a) / 360)
-			case 3:
-				return Num((b - a) / 365)
-			case 4:
-				return Num(days360(da, db, true) / 360)
-			}
-			return ErrNum
+			return c.yearFrac(a, b, int(basis))
 		}),
 	})
+}
+
+// yearFrac is the fraction of a year between two days, counted as basis
+// says.
+func (c *Context) yearFrac(a, b float64, basis int) Value {
+	a, b = math.Floor(a), math.Floor(b)
+	if a > b {
+		a, b = b, a
+	}
+	da, db := dayOf(a, c.Date1904), dayOf(b, c.Date1904)
+	switch basis {
+	case 0:
+		return Num(days360(da, db, false) / 360)
+	case 1:
+		years := float64(db.y - da.y + 1)
+		total := c.date(db.y+1, 1, 1).Num - c.date(da.y, 1, 1).Num
+		if da.y == db.y || da.y+1 == db.y && (db.m < da.m || db.m == da.m && db.d <= da.d) {
+			total, years = 365, 1
+			if isLeap(da.y) && (da.m <= 2) || isLeap(db.y) && (db.m > 2 || db.m == 2 && db.d == 29) {
+				total = 366
+			}
+		}
+		return Num((b - a) / (total / years))
+	case 2:
+		return Num((b - a) / 360)
+	case 3:
+		return Num((b - a) / 365)
+	case 4:
+		return Num(days360(da, db, true) / 360)
+	}
+	return ErrNum
 }
 
 func isLeap(y int) bool {

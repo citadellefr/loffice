@@ -155,16 +155,7 @@ func init() {
 
 // numbers is a function of numbers, each argument converted first.
 func numbers(min, max int, f func(n []float64) Value) *function {
-	return fn(min, max, func(c *Context, v []Value) Value {
-		n := make([]float64, len(v))
-		for i, x := range v {
-			var err *Value
-			if n[i], err = c.number(x); err != nil {
-				return *err
-			}
-		}
-		return f(n)
-	})
+	return numbersIn(min, max, func(_ *Context, n []float64) Value { return f(n) })
 }
 
 // at is the i-th number, 0 when left out.
