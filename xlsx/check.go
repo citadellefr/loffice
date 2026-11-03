@@ -94,7 +94,7 @@ func (d *Document) Check(tree *ot.Tree, e ot.Edit, _ string) error {
 			if t != "" && t != "sheet" {
 				return ErrReadOnly
 			}
-			if err := d.checkTables(c); err != nil {
+			if err := checkTables(tree, c); err != nil {
 				return err
 			}
 		default:
