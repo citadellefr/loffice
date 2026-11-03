@@ -6,9 +6,14 @@ import 'package:trame/trame.dart';
 import '../pdf/canvas.dart';
 import 'conditional.dart';
 import 'number_format.dart';
+import 'sheet_comments.dart';
 import 'workbook.dart';
 
 const _gridColor = Color(0xFFD9D9D9);
+
+/// The corner Excel marks a note with, and a thread of comments.
+const noteMarkColor = Color(0xFFFF0000);
+const threadMarkColor = Color(0xFF7030A0);
 
 /// Text laid out once for as long as it is drawn the same.
 class TextCache {
@@ -42,6 +47,7 @@ class CellPainter {
     this.fonts,
     this.gridlines = true,
     this.gridColor = _gridColor,
+    this.markers = false,
     double Function(int col)? width,
     double Function(int row)? height,
     TextCache? texts,
@@ -61,6 +67,9 @@ class CellPainter {
   final String? fonts;
   final bool gridlines;
   final Color gridColor;
+
+  /// Whether cells with a note or a thread show it in their corner.
+  final bool markers;
   final TextCache texts;
 
   /// The size of a column and of a row, in pixels at 100 %.
@@ -206,6 +215,28 @@ class CellPainter {
       _edge(canvas, s.left, r.topLeft, r.bottomLeft);
       _edge(canvas, s.right, r.topRight, r.bottomRight);
     }
+
+    if (markers) {
+      for (final c in cells) {
+        if (!covered.contains((c.row, c.col))) _marker(canvas, c);
+      }
+    }
+  }
+
+  /// The triangle in the top right corner of a cell with a note or a thread.
+  void _marker(Canvas canvas, Cell c) {
+    final thread = threadOf(c.fields).isNotEmpty;
+    if (!thread && noteOf(c.fields) == null) return;
+    final m = layout.mergeAt(c.row, c.col);
+    final r = m == null ? _rect(c.row, c.col, c.row, c.col) : _rect(m.top, m.left, m.bottom, m.right);
+    final side = math.min(math.min(r.width, r.height) / 2, 7 * zoom);
+    if (side < 2) return;
+    final path = Path()
+      ..moveTo(r.right - side, r.top)
+      ..lineTo(r.right, r.top)
+      ..lineTo(r.right, r.top + side)
+      ..close();
+    canvas.drawPath(path, Paint()..color = thread ? threadMarkColor : noteMarkColor);
   }
 
   static bool _shows(Map<String, Object?> f) => f['v'] != null || f['e'] != null;
