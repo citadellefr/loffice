@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -159,6 +160,71 @@ func TestCalcSheets(t *testing.T) {
 	edit(t, tree, c, ot.Edit{{Op: ot.OpDel, ID: "S1"}})
 	if got := fieldsAt(tree, "S2", 1, 1); got != `{"e":"#REF!","f":"#REF!*10"}` {
 		t.Fatalf("deleted: %s", got)
+	}
+}
+
+func spillTree(t *testing.T) (*ot.Tree, *Calc) {
+	t.Helper()
+	tree, err := ot.NewTree(ot.Edit{
+		{Op: ot.OpNew, ID: "book", Type: "book", Key: "V"},
+		{Op: ot.OpNew, ID: "S1", Type: "sheet", Parent: "book", Key: "K", Attrs: ot.Values{"name": json.RawMessage(`"Feuil1"`)}, Cells: []ot.Cell{cell(9, 9, `{"v":0}`)}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tree, NewCalc(tree, formula.Options{})
+}
+
+func cells(t *testing.T, tree *ot.Tree, col int, rows ...int) string {
+	t.Helper()
+	var out []string
+	for _, r := range rows {
+		out = append(out, fieldsAt(tree, "S1", r, col))
+	}
+	return strings.Join(out, "|")
+}
+
+// A dynamic array spills over the cells below, is blocked by a value
+// there, takes the ground back when it is cleared, and shrinks with the
+// array.
+func TestCalcSpill(t *testing.T) {
+	tree, c := spillTree(t)
+	got := edit(t, tree, c, ot.Edit{{Op: ot.OpCel, ID: "S1", Cells: []ot.Cell{
+		cell(1, 1, `{"f":"SEQUENCE(3)"}`), cell(1, 2, `{"f":"SUM(A1#)"}`)}}})
+	if want := `[{"o":"cel","id":"S1","c":[[1,1,{"cm":1,"fa":"A1:A3","v":1}],[1,2,{"v":6}],[2,1,{"v":2}],[3,1,{"v":3}]]}]`; got != want {
+		t.Fatalf("got %s\nwant %s", got, want)
+	}
+	if got, want := cells(t, tree, 1, 1, 2, 3), `{"cm":1,"f":"SEQUENCE(3)","fa":"A1:A3","v":1}|{"v":2}|{"v":3}`; got != want {
+		t.Fatalf("spilled: %s", got)
+	}
+	if got := fieldsAt(tree, "S1", 1, 2); got != `{"f":"SUM(A1#)","v":6}` {
+		t.Fatalf("B1 = %s", got)
+	}
+
+	edit(t, tree, c, ot.Edit{{Op: ot.OpCel, ID: "S1", Cells: []ot.Cell{cell(3, 1, `{"v":"x"}`)}}})
+	if got, want := cells(t, tree, 1, 1, 2, 3), `{"cm":1,"e":"#SPILL!","f":"SEQUENCE(3)","fa":"A1"}||{"v":"x"}`; got != want {
+		t.Fatalf("blocked: %s", got)
+	}
+
+	edit(t, tree, c, ot.Edit{{Op: ot.OpCel, ID: "S1", Cells: []ot.Cell{cell(3, 1, `{"v":null}`)}}})
+	if got, want := cells(t, tree, 1, 1, 2, 3), `{"cm":1,"f":"SEQUENCE(3)","fa":"A1:A3","v":1}|{"v":2}|{"v":3}`; got != want {
+		t.Fatalf("cleared: %s", got)
+	}
+	if got := fieldsAt(tree, "S1", 1, 2); got != `{"f":"SUM(A1#)","v":6}` {
+		t.Fatalf("B1 after the spill came back = %s", got)
+	}
+
+	edit(t, tree, c, ot.Edit{{Op: ot.OpCel, ID: "S1", Cells: []ot.Cell{cell(1, 1, `{"f":"SEQUENCE(2)"}`)}}})
+	if got, want := cells(t, tree, 1, 1, 2, 3), `{"cm":1,"f":"SEQUENCE(2)","fa":"A1:A2","v":1}|{"v":2}|`; got != want {
+		t.Fatalf("shrunk: %s", got)
+	}
+	if got := fieldsAt(tree, "S1", 1, 2); got != `{"f":"SUM(A1#)","v":3}` {
+		t.Fatalf("B1 after the spill shrank = %s", got)
+	}
+
+	edit(t, tree, c, ot.Edit{{Op: ot.OpCel, ID: "S1", Cells: []ot.Cell{cell(5, 5, `{"f":"1+1"}`)}}})
+	if got := fieldsAt(tree, "S1", 5, 5); got != `{"f":"1+1","v":2}` {
+		t.Fatalf("scalar: %s", got)
 	}
 }
 

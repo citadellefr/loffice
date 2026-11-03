@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/citadellefr/loffice/formula"
 	"github.com/citadellefr/trame/ot"
 )
 
@@ -59,7 +60,8 @@ func TestCorpusEdits(t *testing.T) {
 		if tree.Node("x0") == nil {
 			style = `{"font":{"b":true}}`
 		}
-		apply(t, d, tree, ot.Edit{
+		calc := NewCalc(tree, formula.Options{})
+		edits := ot.Edit{
 			{Op: ot.OpNew, ID: "fmt", Type: "xf", Key: "V", Attrs: ot.Values{"style": json.RawMessage(style)}},
 			{Op: ot.OpCel, ID: first, Cells: []ot.Cell{
 				cell(0, 3, `{"w":20,"cw":true}`),
@@ -79,8 +81,11 @@ func TestCorpusEdits(t *testing.T) {
 					cell(1, 2, `{"v":true}`),
 					cell(2, 1, `{"e":"#N/A"}`),
 					cell(2, 2, `{"f":"SUM(Édité!B2:C3)","v":10.5}`),
+					cell(4, 1, `{"f":"SEQUENCE(2)"}`),
 				}},
-		})
+		}
+		apply(t, d, tree, edits)
+		calc.Follow(edits, nil)
 		if last := all[len(all)-1]; len(all) > 1 && last.ID != first {
 			apply(t, d, tree, ot.Edit{{Op: ot.OpDel, ID: last.ID}})
 		}
@@ -94,8 +99,11 @@ func TestCorpusEdits(t *testing.T) {
 			t.Fatalf("%s: edited workbook does not open: %v", f, err)
 		}
 		book := again.Children("book")
-		if str(book[0], "name") != "Nouvelle" || book[0].Grid.Len() != 4 {
+		if str(book[0], "name") != "Nouvelle" || book[0].Grid.Len() != 6 {
 			t.Fatalf("%s: added sheet read back as %v", f, book[0])
+		}
+		if got := string(book[0].Grid.Cell(4, 1)) + string(book[0].Grid.Cell(5, 1)); got != `{"cm":1,"f":"_xlfn.SEQUENCE(2)","fa":"A4:A5","v":1}{"v":2}` {
+			t.Fatalf("%s: spilled cells read back as %s", f, got)
 		}
 		var text cellFields
 		_ = json.Unmarshal(book[0].Grid.Cell(1, 1), &text)

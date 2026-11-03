@@ -63,6 +63,7 @@ const _functions = <String, String>{
   'FACTDOUBLE': 'FACTDOUBLE',
   'FALSE': 'FAUX',
   'FIND': 'TROUVE',
+  'FILTER': 'FILTRE',
   'FIXED': 'CTXT',
   'FLOOR': 'PLANCHER',
   'FLOOR.MATH': 'PLANCHER.MATH',
@@ -153,6 +154,7 @@ const _functions = <String, String>{
   'QUOTIENT': 'QUOTIENT',
   'RADIANS': 'RADIANS',
   'RAND': 'ALEA',
+  'RANDARRAY': 'TABLEAU.ALEA',
   'RANDBETWEEN': 'ALEA.ENTRE.BORNES',
   'RANK': 'RANG',
   'RANK.AVG': 'MOYENNE.RANG',
@@ -168,12 +170,15 @@ const _functions = <String, String>{
   'ROWS': 'LIGNES',
   'SEARCH': 'CHERCHE',
   'SECOND': 'SECONDE',
+  'SEQUENCE': 'SEQUENCE',
   'SIGN': 'SIGNE',
   'SIN': 'SIN',
   'SINH': 'SINH',
   'SLN': 'AMORLIN',
   'SLOPE': 'PENTE',
   'SMALL': 'PETITE.VALEUR',
+  'SORT': 'TRIER',
+  'SORTBY': 'TRIERPAR',
   'SQRT': 'RACINE',
   'SQRTPI': 'RACINE.PI',
   'STANDARDIZE': 'CENTREE.REDUITE',
@@ -209,6 +214,7 @@ const _functions = <String, String>{
   'TYPE': 'TYPE',
   'UNICHAR': 'UNICAR',
   'UNICODE': 'UNICODE',
+  'UNIQUE': 'UNIQUE',
   'UPPER': 'MAJUSCULE',
   'VALUE': 'CNUM',
   'VAR': 'VAR',
@@ -229,20 +235,24 @@ const _functions = <String, String>{
 };
 
 /// The functions newer than the file format, which files call with the
-/// prefix "_xlfn.".
+/// prefix "_xlfn.", and those among them that take "_xlfn._xlws." as well.
 const _newer = {
   'AGGREGATE', 'CEILING.MATH', 'CEILING.PRECISE', 'COMBINA', 'CONCAT', 'COVARIANCE.P', 'COVARIANCE.S', 'DAYS', //
   'FLOOR.MATH', 'FLOOR.PRECISE', 'FORECAST.LINEAR', 'IFNA', 'IFS', 'ISO.CEILING', 'ISOWEEKNUM', 'MAXIFS',
   'MINIFS', 'MODE.SNGL', 'NUMBERVALUE', 'PERCENTILE.EXC', 'PERCENTILE.INC', 'QUARTILE.EXC', 'QUARTILE.INC',
-  'RANK.AVG', 'RANK.EQ', 'STDEV.P', 'STDEV.S', 'SWITCH', 'TEXTAFTER', 'TEXTBEFORE', 'TEXTJOIN', 'UNICHAR',
-  'UNICODE', 'VAR.P', 'VAR.S', 'XLOOKUP', 'XMATCH', 'XOR',
+  'RANDARRAY', 'RANK.AVG', 'RANK.EQ', 'SEQUENCE', 'SORTBY', 'STDEV.P', 'STDEV.S', 'SWITCH', 'TEXTAFTER',
+  'TEXTBEFORE', 'TEXTJOIN', 'UNICHAR', 'UNICODE', 'UNIQUE', 'VAR.P', 'VAR.S', 'XLOOKUP', 'XMATCH', 'XOR',
 };
+
+const _windowed = {'FILTER', 'SORT'};
 
 const _errors = <String, String>{
   '#NULL!': '#NUL!',
   '#VALUE!': '#VALEUR!',
   '#NAME?': '#NOM?',
   '#NUM!': '#NOMBRE!',
+  '#SPILL!': '#PROPAGATION!',
+  '#CALC!': '#CALC!',
 };
 
 final _english = {for (final e in _functions.entries) e.value: e.key};
@@ -264,16 +274,20 @@ String formulaFromFrench(String f) => _translate(f, toFrench: false);
 
 bool _letter(int c) => c >= 0x41 && c <= 0x5A || c >= 0x61 && c <= 0x7A || c == 0x5F || c == 0x5C || c > 0x7F;
 
+final _spilled = RegExp(r'''\(((?:(?:'(?:[^']|'')+'|[^'"()!,;\s]+)!)?[^'"()!,;\s]+)\)''');
+
 bool _digit(int c) => c >= 0x30 && c <= 0x39;
 
 String _translate(String f, {required bool toFrench}) {
   final b = StringBuffer();
   var braces = 0;
+  var operand = 0;
   var i = 0;
   while (i < f.length) {
     final c = f.codeUnitAt(i);
     // text and quoted sheet names are kept as they are
     if (c == 0x22 || c == 0x27) {
+      operand = b.length;
       var j = i + 1;
       while (j < f.length) {
         if (f.codeUnitAt(j) == c) {
@@ -341,6 +355,26 @@ String _translate(String f, {required bool toFrench}) {
       final word = f.substring(i, k);
       final call = k < f.length && f[k] == '(';
       final upper = word.toUpperCase();
+      final spilled = toFrench && upper == '_XLFN.ANCHORARRAY' ? _spilled.matchAsPrefix(f, k) : null;
+      if (spilled != null) {
+        b
+          ..write(spilled[1])
+          ..write('#');
+        i = k + spilled[0]!.length;
+        continue;
+      }
+      if (i == 0 || f[i - 1] != '!') operand = b.length;
+      if (!toFrench && !call && k < f.length && f[k] == '#' && !word.endsWith('!')) {
+        final before = b.toString();
+        b
+          ..clear()
+          ..write(before.substring(0, operand))
+          ..write('_xlfn.ANCHORARRAY(')
+          ..write(before.substring(operand))
+          ..write('$word)');
+        i = k + 1;
+        continue;
+      }
       if (call) {
         b.write(toFrench ? _toFrench(upper) : _fromFrench(upper, word));
       } else if (upper == 'TRUE' || upper == 'FALSE' || upper == 'VRAI' || upper == 'FAUX') {
@@ -395,11 +429,12 @@ String _toFrench(String name) {
   for (final p in ['_XLFN._XLWS.', '_XLFN.', '_XLWS.']) {
     if (bare.startsWith(p)) bare = bare.substring(p.length);
   }
-  return _functions[bare] ?? bare;
+  return _functions[bare] ?? name;
 }
 
 String _fromFrench(String upper, String word) {
   final english = _english[upper] ?? (_functions.containsKey(upper) ? upper : null);
   if (english == null) return upper.startsWith('_XLFN.') ? word : upper;
+  if (_windowed.contains(english)) return '_xlfn._xlws.$english';
   return _newer.contains(english) ? '_xlfn.$english' : english;
 }
