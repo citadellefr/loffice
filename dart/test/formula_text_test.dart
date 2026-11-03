@@ -44,13 +44,7 @@ void main() {
   });
 
   test('round trip', () {
-    for (final f in [
-      'SUMIFS(C:C,A:A,">5",B:B,"x")',
-      '_xlfn.IFS(A1>1,"a",TRUE,"b")',
-      'VLOOKUP(A2,Data!A:D,4,FALSE)',
-      '_xlfn.T.INV.2T(A1,5)',
-      '_xlfn.CHISQ.TEST(A1:B2,D1:E2)',
-    ]) {
+    for (final f in ['SUMIFS(C:C,A:A,">5",B:B,"x")', '_xlfn.IFS(A1>1,"a",TRUE,"b")', 'VLOOKUP(A2,Data!A:D,4,FALSE)', '_xlfn.T.INV.2T(A1,5)', '_xlfn.CHISQ.TEST(A1:B2,D1:E2)']) {
       expect(formulaFromFrench(formulaToFrench(f)), f);
     }
   });

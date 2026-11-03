@@ -142,6 +142,9 @@ func TestBuiltinStyles(t *testing.T) {
 	}
 }
 
+// dartPageWidth is formatter.page_width of dart/analysis_options.yaml.
+const dartPageWidth = 200
+
 // dartStyles are the built-in styles and their families for the Dart
 // package, whose gallery shows them.
 func dartStyles(styles []byte) []byte {
@@ -155,21 +158,19 @@ func dartStyles(styles []byte) []byte {
 	b.WriteString("/// gallery: the id of the style without accent, then those of accents\n")
 	b.WriteString("/// 1 to 6, \"\" where Office has none.\n")
 	b.WriteString("const builtinTableStyleFamilies = <(String, List<String>)>[\n")
-	// as dart format writes them, in 200 columns
 	for _, f := range families {
-		ids := "'" + strings.Join(f.ids, "', '") + "'"
-		switch {
-		case len("  ('"+f.name+"', ["+ids+"]),") <= 200:
-			b.WriteString("  ('" + f.name + "', [" + ids + "]),\n")
-		case len("    ["+ids+"],") <= 200:
-			b.WriteString("  (\n    '" + f.name + "',\n    [" + ids + "],\n  ),\n")
-		default:
-			b.WriteString("  (\n    '" + f.name + "',\n    [\n")
-			for _, id := range f.ids {
-				b.WriteString("      '" + id + "',\n")
-			}
-			b.WriteString("    ],\n  ),\n")
+		ids := make([]string, len(f.ids))
+		for i, id := range f.ids {
+			ids[i] = "'" + id + "'"
 		}
+		list := "[" + strings.Join(ids, ", ") + "],"
+		b.WriteString("  (\n    '" + f.name + "',\n")
+		if 4+len(list) <= dartPageWidth {
+			b.WriteString("    " + list + "\n")
+		} else {
+			b.WriteString("    [\n      " + strings.Join(ids, ",\n      ") + ",\n    ],\n")
+		}
+		b.WriteString("  ),\n")
 	}
 	b.WriteString("];\n")
 	return b.Bytes()
