@@ -196,37 +196,43 @@ var _ trame.Follower = (*workbook)(nil)
 // from the tree and every formula is calculated again, and when that fails
 // too the workbook stays stale, refreshed before the next edit.
 func (w *workbook) Follow(doc *ot.Tree, e ot.Edit, since []ot.Edit, _ trame.Peer) ot.Edit {
-	var out ot.Edit
+	out := w.moved(doc, e)
 	if w.stale {
-		out = w.refresh()
+		out = append(out, w.refresh()...)
 		if w.stale {
 			return out
 		}
 	}
-	more, err := w.follow(doc, e, since)
+	more, err := w.follow(e, since)
 	if err != nil {
-		return w.refresh()
+		more = append(more, w.refresh()...)
 	}
 	return append(out, more...)
 }
 
-func (w *workbook) follow(doc *ot.Tree, e ot.Edit, since []ot.Edit) (out ot.Edit, err error) {
+func (w *workbook) follow(e ot.Edit, since []ot.Edit) (out ot.Edit, err error) {
 	defer guard("follow", &err)
-	out = w.calc.Follow(e, since)
+	return w.calc.Follow(e, since), nil
+}
+
+// moved records the rows and columns the edit inserted or removed, before
+// anything that can fail: the document replays them when it saves.
+func (w *workbook) moved(doc *ot.Tree, e ot.Edit) (out ot.Edit) {
 	book, ok := w.doc.(*xlsx.Document)
 	if !ok {
-		return out, nil
+		return nil
 	}
+	defer guard("moved", new(error))
 	for _, c := range e {
 		if c.Op == ot.OpIns || c.Op == ot.OpRem {
 			moves := ot.Change{Op: ot.OpSet, ID: "book", Attrs: ot.Values{"moves": json.RawMessage(strconv.Itoa(book.Moved(e)))}}
 			if doc.Apply(ot.Edit{moves}) == nil {
-				out = append(out, moves)
+				return ot.Edit{moves}
 			}
 			break
 		}
 	}
-	return out, nil
+	return nil
 }
 
 // refresh calculates every formula again, and tells whether the workbook
