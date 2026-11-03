@@ -59,15 +59,7 @@ const (
 // maxExpanded is the last column whose fields are kept column by column.
 const maxExpanded = 2048
 
-var (
-	ErrNotWorkbook = errors.New("xlsx: not a workbook")
-	ErrStrict      = errors.New("xlsx: Strict Open XML workbooks are not supported")
-)
-
-const (
-	strictNS             = "http://purl.oclc.org/ooxml/spreadsheetml/main"
-	strictOfficeDocument = "http://purl.oclc.org/ooxml/officeDocument/relationships/officeDocument"
-)
+var ErrNotWorkbook = errors.New("xlsx: not a workbook")
 
 // Limits of the packages Open accepts.
 var Limits = opc.Limits{}
@@ -135,9 +127,6 @@ func Open(data []byte) (*Document, *ot.Tree, error) {
 	}
 	d.bookName = target("", root, relOfficeDocument)
 	if d.bookName == "" {
-		if target("", root, strictOfficeDocument) != "" {
-			return nil, nil, ErrStrict
-		}
 		return nil, nil, ErrNotWorkbook
 	}
 	r := &reader{d: d, names: map[string]bool{}}
@@ -204,9 +193,6 @@ func (r *reader) workbook() error {
 	book, err := r.part(d.bookName)
 	if err != nil {
 		return err
-	}
-	if book.Root.Space == strictNS {
-		return ErrStrict
 	}
 	if book.Root.Space != mainNS || book.Root.Local != "workbook" {
 		return ErrNotWorkbook
