@@ -21,6 +21,11 @@ void main() {
       ('TTEST(A:A,B:B,2,1)', 'TEST.STUDENT(A:A;B:B;2;1)'),
       ('LINEST(A:A,B:B,TRUE,TRUE)', 'DROITEREG(A:A;B:B;VRAI;VRAI)'),
       ('_xlfn.MUNIT(3)', 'MATRICE.UNITAIRE(3)'),
+      ('_xlfn.RRI(A1,A2,A3)', 'TAUX.INT.EQUIV(A1;A2;A3)'),
+      ('NETWORKDAYS.INTL(A1,B1,11)', 'NB.JOURS.OUVRES.INTL(A1;B1;11)'),
+      ('XIRR(A1:A5,B1:B5)', 'TRI.PAIEMENTS(A1:A5;B1:B5)'),
+      ('MIRR(A1:A5,0.1,0.12)', 'TRIM(A1:A5;0,1;0,12)'),
+      ('TRIM(A1)', 'SUPPRESPACE(A1)'),
     ]) {
       expect(formulaToFrench(file), shown, reason: file);
     }
@@ -38,6 +43,9 @@ void main() {
       ('loi.normale.n(1;0;1;VRAI)', '_xlfn.NORM.DIST(1,0,1,TRUE)'),
       ('PRODUITMAT(A1:B2;D1:E2)', 'MMULT(A1:B2,D1:E2)'),
       ('KURTOSIS(A1:A9)', 'KURT(A1:A9)'),
+      ('prix.titre(A1;A2;A3;A4;100;2)', 'PRICE(A1,A2,A3,A4,100,2)'),
+      ('taux.int.equiv(96;A1;A2)', '_xlfn.RRI(96,A1,A2)'),
+      ('TRIM(A1:A5;0,1;0,12)', 'MIRR(A1:A5,0.1,0.12)'),
     ]) {
       expect(formulaFromFrench(typed), file, reason: typed);
     }
