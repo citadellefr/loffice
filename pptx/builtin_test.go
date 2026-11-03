@@ -142,6 +142,9 @@ func TestBuiltinStyles(t *testing.T) {
 	}
 }
 
+// dartPageWidth is formatter.page_width of dart/analysis_options.yaml.
+const dartPageWidth = 200
+
 // dartStyles are the built-in styles and their families for the Dart
 // package, whose gallery shows them.
 func dartStyles(styles []byte) []byte {
@@ -160,7 +163,14 @@ func dartStyles(styles []byte) []byte {
 		for i, id := range f.ids {
 			ids[i] = "'" + id + "'"
 		}
-		b.WriteString("  ('" + f.name + "', [" + strings.Join(ids, ", ") + "]),\n")
+		list := "[" + strings.Join(ids, ", ") + "],"
+		b.WriteString("  (\n    '" + f.name + "',\n")
+		if 4+len(list) <= dartPageWidth {
+			b.WriteString("    " + list + "\n")
+		} else {
+			b.WriteString("    [\n      " + strings.Join(ids, ",\n      ") + ",\n    ],\n")
+		}
+		b.WriteString("  ),\n")
 	}
 	b.WriteString("];\n")
 	return b.Bytes()
