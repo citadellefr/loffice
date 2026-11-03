@@ -162,3 +162,44 @@ func Drop(f, sheet string) (string, error) {
 		return true
 	})
 }
+
+// prefixes are those files give the functions newer than their format.
+var prefixes = map[string]string{"FILTER": "_xlfn._xlws.", "SORT": "_xlfn._xlws."}
+
+func init() {
+	for _, name := range []string{"AGGREGATE", "ANCHORARRAY", "CEILING.MATH", "CEILING.PRECISE", "COMBINA", "CONCAT",
+		"COVARIANCE.P", "COVARIANCE.S", "DAYS", "FLOOR.MATH", "FLOOR.PRECISE", "FORECAST.LINEAR", "IFNA", "IFS",
+		"ISO.CEILING", "ISOWEEKNUM", "MAXIFS", "MINIFS", "MODE.SNGL", "NUMBERVALUE", "PERCENTILE.EXC",
+		"PERCENTILE.INC", "QUARTILE.EXC", "QUARTILE.INC", "RANDARRAY", "RANK.AVG", "RANK.EQ", "SEQUENCE", "SINGLE",
+		"SORTBY", "STDEV.P", "STDEV.S", "SWITCH", "TEXTAFTER", "TEXTBEFORE", "TEXTJOIN", "UNICHAR", "UNICODE",
+		"UNIQUE", "VAR.P", "VAR.S", "XLOOKUP", "XMATCH", "XOR"} {
+		prefixes[name] = "_xlfn."
+	}
+}
+
+// Stored is f as files store it: the functions newer than the format
+// with their prefix, _xlfn.SEQUENCE, and A1# as _xlfn.ANCHORARRAY(A1).
+func Stored(f string) string {
+	if !strings.ContainsAny(f, "(#") {
+		return f
+	}
+	tokens, err := Tokens(f)
+	if err != nil {
+		return f
+	}
+	var b strings.Builder
+	for i, t := range tokens {
+		spill := i+1 < len(tokens) && tokens[i+1].Kind == Operator && tokens[i+1].Text == "#"
+		switch {
+		case t.Kind == Function && strings.ToUpper(t.Text) == FunctionName(t.Text):
+			b.WriteString(prefixes[strings.ToUpper(t.Text[:len(t.Text)-1])])
+		case (t.Kind == Reference || t.Kind == Name) && spill:
+			b.WriteString("_xlfn.ANCHORARRAY(" + t.Text + ")")
+			continue
+		case t.Kind == Operator && t.Text == "#" && i > 0 && (tokens[i-1].Kind == Reference || tokens[i-1].Kind == Name):
+			continue
+		}
+		b.WriteString(t.Text)
+	}
+	return b.String()
+}

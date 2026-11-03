@@ -337,6 +337,7 @@ func (c *sheetWriter) cell(r, col int, raw json.RawMessage) {
 	}
 	if f.CM > 0 {
 		c.attr("cm", strconv.Itoa(f.CM))
+		c.w.dynamic = c.w.dynamic || f.F != ""
 	}
 	if f.VM > 0 {
 		c.attr("vm", strconv.Itoa(f.VM))
@@ -362,7 +363,7 @@ func (c *sheetWriter) cell(r, col int, raw json.RawMessage) {
 			c.attr("ca", "1")
 		}
 		c.buf.WriteByte('>')
-		c.buf.Write(escapeText(f.F))
+		c.buf.Write(escapeText(formula.Stored(f.F)))
 		c.end("f")
 	}
 	if value != nil {
