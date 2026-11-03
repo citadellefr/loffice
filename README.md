@@ -56,9 +56,14 @@ go test ./...
 go test ./opc -run '^$' -fuzz FuzzOpen
 go test ./legacy -run '^$' -fuzz FuzzWorkbook
 go test ./internal/xmltok -run '^$' -fuzz FuzzSameAsEncodingXML
+go test ./docx -run '^$' -fuzz FuzzOpen        # a part of a document, opened, rewritten and edited
+go test ./pptx -run '^$' -fuzz FuzzOpen        # the same for a presentation
+go test ./drawingml -run '^$' -fuzz FuzzReadWrite
 ```
 
-The corpus is downloaded from pinned commits and never committed.
+The corpus is downloaded from pinned commits and never committed. The inputs that
+made a fuzz target fail are kept in `testdata/fuzz` of its package and run with
+the tests.
 
 The corpus tests write the packages they rewrite to `$LOFFICE_OUT`, which CI then
 checks with the Open XML SDK: a rewrite must add no error to those of the

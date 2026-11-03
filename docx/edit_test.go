@@ -13,7 +13,7 @@ import (
 
 // build is a Word document of that body, with a header, a picture and
 // footnotes.
-func build(t *testing.T, body string) []byte {
+func build(t testing.TB, body string) []byte {
 	t.Helper()
 	const ns = `xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" ` +
 		`xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ` +

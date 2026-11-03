@@ -12,7 +12,7 @@ import (
 
 // withComments is a document of that body with a comment and its answer,
 // resolved.
-func withComments(t *testing.T, body string) []byte {
+func withComments(t testing.TB, body string) []byte {
 	t.Helper()
 	pkg, err := opc.Open(build(t, body), Limits)
 	if err != nil {
