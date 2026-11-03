@@ -246,6 +246,9 @@ func edits(tree *ot.Tree) ot.Edit {
 			marks = append(marks, o.Attrs)
 		}
 	}
+	if len(marks) == 0 {
+		return nil
+	}
 	mark := ot.Attrs{}
 	for k, v := range marks[0] {
 		switch k {

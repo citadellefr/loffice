@@ -85,11 +85,13 @@ func (w *writer) definitions() error {
 			if err != nil {
 				return err
 			}
-			if doc, err = xmldom.Parse(data); err != nil {
-				return err
+			if parsed, err := xmldom.Parse(data); err == nil {
+				doc = parsed
 			}
 		} else {
 			name = "word/styles.xml"
+		}
+		if doc == nil {
 			root := xmldom.New(NS, "w:styles")
 			root.Set("xmlns:w", NS)
 			doc = &xmldom.Document{Prolog: []byte(xmlHeader), Root: root}
