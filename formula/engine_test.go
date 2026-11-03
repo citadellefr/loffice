@@ -260,7 +260,8 @@ func TestEngineCircleThrough(t *testing.T) {
 	s, e := newSource()
 	s.mapBook.names["Total"] = "Feuil1!$C$1"
 	for cell, v := range map[string]any{"A1": "=SUM(A2:A4)", "A2": 1, "A3": "=A1*2", "B1": "=B1+1",
-		"C1": "=Total+1", "D1": "=ROW(D1)+COLUMN(D1:D3)", "E1": `=INDIRECT("E2")+1`, "E2": "=E1"} {
+		"C1": "=Total+1", "D1": "=ROW(D1)+COLUMN(D1:D3)", "E1": `=INDIRECT("E2")+1`, "E2": "=E1",
+		"F1": `=CELL("width",F:F)`} {
 		s.set(e, cell, v)
 	}
 	for cell, want := range map[string]string{"A1": "0", "A3": "0", "B1": "0", "C1": "0", "D1": "5", "E1": "0", "E2": "0"} {

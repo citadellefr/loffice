@@ -307,6 +307,8 @@ func placing(name string, arg int) bool {
 		return true
 	case "OFFSET":
 		return arg == 0
+	case "CELL":
+		return arg == 1
 	}
 	return false
 }
@@ -512,20 +514,49 @@ func (e *Engine) Recalc(changed []Pos) []Result {
 func (e *Engine) Circular() []Pos {
 	if !e.scanned {
 		e.scanned = true
-		all := slices.Collect(maps.Values(e.formulas))
-		for _, formulas := range components(all, func(cf *cellFormula) []*cellFormula {
-			var out []*cellFormula
-			e.cellsOf(cf, func(q Pos) {
-				e.readersOf(q, func(f *cellFormula) { out = append(out, f) })
-			})
-			return out
-		}) {
-			for _, cf := range formulas {
-				e.circular[cf.pos] = true
-			}
-		}
+		e.scan()
 	}
 	return slices.SortedFunc(maps.Keys(e.circular), comparePos)
+}
+
+// scan finds the circles among all the formulas: those left once the
+// formulas reading no other left are taken away, one after the other, read
+// a circle or are in one.
+func (e *Engine) scan() {
+	readers := func(cf *cellFormula, f func(*cellFormula)) {
+		e.cellsOf(cf, func(q Pos) { e.readersOf(q, f) })
+	}
+	for _, cf := range e.formulas {
+		readers(cf, func(f *cellFormula) { f.pending++ })
+	}
+	var free, left []*cellFormula
+	for _, cf := range e.formulas {
+		if cf.pending == 0 {
+			free = append(free, cf)
+		}
+	}
+	for i := 0; i < len(free); i++ {
+		readers(free[i], func(f *cellFormula) {
+			if f.pending--; f.pending == 0 {
+				free = append(free, f)
+			}
+		})
+	}
+	for _, cf := range e.formulas {
+		if cf.pending > 0 {
+			cf.pending = 0
+			left = append(left, cf)
+		}
+	}
+	for _, formulas := range components(left, func(cf *cellFormula) []*cellFormula {
+		var out []*cellFormula
+		readers(cf, func(f *cellFormula) { out = append(out, f) })
+		return out
+	}) {
+		for _, cf := range formulas {
+			e.circular[cf.pos] = true
+		}
+	}
 }
 
 // components are the strongly connected components of the graph next
