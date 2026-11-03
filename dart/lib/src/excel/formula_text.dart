@@ -452,14 +452,7 @@ const _newer = {
 
 const _windowed = {'FILTER', 'SORT'};
 
-const _errors = <String, String>{
-  '#NULL!': '#NUL!',
-  '#VALUE!': '#VALEUR!',
-  '#NAME?': '#NOM?',
-  '#NUM!': '#NOMBRE!',
-  '#SPILL!': '#PROPAGATION!',
-  '#CALC!': '#CALC!',
-};
+const _errors = <String, String>{'#NULL!': '#NUL!', '#VALUE!': '#VALEUR!', '#NAME?': '#NOM?', '#NUM!': '#NOMBRE!', '#SPILL!': '#PROPAGATION!', '#CALC!': '#CALC!'};
 
 final _english = {for (final e in _functions.entries) e.value: e.key};
 final _englishErrors = {for (final e in _errors.entries) e.value: e.key};
