@@ -74,6 +74,9 @@ func splitPrefix(p string) (book, sheet, last string) {
 		}
 	}
 	sheet, last, _ = strings.Cut(p, ":")
+	if sheet == "" || last == "" {
+		return book, p, ""
+	}
 	return book, sheet, last
 }
 
