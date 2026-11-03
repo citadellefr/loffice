@@ -176,6 +176,7 @@ func (c *Calc) Follow(e ot.Edit, since []ot.Edit) ot.Edit {
 	for _, ch := range e {
 		if ch.Op == ot.OpIns || ch.Op == ot.OpRem {
 			f.shift(ch)
+			f.flush()
 		}
 	}
 	f.rebased(e, since)

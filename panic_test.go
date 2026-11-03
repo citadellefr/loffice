@@ -12,7 +12,10 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
+	"github.com/citadellefr/loffice/formula"
+	"github.com/citadellefr/loffice/xlsx"
 	"github.com/citadellefr/trame"
 	"github.com/citadellefr/trame/ot"
 	"github.com/citadellefr/trame/trametest"
@@ -300,5 +303,88 @@ func TestCorpusTemplatesAreKeptAsTheyAre(t *testing.T) {
 			t.Fatal(err)
 		}
 		roundTrip(t, filepath.Base(name), data)
+	}
+}
+
+func TestPanicOfFollowAfterRowsMovedKeepsTheFormulasRight(t *testing.T) {
+	capture(t)
+	data, err := os.ReadFile("testdata/xlsx/blank.xlsx")
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, tree, err := xlsx.Open(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	broken := false
+	now := func() time.Time {
+		if broken {
+			broken = false
+			panic("clock")
+		}
+		return time.Now()
+	}
+	w := &workbook{doc: doc, calc: xlsx.NewCalc(tree, formula.Options{Now: now})}
+	follow := func(edit string) {
+		t.Helper()
+		var e ot.Edit
+		if err := json.Unmarshal([]byte(edit), &e); err != nil {
+			t.Fatal(err)
+		}
+		if err := tree.Apply(e); err != nil {
+			t.Fatal(err)
+		}
+		w.Follow(tree, e, nil, Peer{})
+	}
+	cell := func(row, col int) string { return string(tree.Node("S1").Grid.Cell(row, col)) }
+
+	follow(`[{"o":"cel","id":"S1","c":[[1,1,{"v":2}],[2,1,{"v":3}],[3,1,{"v":4}],[1,2,{"f":"A3*10"}],[3,2,{"f":"SUM(A1:A3)+NOW()*0"}]]}]`)
+	if cell(1, 2) != `{"f":"A3*10","v":40}` {
+		t.Fatalf("B1: %s", cell(1, 2))
+	}
+
+	broken = true
+	follow(`[{"o":"ins","id":"S1","dim":"r","at":2,"n":1}]`)
+	if w.stale {
+		t.Fatal("the workbook is stale")
+	}
+	if cell(1, 2) != `{"f":"A4*10","v":40}` || cell(4, 2) != `{"f":"SUM(A1:A4)+NOW()*0","v":9}` {
+		t.Fatalf("after the insertion: B1 %s, B4 %s", cell(1, 2), cell(4, 2))
+	}
+
+	broken = true
+	follow(`[{"o":"rem","id":"S1","dim":"r","at":3,"n":1}]`)
+	if cell(1, 2) != `{"f":"A3*10","v":40}` || cell(3, 2) != `{"f":"SUM(A1:A3)+NOW()*0","v":6}` {
+		t.Fatalf("after the removal: B1 %s, B3 %s", cell(1, 2), cell(3, 2))
+	}
+	if moves := string(tree.Node("book").Attrs["moves"]); moves != "2" {
+		t.Fatalf("%s moves recorded", moves)
+	}
+}
+
+func TestFormulasFollowSeveralMovesOfOneEdit(t *testing.T) {
+	data, err := os.ReadFile("testdata/xlsx/blank.xlsx")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tree, f, err := openWorkbook("book.xlsx", data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	apply := func(edit string) {
+		t.Helper()
+		var e ot.Edit
+		if err := json.Unmarshal([]byte(edit), &e); err != nil {
+			t.Fatal(err)
+		}
+		if err := tree.Apply(e); err != nil {
+			t.Fatal(err)
+		}
+		f.(trame.Follower).Follow(tree, e, nil, Peer{})
+	}
+	apply(`[{"o":"cel","id":"S1","c":[[1,1,{"v":2}],[3,1,{"v":4}],[1,2,{"f":"A3*10"}]]}]`)
+	apply(`[{"o":"ins","id":"S1","dim":"r","at":2,"n":1},{"o":"ins","id":"S1","dim":"r","at":2,"n":1}]`)
+	if got := string(tree.Node("S1").Grid.Cell(1, 2)); got != `{"f":"A5*10","v":40}` {
+		t.Fatalf("B1: %s", got)
 	}
 }
