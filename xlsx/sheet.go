@@ -9,7 +9,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/citadellefr/loffice/formula"
 	"github.com/citadellefr/loffice/internal/xmldom"
@@ -540,8 +539,8 @@ func (c *cellReader) cell(s *xmltok.Scanner, tok xmltok.Token, row int) error {
 	case "e":
 		f.E = strings.TrimSpace(string(value))
 	case "d":
-		if t, err := time.Parse("2006-01-02T15:04:05", strings.TrimSuffix(string(value), "Z")); err == nil {
-			f.V = number(serial(t, c.d.date1904))
+		if n, ok := isoSerial(strings.TrimSpace(string(value)), c.d.date1904); ok {
+			f.V = number(n)
 		}
 	default:
 		if len(value) > 0 {
@@ -619,18 +618,4 @@ func (c *cellReader) sort() {
 
 func number(n float64) json.RawMessage {
 	return strconv.AppendFloat(nil, n, 'g', -1, 64)
-}
-
-// serial is the date as Excel counts days: from 1899-12-30, 1900 wrongly
-// taken for a leap year, or from 1904-01-01.
-func serial(t time.Time, date1904 bool) float64 {
-	epoch := time.Date(1899, 12, 30, 0, 0, 0, 0, time.UTC)
-	if date1904 {
-		epoch = time.Date(1904, 1, 1, 0, 0, 0, 0, time.UTC)
-	}
-	days := t.Sub(epoch).Hours() / 24
-	if !date1904 && days < 61 {
-		days--
-	}
-	return days
 }
