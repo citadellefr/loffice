@@ -5,7 +5,9 @@
 // The tree has a "book" node, whose children are the sheets in order, and
 // one "xf" node per cell format at its root:
 //
-//	book "book"     theme, date1904, active, names
+//	book "book"     theme, date1904, active, names, iterate (the
+//	                formula.Iteration of circles), circular (the cells of
+//	                circles found, by sheet)
 //	  sheet "S1"    name, state, frozen, grid, zoom, tab, dw, dh, tail,
 //	                print (a Print); its cells in a grid (see below)
 //	  kept "S4"     a chart, macro or dialog sheet, kept: name, state, and
@@ -29,6 +31,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/maphash"
+	"math"
 	"strconv"
 	"sync"
 
@@ -88,6 +91,7 @@ type Document struct {
 	styles   *styles
 	sst      *sharedStrings
 	date1904 bool
+	iterate  *formula.Iteration
 	sheets   map[string]*sheetPart // by node id
 	// order are the sheet node ids as the workbook lists them.
 	order  []string
@@ -218,6 +222,15 @@ func (r *reader) workbook() error {
 	if pr := book.Root.Child(mainNS, "workbookPr"); pr != nil {
 		d.date1904 = truthy(pr.Get("date1904"))
 	}
+	if pr := book.Root.Child(mainNS, "calcPr"); pr != nil && truthy(pr.Get("iterate")) {
+		d.iterate = &formula.Iteration{Count: 100, Delta: 0.001}
+		if n, err := strconv.Atoi(pr.Get("iterateCount")); err == nil {
+			d.iterate.Count = min(max(n, 1), maxIterations)
+		}
+		if x, err := strconv.ParseFloat(pr.Get("iterateDelta"), 64); err == nil && x >= 0 && !math.IsInf(x, 0) {
+			d.iterate.Delta = x
+		}
+	}
 
 	if name := target(d.bookName, d.bookRels, relStyles); name != "" {
 		if doc, err := r.part(name); err == nil {
@@ -245,6 +258,9 @@ func (r *reader) workbook() error {
 	}
 	if d.date1904 {
 		attrs["date1904"] = mustJSON(true)
+	}
+	if d.iterate != nil {
+		attrs["iterate"] = mustJSON(d.iterate)
 	}
 	sheets := elements(book.Root.Child(mainNS, "sheets"), "sheet")
 	keys := ot.Keys(len(sheets))

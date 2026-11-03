@@ -1,6 +1,7 @@
 package formula
 
 import (
+	"maps"
 	"math"
 	"math/rand/v2"
 	"slices"
@@ -39,6 +40,16 @@ type Options struct {
 	// Now is the time of NOW and TODAY, in the workbook's time zone.
 	Now  func() time.Time
 	Rand func() float64
+	// Iteration calculates the formulas of a circle again and again, as
+	// the workbook asks; without, they hold 0, as in Excel.
+	Iteration *Iteration
+}
+
+// Iteration calculates a circle at most Count times, until no value
+// changes by Delta or more.
+type Iteration struct {
+	Count int     `json:"count"`
+	Delta float64 `json:"delta"`
 }
 
 // Engine keeps the formulas of a workbook and calculates again those a
@@ -58,6 +69,10 @@ type Engine struct {
 	subtotals map[Pos]bool
 	// arrays gives each cell of an array formula its anchor.
 	arrays map[Pos]Pos
+	// circular are the formulas found in a circle, kept between
+	// calculations; scanned once those of all the formulas are.
+	circular map[Pos]bool
+	scanned  bool
 
 	// what a calculation knows, besides what its formulas hold
 	dirty []*cellFormula
@@ -71,6 +86,18 @@ type Engine struct {
 	// once, kept up to cachedCells in all: many formulas read the same.
 	ranges map[Area3][]cachedCell
 	cached int
+	// stack are the formulas being calculated, the last read by the one
+	// before.
+	stack []*cellFormula
+	// again is set when a calculation that iterates found a circle by
+	// what its formulas read, which it calculates again knowing.
+	again bool
+}
+
+// circle are formulas that read each other, calculated together.
+type circle struct {
+	formulas   []*cellFormula
+	busy, done bool
 }
 
 type cachedCell struct {
@@ -99,6 +126,7 @@ type calc struct {
 	readers []*cellFormula
 	pending int
 	value   Value
+	circle  *circle
 }
 
 type areaReader struct {
@@ -121,7 +149,8 @@ func NewEngine(src Source, opt Options) *Engine {
 		opt.Rand = rand.Float64
 	}
 	return &Engine{src: src, opt: opt, formulas: map[Pos]*cellFormula{}, readers: map[Pos][]*cellFormula{},
-		areas: map[[2]int][]areaReader{}, wide: map[int][]areaReader{}, volatile: map[Pos]bool{}, subtotals: map[Pos]bool{}, arrays: map[Pos]Pos{}}
+		areas: map[[2]int][]areaReader{}, wide: map[int][]areaReader{}, volatile: map[Pos]bool{}, subtotals: map[Pos]bool{}, arrays: map[Pos]Pos{},
+		circular: map[Pos]bool{}}
 }
 
 // Len is the number of formulas.
@@ -181,6 +210,7 @@ func (e *Engine) Set(p Pos, f string, array *Area) {
 
 func (e *Engine) unindex(p Pos, cf *cellFormula) {
 	delete(e.volatile, p)
+	delete(e.circular, p)
 	delete(e.subtotals, p)
 	for _, a := range cf.reads {
 		if a.R1 == a.R2 && a.C1 == a.C2 {
@@ -217,7 +247,8 @@ func (e *Engine) unindex(p Pos, cf *cellFormula) {
 }
 
 // reads calls f with the areas a formula reads, those of the names it
-// uses included, and calls calls with the functions it calls.
+// uses included but not those only placing a result, and calls calls with
+// the functions it calls.
 func (e *Engine) reads(x Expr, sheet, depth int, f func(Area3), calls func(name string)) {
 	switch x := x.(type) {
 	case refExpr:
@@ -258,10 +289,28 @@ func (e *Engine) reads(x Expr, sheet, depth int, f func(Area3), calls func(name 
 		e.reads(x.y, sheet, depth, f, calls)
 	case callExpr:
 		calls(x.name)
-		for _, a := range x.args {
-			e.reads(a, sheet, depth, f, calls)
+		for i, a := range x.args {
+			if placing(x.name, i) {
+				e.reads(a, sheet, depth, func(Area3) {}, calls)
+			} else {
+				e.reads(a, sheet, depth, f, calls)
+			}
 		}
 	}
+}
+
+// placing tells whether an argument of a function is a reference whose
+// place the function reads, not its cells.
+func placing(name string, arg int) bool {
+	switch name {
+	case "ROW", "COLUMN", "ROWS", "COLUMNS":
+		return true
+	case "OFFSET":
+		return arg == 0
+	case "CELL":
+		return arg == 1
+	}
+	return false
 }
 
 // bind resolves the sheets of the references of a formula on sheet, so
@@ -375,37 +424,68 @@ func (e *Engine) Recalc(changed []Pos) []Result {
 		e.bounds[p.Sheet] = a
 	}
 
-	// the formulas in the order they read each other
+	// the formulas in the order they read each other, those left reading
+	// themselves in circles or reading those
 	for _, cf := range e.dirty {
 		for _, f := range cf.readers {
-			if f != cf {
-				f.pending++
-			}
+			f.pending++
 		}
 	}
-	var ready []*cellFormula
+	var order, left []*cellFormula
 	for _, cf := range e.dirty {
 		if cf.pending == 0 {
-			ready = append(ready, cf)
+			order = append(order, cf)
 		}
 	}
-	slices.SortFunc(ready, func(a, b *cellFormula) int { return comparePos(a.pos, b.pos) })
-	for len(ready) > 0 {
-		cf := ready[0]
-		ready = ready[1:]
-		e.compute(cf)
-		for _, f := range cf.readers {
-			if f == cf {
-				continue
-			}
+	slices.SortFunc(order, byPos)
+	for i := 0; i < len(order); i++ {
+		for _, f := range order[i].readers {
 			if f.pending--; f.pending == 0 {
-				ready = append(ready, f)
+				order = append(order, f)
 			}
 		}
 	}
-	// what is left reads itself in a circle
+	if len(order) < len(e.dirty) {
+		for _, cf := range e.dirty {
+			if cf.pending > 0 {
+				left = append(left, cf)
+			}
+		}
+		for _, formulas := range components(left, func(cf *cellFormula) []*cellFormula { return cf.readers }) {
+			slices.SortFunc(formulas, byPos)
+			c := &circle{formulas: formulas}
+			for _, cf := range formulas {
+				cf.circle = c
+			}
+		}
+	}
+	calculate := func() {
+		for _, cf := range order {
+			e.compute(cf)
+		}
+		for _, cf := range left {
+			e.compute(cf)
+		}
+	}
+	calculate()
+	if e.again {
+		e.again = false
+		clear(e.filled)
+		for _, cf := range e.dirty {
+			cf.busy, cf.done, cf.value = false, false, Value{}
+			if cf.circle != nil {
+				cf.circle.done = false
+			}
+		}
+		calculate()
+		e.again = false
+	}
 	for _, cf := range e.dirty {
-		e.compute(cf)
+		if cf.circle != nil {
+			e.circular[cf.pos] = true
+		} else {
+			delete(e.circular, cf.pos)
+		}
 	}
 
 	var out []Result
@@ -427,6 +507,123 @@ func (e *Engine) Recalc(changed []Pos) []Result {
 	}
 	slices.SortFunc(out, func(a, b Result) int { return comparePos(a.Pos, b.Pos) })
 	return out
+}
+
+// Circular are the formulas found reading themselves, through others or
+// not: by their references, or by what they read once calculated.
+func (e *Engine) Circular() []Pos {
+	if !e.scanned {
+		e.scanned = true
+		e.scan()
+	}
+	return slices.SortedFunc(maps.Keys(e.circular), comparePos)
+}
+
+// scan finds the circles among all the formulas: those left once the
+// formulas reading no other left are taken away, one after the other, read
+// a circle or are in one.
+func (e *Engine) scan() {
+	readers := func(cf *cellFormula, f func(*cellFormula)) {
+		e.cellsOf(cf, func(q Pos) { e.readersOf(q, f) })
+	}
+	for _, cf := range e.formulas {
+		readers(cf, func(f *cellFormula) { f.pending++ })
+	}
+	var free, left []*cellFormula
+	for _, cf := range e.formulas {
+		if cf.pending == 0 {
+			free = append(free, cf)
+		}
+	}
+	for i := 0; i < len(free); i++ {
+		readers(free[i], func(f *cellFormula) {
+			if f.pending--; f.pending == 0 {
+				free = append(free, f)
+			}
+		})
+	}
+	for _, cf := range e.formulas {
+		if cf.pending > 0 {
+			cf.pending = 0
+			left = append(left, cf)
+		}
+	}
+	for _, formulas := range components(left, func(cf *cellFormula) []*cellFormula {
+		var out []*cellFormula
+		readers(cf, func(f *cellFormula) { out = append(out, f) })
+		return out
+	}) {
+		for _, cf := range formulas {
+			e.circular[cf.pos] = true
+		}
+	}
+}
+
+// components are the strongly connected components of the graph next
+// draws from nodes that hold a circle: more than one node, or one that
+// reaches itself.
+func components(nodes []*cellFormula, next func(*cellFormula) []*cellFormula) [][]*cellFormula {
+	type frame struct {
+		cf    *cellFormula
+		edges []*cellFormula
+		i     int
+	}
+	index, low := map[*cellFormula]int{}, map[*cellFormula]int{}
+	on := map[*cellFormula]bool{}
+	var stack []*cellFormula
+	var frames []frame
+	var out [][]*cellFormula
+	visit := func(cf *cellFormula) {
+		index[cf], low[cf] = len(index), len(index)
+		stack = append(stack, cf)
+		on[cf] = true
+		frames = append(frames, frame{cf: cf, edges: next(cf)})
+	}
+	for _, root := range nodes {
+		if _, seen := index[root]; seen {
+			continue
+		}
+		visit(root)
+		for len(frames) > 0 {
+			f := &frames[len(frames)-1]
+			if f.i < len(f.edges) {
+				w := f.edges[f.i]
+				f.i++
+				if _, seen := index[w]; !seen {
+					visit(w)
+				} else if on[w] {
+					low[f.cf] = min(low[f.cf], index[w])
+				}
+				continue
+			}
+			v, self := f.cf, slices.Contains(f.edges, f.cf)
+			frames = frames[:len(frames)-1]
+			if len(frames) > 0 {
+				u := frames[len(frames)-1].cf
+				low[u] = min(low[u], low[v])
+			}
+			if low[v] != index[v] {
+				continue
+			}
+			i := len(stack) - 1
+			for stack[i] != v {
+				i--
+			}
+			component := slices.Clone(stack[i:])
+			stack = stack[:i]
+			for _, x := range component {
+				on[x] = false
+			}
+			if len(component) > 1 || self {
+				out = append(out, component)
+			}
+		}
+	}
+	return out
+}
+
+func byPos(a, b *cellFormula) int {
+	return comparePos(a.pos, b.pos)
 }
 
 func comparePos(a, b Pos) int {
@@ -483,23 +680,138 @@ func (e *Engine) subtotalsOf(p Pos, f func(*cellFormula)) {
 	}
 }
 
-// compute calculates a formula, once per calculation; a formula read
-// while it is being calculated reads 0, as Excel does in a circle.
+// compute calculates a formula once per calculation, with its circle if
+// it is in one.
 func (e *Engine) compute(cf *cellFormula) {
-	if cf.done || cf.busy {
+	switch {
+	case cf.done || cf.busy:
+	case cf.circle != nil && !cf.circle.done:
+		e.resolve(cf.circle)
+	default:
+		e.eval(cf)
+	}
+}
+
+// resolve calculates a circle: without iteration its formulas hold 0, as
+// in Excel; with, they are calculated again and again from the values
+// their cells held, each reading those the others gave last.
+func (e *Engine) resolve(c *circle) {
+	c.done = true
+	it := e.opt.Iteration
+	if it == nil {
+		for _, cf := range c.formulas {
+			cf.done = true
+			e.cellsOf(cf, func(q Pos) { e.hold(cf, q, Num(0)) })
+		}
 		return
 	}
+	c.busy = true
+	for _, cf := range c.formulas {
+		e.cellsOf(cf, func(q Pos) { e.hold(cf, q, cellValue(e.src.Value(q))) })
+	}
+	var old []Value
+	for range max(it.Count, 1) {
+		moved := 0.0
+		for _, cf := range c.formulas {
+			old = old[:0]
+			e.cellsOf(cf, func(q Pos) { old = append(old, e.held(cf, q)) })
+			e.eval(cf)
+			i := 0
+			e.cellsOf(cf, func(q Pos) {
+				moved = max(moved, distance(old[i], e.held(cf, q)))
+				i++
+			})
+		}
+		if moved < it.Delta {
+			break
+		}
+	}
+	c.busy = false
+}
+
+// loop makes a circle of the formulas being calculated from cf on, which
+// read each other, and is what cf gives p meanwhile: 0, or with iteration
+// the value the cell held, the calculation to be made again knowing the
+// circle.
+func (e *Engine) loop(cf *cellFormula, p Pos) Value {
+	i := len(e.stack) - 1
+	for e.stack[i] != cf {
+		i--
+	}
+	c := &circle{done: true}
+	for _, f := range e.stack[i:] {
+		switch old := f.circle; {
+		case old == nil:
+			f.circle = c
+			c.formulas = append(c.formulas, f)
+		case old != c:
+			for _, g := range old.formulas {
+				g.circle = c
+			}
+			c.formulas = append(c.formulas, old.formulas...)
+			old.formulas = nil
+		}
+	}
+	slices.SortFunc(c.formulas, byPos)
+	if e.opt.Iteration == nil {
+		return Num(0)
+	}
+	e.again = true
+	return cellValue(e.src.Value(p))
+}
+
+// held is the value a formula gave a cell it fills.
+func (e *Engine) held(cf *cellFormula, q Pos) Value {
+	if cf.array == nil {
+		return cf.value
+	}
+	return e.filled[q]
+}
+
+func (e *Engine) hold(cf *cellFormula, q Pos, v Value) {
+	if cf.array == nil {
+		cf.value = v
+		return
+	}
+	e.filled[q] = v
+}
+
+// distance is how much a value moved, infinite when it is not a number
+// and changed.
+func distance(a, b Value) float64 {
+	if a.Type == TypeNumber && b.Type == TypeNumber {
+		return math.Abs(a.Num - b.Num)
+	}
+	if sameValue(a, b) {
+		return 0
+	}
+	return math.Inf(1)
+}
+
+// eval calculates a formula; one of a circle found without iteration
+// holds 0.
+func (e *Engine) eval(cf *cellFormula) {
 	p := cf.pos
 	cf.busy = true
+	e.stack = append(e.stack, cf)
 	c := &Context{Book: (*engineBook)(e), Sheet: p.Sheet, Row: p.Row, Col: p.Col, Locale: e.opt.Locale,
 		Now: e.opt.Now(), Rand: e.opt.Rand, Date1904: e.opt.Date1904}
-	v := c.Eval(cf.expr)
+	e.fill(cf, c, c.Eval(cf.expr))
+	e.stack = e.stack[:len(e.stack)-1]
 	cf.busy, cf.done = false, true
+	if cf.circle != nil && e.opt.Iteration == nil {
+		e.cellsOf(cf, func(q Pos) { e.hold(cf, q, Num(0)) })
+	}
+}
+
+// fill gives the cells of a formula the value it calculated, read while
+// the formula is still being calculated.
+func (e *Engine) fill(cf *cellFormula, c *Context, v Value) {
 	if cf.array == nil {
 		cf.value = cellValue(c.scalar(v))
 		return
 	}
-	a := cf.array
+	a, p := cf.array, cf.pos
 	var t *Table
 	if v.Type == TypeArray || v.Type == TypeRange {
 		t = c.array(v)
@@ -560,23 +872,32 @@ func (b *engineBook) value(p Pos) Value {
 	v, ok := Value{}, false
 	if anchor, array := e.arrays[p]; array {
 		if cf := e.formulas[anchor]; cf != nil && cf.dirty {
-			e.compute(cf)
-			v, ok = e.filled[p]
-			if !ok && cf.busy && anchor == p {
-				return Num(0)
-			}
+			v, ok = e.read(cf, p)
 		}
 	} else if cf := e.formulas[p]; cf != nil && cf.dirty {
-		e.compute(cf)
-		if cf.busy {
-			return Num(0)
-		}
-		v, ok = cf.value, true
+		v, ok = e.read(cf, p)
 	}
 	if !ok || v.Type == TypeError && v.Str == ErrUnsupported.Str {
 		return e.src.Value(p)
 	}
 	return v
+}
+
+// read is the value a formula being calculated gives a cell it fills,
+// calculated first; read while it is being calculated, it is in a circle.
+func (e *Engine) read(cf *cellFormula, p Pos) (Value, bool) {
+	if c := cf.circle; c != nil && c.busy {
+		return e.held(cf, p), true
+	}
+	e.compute(cf)
+	if cf.busy {
+		return e.loop(cf, p), true
+	}
+	if cf.array == nil {
+		return cf.value, true
+	}
+	v, ok := e.filled[p]
+	return v, ok
 }
 
 func (b *engineBook) Cell(sheet, row, col int) Value {

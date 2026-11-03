@@ -57,7 +57,40 @@ func NewCalc(tree *ot.Tree, opt formula.Options) *Calc {
 			_ = tree.Apply(e)
 		}
 	}
+	if e := c.circularChanges(); e != nil {
+		_ = tree.Apply(e)
+	}
 	return c
+}
+
+// Circular are the cells of the formulas found in circles, by sheet id.
+func (c *Calc) Circular() map[string][]string {
+	out := map[string][]string{}
+	for _, p := range c.engine.Circular() {
+		id := c.sheets[p.Sheet]
+		out[id] = append(out[id], formula.CellName(p.Row, p.Col))
+	}
+	return out
+}
+
+// circularChanges sets the cells of circles the book tells, when they
+// changed.
+func (c *Calc) circularChanges() ot.Edit {
+	book := c.tree.Node("book")
+	if book == nil {
+		return nil
+	}
+	var raw json.RawMessage
+	if circular := c.Circular(); len(circular) > 0 {
+		raw = mustJSON(circular)
+	}
+	if bytes.Equal(raw, book.Attrs["circular"]) {
+		return nil
+	}
+	if raw == nil {
+		raw = json.RawMessage("null")
+	}
+	return ot.Edit{{Op: ot.OpSet, ID: "book", Attrs: ot.Values{"circular": raw}}}
 }
 
 // rebuild reads the sheets and the formulas of the tree again.
@@ -70,9 +103,10 @@ func (c *Calc) rebuild() {
 			c.names[n.ID] = str(n, "name")
 		}
 	}
-	c.defined = nil
+	c.defined, c.opt.Iteration = nil, nil
 	if book := c.tree.Node("book"); book != nil {
 		_ = json.Unmarshal(book.Attrs["names"], &c.defined)
+		_ = json.Unmarshal(book.Attrs["iterate"], &c.opt.Iteration)
 	}
 	c.bounds, c.filters = map[int][2]int{}, map[int]*formula.Area{}
 	c.engine = formula.NewEngine(c, c.opt)
@@ -117,7 +151,7 @@ func (c *Calc) Formulas() int {
 func (c *Calc) Follow(e ot.Edit, since []ot.Edit) ot.Edit {
 	f := &follow{c: c, cells: map[string]map[[2]int]map[string]json.RawMessage{}, sheets: map[string]ot.Values{}}
 	// whether sheets came, went, moved or were renamed, or names changed
-	books := false
+	books, iterate := false, false
 	for _, ch := range e {
 		h, sheet := c.handles[ch.ID]
 		_, name := ch.Attrs["name"]
@@ -133,6 +167,7 @@ func (c *Calc) Follow(e ot.Edit, since []ot.Edit) ot.Edit {
 			books = books || sheet
 		case ot.OpSet:
 			books = books || sheet && (name || ch.Key != "") || ch.ID == "book" && names
+			iterate = iterate || ch.ID == "book" && ch.Attrs["iterate"] != nil
 		}
 	}
 	if books {
@@ -145,11 +180,14 @@ func (c *Calc) Follow(e ot.Edit, since []ot.Edit) ot.Edit {
 	}
 	f.rebased(e, since)
 	f.flush()
-	if books || f.moved {
+	if books || f.moved || iterate {
 		c.rebuild()
 	}
-	f.recalc(e)
+	f.recalc(e, iterate)
 	f.flush()
+	if e := c.circularChanges(); e != nil && c.tree.Apply(e) == nil {
+		f.out = append(f.out, e...)
+	}
 	f.restyle(e, books)
 	return f.out
 }
@@ -635,9 +673,10 @@ func (f *follow) rebased(e ot.Edit, since []ot.Edit) {
 	}
 }
 
-// recalc calculates again what the edit and the follow-up reach, and sets
-// the values that changed.
-func (f *follow) recalc(e ot.Edit) {
+// recalc calculates again what the edit and the follow-up reach, the
+// circles too when how they are calculated changed, and sets the values
+// that changed.
+func (f *follow) recalc(e ot.Edit, circles bool) {
 	c := f.c
 	var changed []formula.Pos
 	seen := map[formula.Pos]bool{}
@@ -680,6 +719,14 @@ func (f *follow) recalc(e ot.Edit) {
 				}
 				return true
 			})
+		}
+	}
+	if circles {
+		for _, p := range c.engine.Circular() {
+			if !seen[p] {
+				seen[p] = true
+				changed = append(changed, p)
+			}
 		}
 	}
 	for _, r := range c.engine.Recalc(changed) {
