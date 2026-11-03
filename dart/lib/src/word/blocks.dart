@@ -167,13 +167,7 @@ class ParaCache {
 /// What a paragraph's layout depends on: not where it is in its flow.
 @immutable
 class _ParaKey {
-  _ParaKey(ParaSource s, this.width, this.fields)
-    : ops = s.ops,
-      mark = s.mark,
-      para = s.para,
-      runBase = s.runBase,
-      label = s.label?.text,
-      notes = s.notes;
+  _ParaKey(ParaSource s, this.width, this.fields) : ops = s.ops, mark = s.mark, para = s.para, runBase = s.runBase, label = s.label?.text, notes = s.notes;
 
   final List<Op> ops;
   final Props mark, para, runBase;
@@ -243,9 +237,7 @@ class Counters {
   }
 
   /// The number of a note referred to.
-  String note(String kind) => kind.startsWith('endnote')
-      ? formatNumber(++_endnotes, 'lowerRoman')
-      : '${++_footnotes}';
+  String note(String kind) => kind.startsWith('endnote') ? formatNumber(++_endnotes, 'lowerRoman') : '${++_footnotes}';
 }
 
 /// A number as a list format writes it.
@@ -285,9 +277,7 @@ String formatNumber(int n, String format) {
 /// The formatting a table's style gives its parts: paragraphs and runs by
 /// cell, and the cells' own.
 class TableStyling {
-  TableStyling(this.doc, Node table)
-    : style = _styleOf(doc, table),
-      attrs = table.attributes {
+  TableStyling(this.doc, Node table) : style = _styleOf(doc, table), attrs = table.attributes {
     final base = doc.tableProps(style, 'tbl');
     look = _look(attrs['look'] ?? base['look']);
     rowBand = ((attrs['rowBand'] ?? base['rowBand']) as num?)?.toInt() ?? 1;
@@ -348,19 +338,13 @@ class TableStyling {
     final p = doc.styleProps(style, 'p');
     final r = doc.styleProps(style, 'r');
     final s = _style;
-    return (
-      {...p, for (final part in parts) ...?s?.cond[part]?.p},
-      {...r, for (final part in parts) ...?s?.cond[part]?.r},
-    );
+    return ({...p, for (final part in parts) ...?s?.cond[part]?.p}, {...r, for (final part in parts) ...?s?.cond[part]?.r});
   }
 
   /// The cell attributes the style gives a cell: shading, borders.
   Map<String, Object?> cell(List<String> parts) {
     final s = _style;
-    return {
-      ...doc.tableProps(style, 'tc'),
-      for (final part in parts) ...?s?.cond[part]?.tc,
-    };
+    return {...doc.tableProps(style, 'tc'), for (final part in parts) ...?s?.cond[part]?.tc};
   }
 }
 
@@ -451,23 +435,17 @@ class BlockBuilder {
       }
       offset += op.insert!.length;
     }
-    return ParaSource(
-      flow: flow,
-      start: start,
-      ops: ops,
-      mark: mark,
-      para: para,
-      runBase: runBase,
-      label: counters.label(doc, para, markRun),
-      notes: notes,
-    );
+    return ParaSource(flow: flow, start: start, ops: ops, mark: mark, para: para, runBase: runBase, label: counters.label(doc, para, markRun), notes: notes);
   }
 
   /// A table laid out in [width]: its grid, cells and their text.
   LaidTable table(Node node, double width) {
     final styling = TableStyling(doc, node);
     final tbl = styling.tbl;
-    final rows = [for (final r in doc.tree.children(node.id)) if (r.type == 'tr') r];
+    final rows = [
+      for (final r in doc.tree.children(node.id))
+        if (r.type == 'tr') r,
+    ];
     final grid = [for (final w in (tbl['grid'] as List<Object?>? ?? const [])) ((w as num?) ?? 0) / 20];
     final columns = grid.isNotEmpty ? grid.length : rows.fold(1, (n, r) => math.max(n, doc.tree.children(r.id).where((c) => c.type == 'tc').length));
     final widths = grid.isNotEmpty ? grid : List.filled(columns, width / columns);
@@ -492,7 +470,10 @@ class BlockBuilder {
       final tr = {...trStyle, ...row.attributes};
       var col = ((tr['before'] as num?) ?? 0).toInt();
       final cells = <LaidCell>[];
-      final nodes = [for (final c in doc.tree.children(row.id)) if (c.type == 'tc') c];
+      final nodes = [
+        for (final c in doc.tree.children(row.id))
+          if (c.type == 'tc') c,
+      ];
       for (var k = 0; k < nodes.length; k++) {
         final c = nodes[k];
         final span = ((c.attributes['span'] as num?) ?? 1).toInt().clamp(1, 63);
@@ -521,27 +502,22 @@ class BlockBuilder {
           'right': ?side('right', 'right', 'insideV', col + span >= columns) ?? side('end', 'end', 'insideV', col + span >= columns),
         };
         final text = styling.text(parts);
-        cells.add(LaidCell(
-          node: c,
-          x: cx,
-          width: cw,
-          blocks: blocks(c.id, math.max(cw - margins.horizontal, 1), table: text),
-          margins: margins,
-          borders: cellBorders,
-          shading: hexColor(tc['shd']),
-          vAlign: tc['vAlign'] as String? ?? 'top',
-          merge: tc['vMerge'] as String?,
-        ));
+        cells.add(
+          LaidCell(
+            node: c,
+            x: cx,
+            width: cw,
+            blocks: blocks(c.id, math.max(cw - margins.horizontal, 1), table: text),
+            margins: margins,
+            borders: cellBorders,
+            shading: hexColor(tc['shd']),
+            vAlign: tc['vAlign'] as String? ?? 'top',
+            merge: tc['vMerge'] as String?,
+          ),
+        );
         col += span;
       }
-      laidRows.add(LaidRow(
-        row,
-        cells,
-        ((tr['h'] as num?) ?? 0) / 20,
-        tr['hRule'] == 'exact',
-        tr['header'] == true,
-        tr['cantSplit'] == true,
-      ));
+      laidRows.add(LaidRow(row, cells, ((tr['h'] as num?) ?? 0) / 20, tr['hRule'] == 'exact', tr['header'] == true, tr['cantSplit'] == true));
     }
     _heights(laidRows);
     return LaidTable(node, x, gridWidth, laidRows);

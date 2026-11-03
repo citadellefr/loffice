@@ -64,10 +64,7 @@ List<PrintedPage> workbookPages(Workbook book, {NumberLocale locale = NumberLoca
       jobs.add((pages.setup.page, (canvas, info) => painter.paint(canvas, page, info), ++number, i == 0, name));
     }
   }
-  return [
-    for (final (size, paint, n, first, sheet) in jobs)
-      PrintedPage(size, (canvas) => paint(canvas, PageInfo(number: n, total: jobs.length, first: first, sheet: sheet, file: title, now: now!))),
-  ];
+  return [for (final (size, paint, n, first, sheet) in jobs) PrintedPage(size, (canvas) => paint(canvas, PageInfo(number: n, total: jobs.length, first: first, sheet: sheet, file: title, now: now!)))];
 }
 
 /// Paints the pages of a sheet: its cells at the scale they print at,
@@ -102,10 +99,7 @@ class SheetPagePainter {
 
     canvas.save();
     canvas.clipRect(inner);
-    canvas.translate(
-      inner.left + (_setup.centerH ? math.max(0, (inner.width - content.width) / 2) : 0),
-      inner.top + (_setup.centerV ? math.max(0, (inner.height - content.height) / 2) : 0),
-    );
+    canvas.translate(inner.left + (_setup.centerH ? math.max(0, (inner.width - content.width) / 2) : 0), inner.top + (_setup.centerV ? math.max(0, (inner.height - content.height) / 2) : 0));
     canvas.scale(k);
     final panes = <(Offset, (int, int), (int, int))>[
       if (page.titleRows != null && page.titleCols != null) (heads, page.titleRows!, page.titleCols!),
@@ -213,14 +207,16 @@ List<TextSpan?> headerParts(String codes, PageInfo info, TextStyle base, {double
   var bold = false, italic = false, underline = false, strike = false;
   void flush() {
     if (text.isEmpty) return;
-    parts[part].add(TextSpan(
-      text: '$text',
-      style: style.copyWith(
-        fontWeight: bold ? FontWeight.bold : FontWeight.normal,
-        fontStyle: italic ? FontStyle.italic : FontStyle.normal,
-        decoration: TextDecoration.combine([if (underline) TextDecoration.underline, if (strike) TextDecoration.lineThrough]),
+    parts[part].add(
+      TextSpan(
+        text: '$text',
+        style: style.copyWith(
+          fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+          fontStyle: italic ? FontStyle.italic : FontStyle.normal,
+          decoration: TextDecoration.combine([if (underline) TextDecoration.underline, if (strike) TextDecoration.lineThrough]),
+        ),
       ),
-    ));
+    );
     text.clear();
   }
 

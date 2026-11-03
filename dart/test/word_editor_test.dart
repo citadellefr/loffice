@@ -20,32 +20,20 @@ void main() {
     await tester.pump();
   }
 
-  Future<void> open(
-    WidgetTester tester,
-    String fixture, {
-    Size size = const Size(1400, 900),
-    List<Command> commands = const [],
-    void Function(Uri uri)? onOpenLink,
-    LinkCard? linkCard,
-  }) async {
+  Future<void> open(WidgetTester tester, String fixture, {Size size = const Size(1400, 900), List<Command> commands = const [], void Function(Uri uri)? onOpenLink, LinkCard? linkCard}) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     hub = FakeHub.tree(Edit.fromJson(jsonDecode(File('../testdata/docx/$fixture.json').readAsStringSync()))!);
     session = DocSession(hub.connect)..start();
     addTearDown(session.dispose);
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: WordEditor(
-          session: session,
-          media: (_) async => Uint8List(0),
-          title: '$fixture.docx',
-          commands: commands,
-          onOpenLink: onOpenLink,
-          linkCard: linkCard,
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: WordEditor(session: session, media: (_) async => Uint8List(0), title: '$fixture.docx', commands: commands, onOpenLink: onOpenLink, linkCard: linkCard),
         ),
       ),
-    ));
+    );
     await settle(tester);
   }
 
@@ -53,10 +41,12 @@ void main() {
   Future<void> type(WidgetTester tester, String text) async {
     final value = TextEditingValue.fromJSON(tester.testTextInput.editingState!);
     final at = value.selection.extentOffset;
-    tester.testTextInput.updateEditingValue(TextEditingValue(
-      text: value.text.replaceRange(at, at, text),
-      selection: TextSelection.collapsed(offset: at + text.length),
-    ));
+    tester.testTextInput.updateEditingValue(
+      TextEditingValue(
+        text: value.text.replaceRange(at, at, text),
+        selection: TextSelection.collapsed(offset: at + text.length),
+      ),
+    );
     await settle(tester);
   }
 
@@ -107,10 +97,7 @@ void main() {
     await clickText(tester);
     final before = body().text!.text;
     await ctrl(tester, LogicalKeyboardKey.home);
-    tester.testTextInput.updateEditingValue(TextEditingValue(
-      text: 'Bref ${before.substring(0, before.length - 1)}',
-      selection: const TextSelection.collapsed(offset: 5),
-    ));
+    tester.testTextInput.updateEditingValue(TextEditingValue(text: 'Bref ${before.substring(0, before.length - 1)}', selection: const TextSelection.collapsed(offset: 5)));
     await settle(tester);
     expect(body().text!.text, startsWith('Bref '));
 
@@ -140,7 +127,16 @@ void main() {
           if (title.toLowerCase().contains(query)) Mention('@$title', Uri.parse('urn:x:todo?id=${i + 1}'), detail: 'Demain'),
       ],
     );
-    await open(tester, 'par-known-styles', commands: [tasks, Command('assistant', answer: (_, {required before, required after}) => const Stream.empty())], onOpenLink: opened.add, linkCard: (uri) => Text('card of $uri'));
+    await open(
+      tester,
+      'par-known-styles',
+      commands: [
+        tasks,
+        Command('assistant', answer: (_, {required before, required after}) => const Stream.empty()),
+      ],
+      onOpenLink: opened.add,
+      linkCard: (uri) => Text('card of $uri'),
+    );
     await clickText(tester);
     await ctrl(tester, LogicalKeyboardKey.home);
     final before = body().text!.text;
@@ -293,15 +289,13 @@ void main() {
     hub = FakeHub.tree(Edit.fromJson(jsonDecode(File('../testdata/docx/par-known-styles.json').readAsStringSync()))!);
     session = DocSession(hub.connect)..start();
     addTearDown(session.dispose);
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: WordEditor(
-          session: session,
-          media: (_) async => Uint8List(0),
-          onPicture: () async => (media: 'pic', width: 4000, height: 2000),
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: WordEditor(session: session, media: (_) async => Uint8List(0), onPicture: () async => (media: 'pic', width: 4000, height: 2000)),
         ),
       ),
-    ));
+    );
     await settle(tester);
     await clickText(tester);
     await tester.tap(find.text('Insertion'));
@@ -355,10 +349,7 @@ void main() {
 
     await ctrl(tester, LogicalKeyboardKey.home);
     final before = body().text!.text;
-    tester.testTextInput.updateEditingValue(TextEditingValue(
-      text: 'Bref ${before.substring(0, before.length - 1)}',
-      selection: const TextSelection.collapsed(offset: 5),
-    ));
+    tester.testTextInput.updateEditingValue(TextEditingValue(text: 'Bref ${before.substring(0, before.length - 1)}', selection: const TextSelection.collapsed(offset: 5)));
     await settle(tester);
     expect(wordEditing(body()).attributesAt(0)?['ins'], 'Peer 1');
 
@@ -411,7 +402,10 @@ void main() {
     List<Node> comments() => hub.doc.children('doc').where((n) => n.type == 'comment').toList();
     expect(comments().single.attributes['author'], 'Peer 1');
     final id = comments().single.id;
-    final anchors = [for (final op in body().text!.ops) if (op.attributes != null) ...op.attributes!.entries.where((e) => e.value == id).map((e) => e.key)];
+    final anchors = [
+      for (final op in body().text!.ops)
+        if (op.attributes != null) ...op.attributes!.entries.where((e) => e.value == id).map((e) => e.key),
+    ];
     expect(anchors, ['cs', 'ce', 'comment']);
     expect(find.text('Pourquoi ?'), findsOneWidget);
 

@@ -13,9 +13,23 @@ void main() {
     final tree = Tree.fromEdit(Edit.fromJson(jsonDecode(File('../testdata/pptx/shp-shapes.json').readAsStringSync()))!)!;
     // s257-5 holds s257-2, s257-3 on its right edge and s257-4
     final group = tree['s257-5']!.attributes['xfrm']! as Map<String, Object?>;
-    expect(tree.apply(Edit([Change.set('s257-5', attributes: {'xfrm': {...group, 'rot': 5400000}})])), isNotNull);
+    expect(
+      tree.apply(
+        Edit([
+          Change.set(
+            's257-5',
+            attributes: {
+              'xfrm': {...group, 'rot': 5400000},
+            },
+          ),
+        ]),
+      ),
+      isNotNull,
+    );
     Offset onSlide(String id) => SlidePainter(Deck(tree)).transformOf(tree[id]!).apply(Offset.zero);
-    final before = {for (final id in ['s257-2', 's257-4']) id: onSlide(id)};
+    final before = {
+      for (final id in ['s257-2', 's257-4']) id: onSlide(id),
+    };
 
     final x = tree['s257-3']!.attributes['xfrm']! as Map<String, Object?>;
     double pt(String k) => (x[k]! as num) / emuPerPoint;

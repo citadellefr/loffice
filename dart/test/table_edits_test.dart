@@ -198,7 +198,9 @@ void main() {
     edit((e) => e.borders([corner], 'outside', pen));
     t = layout();
     Map<String, Object?> at(int r, int c) => t.cellOver(r, c)!.node.attributes;
-    expect([for (final k in ['lnT', 'lnB', 'lnL', 'lnR']) at(2, 2)[k]], everyElement(pen));
+    expect([
+      for (final k in ['lnT', 'lnB', 'lnL', 'lnR']) at(2, 2)[k],
+    ], everyElement(pen));
     expect(at(1, 2)['lnB'], pen);
     expect(at(2, 1)['lnR'], pen);
 
@@ -208,8 +210,12 @@ void main() {
 
     edit((e) => e.borders(block, 'none', pen));
     t = layout();
-    expect(at(2, 2)['lnT'], {'fill': {'none': true}});
-    expect(at(2, 1)['lnR'], {'fill': {'none': true}});
+    expect(at(2, 2)['lnT'], {
+      'fill': {'none': true},
+    });
+    expect(at(2, 1)['lnR'], {
+      'fill': {'none': true},
+    });
   });
 
   test('cells cleared keep their marks', () {

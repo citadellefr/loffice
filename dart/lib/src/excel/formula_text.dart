@@ -238,12 +238,7 @@ const _newer = {
   'UNICODE', 'VAR.P', 'VAR.S', 'XLOOKUP', 'XMATCH', 'XOR',
 };
 
-const _errors = <String, String>{
-  '#NULL!': '#NUL!',
-  '#VALUE!': '#VALEUR!',
-  '#NAME?': '#NOM?',
-  '#NUM!': '#NOMBRE!',
-};
+const _errors = <String, String>{'#NULL!': '#NUL!', '#VALUE!': '#VALEUR!', '#NAME?': '#NOM?', '#NUM!': '#NOMBRE!'};
 
 final _english = {for (final e in _functions.entries) e.value: e.key};
 final _englishErrors = {for (final e in _errors.entries) e.value: e.key};

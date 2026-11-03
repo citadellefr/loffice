@@ -18,11 +18,24 @@ void main() {
         flow.insert('$words $i${i == 1000 ? extra : ''}');
         flow.insert('\n', {'sp.after': '160', 'widowControl': '1'});
       }
-      return Tree.fromEdit(Edit([
-        Change.create(const Node(id: 'doc', type: 'doc', key: 'a', attributes: {'defaults': {'r': {'sz': '22'}}})),
-        Change.create(const Node(id: 'body', type: 'body', parent: 'doc', key: 'b')),
-        Change.create(Node(id: 't', type: 'text', parent: 'body', key: 'V', text: flow)),
-      ]))!;
+      return Tree.fromEdit(
+        Edit([
+          Change.create(
+            const Node(
+              id: 'doc',
+              type: 'doc',
+              key: 'a',
+              attributes: {
+                'defaults': {
+                  'r': {'sz': '22'},
+                },
+              },
+            ),
+          ),
+          Change.create(const Node(id: 'body', type: 'body', parent: 'doc', key: 'b')),
+          Change.create(Node(id: 't', type: 'text', parent: 'body', key: 'V', text: flow)),
+        ]),
+      )!;
     }
 
     final cache = ParaCache();

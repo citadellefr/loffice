@@ -8,21 +8,52 @@ import 'package:loffice/src/excel/number_format.dart';
 import 'package:loffice/src/excel/workbook.dart';
 import 'package:trame/trame.dart';
 
-Tree book(List<Cell> cells, {Map<String, Object?> attributes = const {}}) => Tree.fromEdit(Edit([
-  Change.create(const Node(id: 'book', type: 'book', key: 'V', attributes: {
-    'theme': {'colors': ['FFFFFF', '000000', 'E7E6E6', '44546A', '4472C4', 'ED7D31', 'A5A5A5', 'FFC000', '5B9BD5', '70AD47', '0563C1', '954F72']},
-  })),
-  Change.create(Node(id: 'S1', type: 'sheet', parent: 'book', key: 'V', attributes: {'name': 'Feuil1', ...attributes}, grid: Grid(cells))),
-  Change.create(const Node(id: 'x1', type: 'xf', key: 'V', attributes: {
-    'style': {
-      'fmt': '#,##0.00 "€"',
-      'font': {'name': 'Calibri', 'sz': 12, 'b': true, 'color': {'theme': 4, 'tint': 0.4}},
-      'fill': {'pattern': 'solid', 'fg': {'rgb': 'FFFF00'}},
-      'border': {'b': {'style': 'double', 'color': {'rgb': 'FF0000'}}},
-      'align': {'h': 'center', 'wrap': true},
-    },
-  })),
-]))!;
+Tree book(List<Cell> cells, {Map<String, Object?> attributes = const {}}) => Tree.fromEdit(
+  Edit([
+    Change.create(
+      const Node(
+        id: 'book',
+        type: 'book',
+        key: 'V',
+        attributes: {
+          'theme': {
+            'colors': ['FFFFFF', '000000', 'E7E6E6', '44546A', '4472C4', 'ED7D31', 'A5A5A5', 'FFC000', '5B9BD5', '70AD47', '0563C1', '954F72'],
+          },
+        },
+      ),
+    ),
+    Change.create(Node(id: 'S1', type: 'sheet', parent: 'book', key: 'V', attributes: {'name': 'Feuil1', ...attributes}, grid: Grid(cells))),
+    Change.create(
+      const Node(
+        id: 'x1',
+        type: 'xf',
+        key: 'V',
+        attributes: {
+          'style': {
+            'fmt': '#,##0.00 "€"',
+            'font': {
+              'name': 'Calibri',
+              'sz': 12,
+              'b': true,
+              'color': {'theme': 4, 'tint': 0.4},
+            },
+            'fill': {
+              'pattern': 'solid',
+              'fg': {'rgb': 'FFFF00'},
+            },
+            'border': {
+              'b': {
+                'style': 'double',
+                'color': {'rgb': 'FF0000'},
+              },
+            },
+            'align': {'h': 'center', 'wrap': true},
+          },
+        },
+      ),
+    ),
+  ]),
+)!;
 
 void main() {
   test('styles resolve colors, fonts and formats', () {
@@ -43,20 +74,71 @@ void main() {
   });
 
   test('conditional formats change the formats of cells', () {
-    final tree = book(const [], attributes: {
-      'cf': [
-        {'type': 'formula', 'style': {'font': {'color': {'rgb': '9C0006'}}, 'fill': {'pattern': 'solid', 'fg': {'rgb': 'FFC7CE'}}}},
-        {'type': 'formula', 'style': {'font': {'i': true, 'color': {'rgb': '00B050'}}}},
-        {'type': 'colorScale', 'colors': [{'rgb': 'FF0000'}, {'rgb': 'FFFF00'}, {'rgb': '00FF00'}]},
-        {'type': 'dataBar', 'colors': [{'rgb': '638EC6'}], 'noValue': true},
-      ],
-    });
-    tree.apply(Edit([
-      Change.create(Node(id: 'S1.cf', type: 'looks', parent: 'S1', key: 'V', grid: Grid(const [
-        Cell(1, 1, {'r': [0, 1], 's': [2, 0.75]}),
-        Cell(2, 1, {'s': [2, 0.25], 'b': [3, 40]}),
-      ]))),
-    ]));
+    final tree = book(
+      const [],
+      attributes: {
+        'cf': [
+          {
+            'type': 'formula',
+            'style': {
+              'font': {
+                'color': {'rgb': '9C0006'},
+              },
+              'fill': {
+                'pattern': 'solid',
+                'fg': {'rgb': 'FFC7CE'},
+              },
+            },
+          },
+          {
+            'type': 'formula',
+            'style': {
+              'font': {
+                'i': true,
+                'color': {'rgb': '00B050'},
+              },
+            },
+          },
+          {
+            'type': 'colorScale',
+            'colors': [
+              {'rgb': 'FF0000'},
+              {'rgb': 'FFFF00'},
+              {'rgb': '00FF00'},
+            ],
+          },
+          {
+            'type': 'dataBar',
+            'colors': [
+              {'rgb': '638EC6'},
+            ],
+            'noValue': true,
+          },
+        ],
+      },
+    );
+    tree.apply(
+      Edit([
+        Change.create(
+          Node(
+            id: 'S1.cf',
+            type: 'looks',
+            parent: 'S1',
+            key: 'V',
+            grid: Grid(const [
+              Cell(1, 1, {
+                'r': [0, 1],
+                's': [2, 0.75],
+              }),
+              Cell(2, 1, {
+                's': [2, 0.25],
+                'b': [3, 40],
+              }),
+            ]),
+          ),
+        ),
+      ]),
+    );
     final w = Workbook(tree);
     final looks = w.looks(tree['S1']!);
     final a1 = looks.style(w.style('x1'), 'x1', 1, 1);
@@ -72,19 +154,44 @@ void main() {
   });
 
   test('palette colors become theme tints', () {
-    expect(cellColor({'scheme': 'accent1', 'mods': [['lumMod', 20000], ['lumOff', 80000]]}), {'theme': 4, 'tint': 0.8});
-    expect(cellColor({'scheme': 'lt1', 'mods': [['lumMod', 85000]]}), {'theme': 0, 'tint': -0.15});
+    expect(
+      cellColor({
+        'scheme': 'accent1',
+        'mods': [
+          ['lumMod', 20000],
+          ['lumOff', 80000],
+        ],
+      }),
+      {'theme': 4, 'tint': 0.8},
+    );
+    expect(
+      cellColor({
+        'scheme': 'lt1',
+        'mods': [
+          ['lumMod', 85000],
+        ],
+      }),
+      {'theme': 0, 'tint': -0.15},
+    );
     expect(cellColor({'rgb': 'FF0000'}), {'rgb': 'FF0000'});
   });
 
   test('layout of rows and columns', () {
-    final tree = book([
-      const Cell(0, 2, {'w': 20}),
-      const Cell(0, 4, {'hide': true}),
-      const Cell(3, 0, {'h': 30}),
-      const Cell(5, 0, {'hide': true}),
-      const Cell(2, 2, {'m': [2, 3], 'v': 'fusion'}),
-    ], attributes: {'frozen': {'r': 1, 'c': 1}});
+    final tree = book(
+      [
+        const Cell(0, 2, {'w': 20}),
+        const Cell(0, 4, {'hide': true}),
+        const Cell(3, 0, {'h': 30}),
+        const Cell(5, 0, {'hide': true}),
+        const Cell(2, 2, {
+          'm': [2, 3],
+          'v': 'fusion',
+        }),
+      ],
+      attributes: {
+        'frozen': {'r': 1, 'c': 1},
+      },
+    );
     final l = SheetLayout(tree['S1']!);
     expect(l.width(1), 64);
     expect(l.width(2), 140);
@@ -139,24 +246,29 @@ void main() {
   });
 
   test('charts read their series from the cells, hidden rows left out', () {
-    final w = Workbook(book([
-      const Cell(3, 0, {'hide': true}),
-      const Cell(1, 1, {'v': 'Mois'}),
-      const Cell(2, 1, {'v': 'Janvier'}),
-      const Cell(3, 1, {'v': 'Février'}),
-      const Cell(4, 1, {'v': 'Mars'}),
-      const Cell(2, 2, {'v': 1234.5, 's': 'x1'}),
-      const Cell(3, 2, {'v': 7}),
-      const Cell(4, 2, {'e': '#N/A'}),
-    ], attributes: {
-      'charts': [
-        {
-          'from': {'col': 3, 'row': 1, 'dx': 9525 * 10},
-          'to': {'col': 5, 'row': 10},
-          'chart': {'plots': <Object?>[]},
+    final w = Workbook(
+      book(
+        [
+          const Cell(3, 0, {'hide': true}),
+          const Cell(1, 1, {'v': 'Mois'}),
+          const Cell(2, 1, {'v': 'Janvier'}),
+          const Cell(3, 1, {'v': 'Février'}),
+          const Cell(4, 1, {'v': 'Mars'}),
+          const Cell(2, 2, {'v': 1234.5, 's': 'x1'}),
+          const Cell(3, 2, {'v': 7}),
+          const Cell(4, 2, {'e': '#N/A'}),
+        ],
+        attributes: {
+          'charts': [
+            {
+              'from': {'col': 3, 'row': 1, 'dx': 9525 * 10},
+              'to': {'col': 5, 'row': 10},
+              'chart': {'plots': <Object?>[]},
+            },
+          ],
         },
-      ],
-    }));
+      ),
+    );
     final sheet = w.sheets.first;
     final values = liveData(w, sheet, DataSpec(ref: r'Feuil1!$B$2:$B$4', numbers: const [0, 0, 0], count: 3), NumberLocale.fr)!;
     expect(values.numbers, [1234.5, null]);

@@ -14,9 +14,7 @@ double twips(String? v, [double fallback = 0]) => (double.tryParse(v ?? '') ?? f
 /// What paragraphs are laid out with: the document, its fonts, and what the
 /// fields of a page read.
 class WordContext {
-  WordContext(this.doc, {Fonts? fonts})
-    : fonts = fonts ?? Fonts(theme: doc.typeface),
-      defaultTab = math.max(doc.settings.tab / 20, 1);
+  WordContext(this.doc, {Fonts? fonts}) : fonts = fonts ?? Fonts(theme: doc.typeface), defaultTab = math.max(doc.settings.tab / 20, 1);
 
   final WordDocument doc;
   final Fonts fonts;
@@ -102,16 +100,7 @@ class ListLabel {
 
 /// A paragraph to lay out: its text in the flow and what formats it.
 class ParaSource {
-  const ParaSource({
-    required this.flow,
-    required this.start,
-    required this.ops,
-    required this.mark,
-    required this.para,
-    required this.runBase,
-    this.label,
-    this.notes = const {},
-  });
+  const ParaSource({required this.flow, required this.start, required this.ops, required this.mark, required this.para, required this.runBase, this.label, this.notes = const {}});
 
   /// The text node and where the paragraph starts in it.
   final String flow;
@@ -261,7 +250,13 @@ class ParaBox {
     final l = source.label;
     if (l != null && l.text.isNotEmpty) {
       final run = l.run;
-      label = TextPainter(text: TextSpan(text: l.text, style: ctx.style(run, factor: factor)), textDirection: TextDirection.ltr)..layout();
+      label = TextPainter(
+        text: TextSpan(
+          text: l.text,
+          style: ctx.style(run, factor: factor),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
       final w = label.width;
       labelX = switch (l.level.jc) {
         'right' || 'end' => left + first - w,
@@ -336,7 +331,6 @@ class ParaBox {
   int get length => source.length;
   Props get para => source.para;
 
-
   late final double spaceBefore = autoBefore ? 14 : twips(source.para['sp.before']);
   late final double spaceAfter = autoAfter ? 14 : twips(source.para['sp.after']);
   late final bool autoBefore = source.para['sp.beforeAuto'] == '1';
@@ -390,15 +384,21 @@ class ParaBox {
   void _paintSlot(Canvas canvas, _Slot slot, Rect box, DrawObject? objects) {
     switch (slot.kind) {
       case _SlotKind.glyph:
-        final p = TextPainter(text: TextSpan(text: slot.text, style: slot.style), textDirection: TextDirection.ltr)..layout();
+        final p = TextPainter(
+          text: TextSpan(text: slot.text, style: slot.style),
+          textDirection: TextDirection.ltr,
+        )..layout();
         final base = p.computeLineMetrics().firstOrNull?.baseline ?? p.height;
         paintText(canvas, p, Offset(box.left, box.bottom - base - slot.rise));
       case _SlotKind.image:
         if (objects == null || !objects(canvas, slot.picture ?? const {}, box)) {
           canvas.drawRect(box, Paint()..color = const Color(0xFFE8E8E8));
-          canvas.drawRect(box.deflate(0.5), Paint()
-            ..style = PaintingStyle.stroke
-            ..color = const Color(0xFFB0B0B0));
+          canvas.drawRect(
+            box.deflate(0.5),
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..color = const Color(0xFFB0B0B0),
+          );
         }
       case _SlotKind.tab:
         final leader = slot.leader;
@@ -410,10 +410,16 @@ class ParaBox {
           _ => '.',
         };
         final style = slot.style ?? const TextStyle(fontSize: 11, color: Color(0xFF000000));
-        final unit = TextPainter(text: TextSpan(text: char, style: style), textDirection: TextDirection.ltr)..layout();
+        final unit = TextPainter(
+          text: TextSpan(text: char, style: style),
+          textDirection: TextDirection.ltr,
+        )..layout();
         if (unit.width <= 0) return;
         final n = (box.width / unit.width).floor();
-        final dots = TextPainter(text: TextSpan(text: char * n, style: style), textDirection: TextDirection.ltr)..layout();
+        final dots = TextPainter(
+          text: TextSpan(text: char * n, style: style),
+          textDirection: TextDirection.ltr,
+        )..layout();
         final base = dots.computeLineMetrics().firstOrNull?.baseline ?? dots.height;
         paintText(canvas, dots, Offset(box.right - dots.width, box.bottom - base));
       case _SlotKind.hidden || _SlotKind.lead:
@@ -552,7 +558,10 @@ class _Builder {
 
   void _glyph(String text, Props run, TextStyle style, {double rise = 0, double scale = 1}) {
     final glyphStyle = scale == 1 ? style : style.copyWith(fontSize: style.fontSize! * scale);
-    final p = TextPainter(text: TextSpan(text: text, style: glyphStyle), textDirection: TextDirection.ltr)..layout();
+    final p = TextPainter(
+      text: TextSpan(text: text, style: glyphStyle),
+      textDirection: TextDirection.ltr,
+    )..layout();
     final ascent = p.computeLineMetrics().firstOrNull?.ascent ?? p.height;
     _out.add(_Op.slot(_Slot(_SlotKind.glyph, width: p.width, height: ascent + rise, text: text, style: glyphStyle, rise: rise), style));
   }
@@ -715,8 +724,7 @@ List<_TabStop> _stops(String? tabs, double left, double first) {
 
 /// The next stop after [x]: a custom one, the hanging indent, or a default
 /// one.
-double _nextStop(double x, List<_TabStop> stops, double left, double first, double interval) =>
-    _stopAfter(x, stops, left, first, interval).pos;
+double _nextStop(double x, List<_TabStop> stops, double left, double first, double interval) => _stopAfter(x, stops, left, first, interval).pos;
 
 _TabStop _stopAfter(double x, List<_TabStop> stops, double left, double first, double interval) {
   for (final s in stops) {
@@ -731,19 +739,7 @@ _TabStop _stopAfter(double x, List<_TabStop> stops, double left, double first, d
 
 /// Lays out spans with a painter, their tabs set one after another where
 /// their stops put the text after them.
-_Piece _layoutPiece(
-  List<_Op> ops,
-  List<_Slot> lead,
-  double x,
-  double width,
-  StrutStyle? strut,
-  int from,
-  double y,
-  Props para,
-  WordContext ctx,
-  List<_TabStop> stops, {
-  required bool first,
-}) {
+_Piece _layoutPiece(List<_Op> ops, List<_Slot> lead, double x, double width, StrutStyle? strut, int from, double y, Props para, WordContext ctx, List<_TabStop> stops, {required bool first}) {
   final slots = <_Slot>[...lead, for (final o in ops) ?o.slot];
   final align = switch (para['jc']) {
     'center' => TextAlign.center,
@@ -753,22 +749,24 @@ _Piece _layoutPiece(
   };
   final base = ops.isEmpty ? const TextStyle() : ops.first.style;
   TextPainter paint() {
-    final spans = <InlineSpan>[
-      for (final _ in lead) _slotSpan(base),
-      for (final o in ops) o.slot != null ? _slotSpan(o.style) : TextSpan(text: o.text, style: o.style),
-    ];
+    final spans = <InlineSpan>[for (final _ in lead) _slotSpan(base), for (final o in ops) o.slot != null ? _slotSpan(o.style) : TextSpan(text: o.text, style: o.style)];
     return TextPainter(
-      text: TextSpan(children: spans),
-      textAlign: align,
-      textDirection: para['bidi'] == '1' ? TextDirection.rtl : TextDirection.ltr,
-      strutStyle: strut,
-    )
-      ..setPlaceholderDimensions([for (final s in slots) PlaceholderDimensions(size: Size(s.width, s.height), alignment: ui.PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, baselineOffset: s.height)])
+        text: TextSpan(children: spans),
+        textAlign: align,
+        textDirection: para['bidi'] == '1' ? TextDirection.rtl : TextDirection.ltr,
+        strutStyle: strut,
+      )
+      ..setPlaceholderDimensions([
+        for (final s in slots) PlaceholderDimensions(size: Size(s.width, s.height), alignment: ui.PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, baselineOffset: s.height),
+      ])
       ..layout(maxWidth: math.max(width, 1));
   }
 
   var painter = paint();
-  final tabs = [for (var i = 0; i < slots.length; i++) if (slots[i].kind == _SlotKind.tab) i];
+  final tabs = [
+    for (var i = 0; i < slots.length; i++)
+      if (slots[i].kind == _SlotKind.tab) i,
+  ];
   final left = twips(para['ind.left']), firstIndent = twips(para['ind.first']);
   // the tabs of a line are set one after the other, each moving those
   // after it; laid out again until the lines stay as they are
@@ -814,5 +812,4 @@ double _lineRight(TextPainter painter, double top, double bottom) {
 }
 
 /// The span of a slot: the painter asks for its size, nothing builds it.
-InlineSpan _slotSpan(TextStyle style) =>
-    WidgetSpan(child: const SizedBox.shrink(), alignment: ui.PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, style: style);
+InlineSpan _slotSpan(TextStyle style) => WidgetSpan(child: const SizedBox.shrink(), alignment: ui.PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, style: style);

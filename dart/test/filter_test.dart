@@ -5,17 +5,32 @@ import 'package:loffice/src/excel/workbook.dart';
 import 'package:trame/trame.dart';
 
 void main() {
-  final tree = Tree.fromEdit(Edit([
-    Change.create(const Node(id: 'book', type: 'book', key: 'V')),
-    Change.create(Node(id: 'S1', type: 'sheet', parent: 'book', key: 'V', attributes: const {'name': 'Feuil1'}, grid: Grid(const [
-      Cell(2, 2, {'v': 'Ville'}), Cell(2, 3, {'v': 'Ventes'}),
-      Cell(3, 2, {'v': 'Lyon'}), Cell(3, 3, {'v': 12}),
-      Cell(4, 2, {'v': 'Paris'}), Cell(4, 3, {'v': 3}),
-      Cell(5, 2, {'v': 'Lyon'}),
-      Cell(6, 2, {'v': 'Nantes'}), Cell(6, 3, {'v': 7}),
-      Cell(9, 2, {'v': 'ailleurs'}),
-    ]))),
-  ]))!;
+  final tree = Tree.fromEdit(
+    Edit([
+      Change.create(const Node(id: 'book', type: 'book', key: 'V')),
+      Change.create(
+        Node(
+          id: 'S1',
+          type: 'sheet',
+          parent: 'book',
+          key: 'V',
+          attributes: const {'name': 'Feuil1'},
+          grid: Grid(const [
+            Cell(2, 2, {'v': 'Ville'}),
+            Cell(2, 3, {'v': 'Ventes'}),
+            Cell(3, 2, {'v': 'Lyon'}),
+            Cell(3, 3, {'v': 12}),
+            Cell(4, 2, {'v': 'Paris'}),
+            Cell(4, 3, {'v': 3}),
+            Cell(5, 2, {'v': 'Lyon'}),
+            Cell(6, 2, {'v': 'Nantes'}),
+            Cell(6, 3, {'v': 7}),
+            Cell(9, 2, {'v': 'ailleurs'}),
+          ]),
+        ),
+      ),
+    ]),
+  )!;
   final book = Workbook(tree);
   final sheet = tree['S1']!;
 
@@ -40,7 +55,10 @@ void main() {
     expect(e.changes.first.attributes['filter'], {
       'ref': 'B2:C6',
       'cols': [
-        {'col': 0, 'vals': ['Lyon']},
+        {
+          'col': 0,
+          'vals': ['Lyon'],
+        },
       ],
     });
     expect([for (final c in e.changes.last.cells!) (c.row, c.fields['hide'])], [(4, true), (6, true)]);

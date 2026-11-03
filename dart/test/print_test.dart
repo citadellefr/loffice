@@ -15,10 +15,14 @@ Workbook book(int rows, int cols, {Map<String, Object?> print = const {}, List<M
     for (var r = 1; r <= rows; r++)
       for (var c = 1; c <= cols; c++) Cell(r, c, {'v': r * c}),
   ];
-  return Workbook(Tree.fromEdit(Edit([
-    Change.create(Node(id: 'book', type: 'book', key: 'V', attributes: {'names': names})),
-    Change.create(Node(id: 'S1', type: 'sheet', parent: 'book', key: 'V', attributes: {'name': 'Feuil1', 'print': print}, grid: Grid(cells))),
-  ]))!);
+  return Workbook(
+    Tree.fromEdit(
+      Edit([
+        Change.create(Node(id: 'book', type: 'book', key: 'V', attributes: {'names': names})),
+        Change.create(Node(id: 'S1', type: 'sheet', parent: 'book', key: 'V', attributes: {'name': 'Feuil1', 'print': print}, grid: Grid(cells))),
+      ]),
+    )!,
+  );
 }
 
 List<String> cut(Workbook b) => [for (final p in SheetPages(b, b.sheets.first).pages) '${p.cells}'];
@@ -34,36 +38,88 @@ void main() {
   test('paper on its side, margins and scale change what a page holds', () {
     expect(cut(book(60, 12, print: {'land': true})), ['A1:L32', 'A33:L60']);
     expect(cut(book(100, 12, print: {'scale': 50})), ['A1:L97', 'A98:L100']);
-    expect(cut(book(50, 9, print: {'margins': {'l': 0, 'r': 0, 't': 0, 'b': 0, 'head': 0, 'foot': 0}})), ['A1:I50']);
+    expect(
+      cut(
+        book(
+          50,
+          9,
+          print: {
+            'margins': {'l': 0, 'r': 0, 't': 0, 'b': 0, 'head': 0, 'foot': 0},
+          },
+        ),
+      ),
+      ['A1:I50'],
+    );
     expect(cut(book(40, 10, print: {'heads': true})), ['A1:I40', 'J1:J40']);
   });
 
   test('breaks start pages, hidden rows take no room', () {
-    expect(cut(book(60, 4, print: {'rows': [11], 'cols': [3]})), ['A1:B10', 'A11:B58', 'A59:B60', 'C1:D10', 'C11:D58', 'C59:D60']);
-    final hidden = [for (var r = 1; r <= 20; r++) Cell(r, 0, const {'hide': true})];
+    expect(
+      cut(
+        book(
+          60,
+          4,
+          print: {
+            'rows': [11],
+            'cols': [3],
+          },
+        ),
+      ),
+      ['A1:B10', 'A11:B58', 'A59:B60', 'C1:D10', 'C11:D58', 'C59:D60'],
+    );
+    final hidden = [
+      for (var r = 1; r <= 20; r++) Cell(r, 0, const {'hide': true}),
+    ];
     expect(cut(book(60, 4, lines: hidden)), ['A1:D60']);
   });
 
   test('a sheet fitted to pages shrinks, and no more than it has to', () {
-    final b = book(100, 12, print: {'fit': [1, 0]});
+    final b = book(
+      100,
+      12,
+      print: {
+        'fit': [1, 0],
+      },
+    );
     final pages = SheetPages(b, b.sheets.first);
     expect(pages.scale, 0.85);
     expect([for (final p in pages.pages) '${p.cells}'], ['A1:L57', 'A58:L100']);
-    final one = book(100, 12, print: {'fit': [1, 1], 'rows': [5]});
+    final one = book(
+      100,
+      12,
+      print: {
+        'fit': [1, 1],
+        'rows': [5],
+      },
+    );
     expect(SheetPages(one, one.sheets.first).pages.length, 1);
-    final small = book(3, 3, print: {'fit': [1, 1]});
+    final small = book(
+      3,
+      3,
+      print: {
+        'fit': [1, 1],
+      },
+    );
     expect(SheetPages(small, small.sheets.first).scale, 1);
   });
 
   test('the area named is what prints, under the rows every page repeats', () {
-    final b = book(120, 6, names: [
-      {'name': '_xlnm.Print_Area', 'sheet': 'S1', 'ref': r'Feuil1!$B$3:$D$10,Feuil1!$A$20:$B$22'},
-      {'name': '_xlnm.Print_Titles', 'sheet': 'S2', 'ref': r'Autre!$1:$2'},
-    ]);
+    final b = book(
+      120,
+      6,
+      names: [
+        {'name': '_xlnm.Print_Area', 'sheet': 'S1', 'ref': r'Feuil1!$B$3:$D$10,Feuil1!$A$20:$B$22'},
+        {'name': '_xlnm.Print_Titles', 'sheet': 'S2', 'ref': r'Autre!$1:$2'},
+      ],
+    );
     expect(cut(b), ['B3:D10', 'A20:B22']);
-    final titled = book(100, 3, names: [
-      {'name': '_xlnm.Print_Titles', 'sheet': 'S1', 'ref': r'Feuil1!$A:$A,Feuil1!$1:$2'},
-    ]);
+    final titled = book(
+      100,
+      3,
+      names: [
+        {'name': '_xlnm.Print_Titles', 'sheet': 'S1', 'ref': r'Feuil1!$A:$A,Feuil1!$1:$2'},
+      ],
+    );
     final pages = SheetPages(titled, titled.sheets.first).pages;
     expect([for (final p in pages) '${p.cells} ${p.titleRows} ${p.titleCols}'], ['A1:C48 null null', 'A49:C94 (1, 2) null', 'A95:C100 (1, 2) null']);
   });
@@ -81,7 +137,12 @@ void main() {
     expect(page.style!.fontWeight, FontWeight.bold);
     expect(red.style!.color, const Color(0xFFFF0000));
     expect(headerParts('Seul', info, base).map((p) => p?.toPlainText()), [null, 'Seul', null]);
-    const setup = PrintSetup({'head': 'h', 'foot': 'f', 'even': ['eh', 'ef'], 'firstPage': ['', 'ff']});
+    const setup = PrintSetup({
+      'head': 'h',
+      'foot': 'f',
+      'even': ['eh', 'ef'],
+      'firstPage': ['', 'ff'],
+    });
     expect(setup.headerFooter(1, first: true), ('', 'ff'));
     expect(setup.headerFooter(2, first: false), ('eh', 'ef'));
     expect(setup.headerFooter(3, first: false), ('h', 'f'));

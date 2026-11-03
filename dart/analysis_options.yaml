@@ -31,3 +31,6 @@ linter:
     - unnecessary_parenthesis
     - use_enums
     - use_string_buffers
+
+formatter:
+  page_width: 200

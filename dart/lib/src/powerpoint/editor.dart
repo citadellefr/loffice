@@ -258,9 +258,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
     final editor = FlowEditing(node.text!);
     final lvl = int.tryParse(editor.markAt(start)['lvl'] ?? '') ?? 0;
     final level = _levelOf(node, lvl);
-    final own = _selection.editing == node.id && _selection.collapsed
-        ? (_selection.typing ?? editor.typingAttributes(start))
-        : (editor.attributesAt(start) ?? const <String, String>{});
+    final own = _selection.editing == node.id && _selection.collapsed ? (_selection.typing ?? editor.typingAttributes(start)) : (editor.attributesAt(start) ?? const <String, String>{});
     return {
       for (final e in {...level, ...own}.entries)
         if (!paraKeys.contains(e.key)) e.key: e.value,
@@ -285,8 +283,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
       if (node == null) return;
       final editor = FlowEditing(node.text!);
       if (_selection.collapsed) {
-        _selection.typing = {...(_selection.typing ?? editor.typingAttributes(_selection.start)), ...attributes}
-          ..removeWhere((_, v) => v.isEmpty);
+        _selection.typing = {...(_selection.typing ?? editor.typingAttributes(_selection.start)), ...attributes}..removeWhere((_, v) => v.isEmpty);
         _repaint();
         return;
       }
@@ -294,10 +291,12 @@ class _PresentationEditorState extends State<PresentationEditor> {
       if (d != null) _edit(Edit([Change.text(node.id, d)]));
       return;
     }
-    _edit(Edit([
-      for (final n in _selectedShapes)
-        if (_hasText(n)) Change.text(n.id, FlowEditing(n.text!).formatRuns(0, n.text!.length, attributes)!),
-    ]));
+    _edit(
+      Edit([
+        for (final n in _selectedShapes)
+          if (_hasText(n)) Change.text(n.id, FlowEditing(n.text!).formatRuns(0, n.text!.length, attributes)!),
+      ]),
+    );
   }
 
   void _formatParagraphs(Attributes attributes) {
@@ -309,10 +308,12 @@ class _PresentationEditorState extends State<PresentationEditor> {
       }
       return;
     }
-    _edit(Edit([
-      for (final n in _selectedShapes)
-        if (_hasText(n)) Change.text(n.id, FlowEditing(n.text!).formatParagraphs(0, n.text!.length - 1, attributes)),
-    ]));
+    _edit(
+      Edit([
+        for (final n in _selectedShapes)
+          if (_hasText(n)) Change.text(n.id, FlowEditing(n.text!).formatParagraphs(0, n.text!.length - 1, attributes)),
+      ]),
+    );
   }
 
   void _toggle(String key, String on, String off) => _formatRuns({key: _runProps[key] == on ? off : on});
@@ -325,9 +326,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
 
   void _growFont(bool up) {
     final now = _size;
-    final next = up
-        ? _sizes.firstWhere((s) => s > now + 0.01, orElse: () => now + 12)
-        : _sizes.lastWhere((s) => s < now - 0.01, orElse: () => now > 1 ? now - 1 : now);
+    final next = up ? _sizes.firstWhere((s) => s > now + 0.01, orElse: () => now + 12) : _sizes.lastWhere((s) => s < now - 0.01, orElse: () => now > 1 ? now - 1 : now);
     _setSize(next.toDouble());
   }
 
@@ -343,17 +342,34 @@ class _PresentationEditorState extends State<PresentationEditor> {
           n,
     ];
     Map<String, Object?> line(Object? old) => color == null
-        ? {'fill': {'none': true}}
-        : {...?(old as Map<String, Object?>?), 'fill': {'solid': color}};
-    _edit(Edit([
-      for (final n in shapes)
-        if (key == 'fill')
-          Change.set(n.id, attributes: {'fill': color == null ? {'none': true} : {'solid': color}})
-        else if (n.type == 'tc')
-          Change.set(n.id, attributes: {for (final k in ['lnL', 'lnR', 'lnT', 'lnB']) k: line(n.attributes[k])})
-        else
-          Change.set(n.id, attributes: {'line': line(n.attributes['line'])}),
-    ]));
+        ? {
+            'fill': {'none': true},
+          }
+        : {
+            ...?(old as Map<String, Object?>?),
+            'fill': {'solid': color},
+          };
+    _edit(
+      Edit([
+        for (final n in shapes)
+          if (key == 'fill')
+            Change.set(
+              n.id,
+              attributes: {
+                'fill': color == null ? {'none': true} : {'solid': color},
+              },
+            )
+          else if (n.type == 'tc')
+            Change.set(
+              n.id,
+              attributes: {
+                for (final k in ['lnL', 'lnR', 'lnT', 'lnB']) k: line(n.attributes[k]),
+              },
+            )
+          else
+            Change.set(n.id, attributes: {'line': line(n.attributes['line'])}),
+      ]),
+    );
   }
 
   // slides and shapes
@@ -410,9 +426,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
 
   Node? get _defaultLayout {
     final layouts = _layouts;
-    return layouts.where((l) => l.attributes['type'] == 'obj').firstOrNull ??
-        (_slide == null ? null : _current.layoutOf(_slide!)) ??
-        layouts.firstOrNull;
+    return layouts.where((l) => l.attributes['type'] == 'obj').firstOrNull ?? (_slide == null ? null : _current.layoutOf(_slide!)) ?? layouts.firstOrNull;
   }
 
   void _newSlide([Node? layout]) {
@@ -443,7 +457,11 @@ class _PresentationEditorState extends State<PresentationEditor> {
   void _hideSlide() {
     final slide = _slide;
     if (slide == null) return;
-    _edit(Edit([Change.set(slide.id, attributes: {'hidden': slide.attributes['hidden'] == true ? null : true})]));
+    _edit(
+      Edit([
+        Change.set(slide.id, attributes: {'hidden': slide.attributes['hidden'] == true ? null : true}),
+      ]),
+    );
   }
 
   /// The number of the transition preview playing over the slide, 0 for
@@ -462,20 +480,37 @@ class _PresentationEditorState extends State<PresentationEditor> {
     if (slide == null) return;
     final t = {'dur': 500, ..._transition, ...changes}..removeWhere((_, v) => v == null);
     final keep = t.keys.any((k) => k != 'dur');
-    _edit(Edit([
-      for (final s in all ? _current.slides : [slide]) Change.set(s.id, attributes: {'transition': keep ? t : null}),
-    ]));
+    _edit(
+      Edit([
+        for (final s in all ? _current.slides : [slide]) Change.set(s.id, attributes: {'transition': keep ? t : null}),
+      ]),
+    );
   }
 
   /// The options of a transition effect, the first PowerPoint's default:
   /// how [LofficeStrings.effectOption] names them, and the keys they set.
   static List<(String, Map<String, Object?>)> _effectOptions(Object? effect) => switch (effect) {
-    'push' => [for (final d in ['u', 'l', 'r', 'd']) (d, {'dir': d})],
-    'wipe' => [for (final d in ['l', 'u', 'r', 'd']) (d, {'dir': d})],
-    'cover' || 'pull' => [for (final d in ['l', 'u', 'r', 'd', 'lu', 'ru', 'ld', 'rd']) (d, {'dir': d})],
-    'split' => [for (final o in ['vert', 'horz']) for (final d in ['out', 'in']) ('$o $d', {'orient': o, 'dir': d})],
-    'zoom' => [('in', {'dir': 'in'}), ('out', {'dir': 'out'})],
-    'fade' => [('smooth', {'thruBlk': null}), ('thruBlk', {'thruBlk': true})],
+    'push' => [
+      for (final d in ['u', 'l', 'r', 'd']) (d, {'dir': d}),
+    ],
+    'wipe' => [
+      for (final d in ['l', 'u', 'r', 'd']) (d, {'dir': d}),
+    ],
+    'cover' || 'pull' => [
+      for (final d in ['l', 'u', 'r', 'd', 'lu', 'ru', 'ld', 'rd']) (d, {'dir': d}),
+    ],
+    'split' => [
+      for (final o in ['vert', 'horz'])
+        for (final d in ['out', 'in']) ('$o $d', {'orient': o, 'dir': d}),
+    ],
+    'zoom' => [
+      ('in', {'dir': 'in'}),
+      ('out', {'dir': 'out'}),
+    ],
+    'fade' => [
+      ('smooth', {'thruBlk': null}),
+      ('thruBlk', {'thruBlk': true}),
+    ],
     _ => [],
   };
 
@@ -483,14 +518,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
 
   void _pickTransition(String effect) {
     final options = _effectOptions(effect);
-    _retransition({
-      'effect': effect.isEmpty ? null : effect,
-      'dir': null,
-      'orient': null,
-      'thruBlk': null,
-      'dur': _transitionDurations[effect] ?? 500,
-      if (options.isNotEmpty) ...options.first.$2,
-    });
+    _retransition({'effect': effect.isEmpty ? null : effect, 'dir': null, 'orient': null, 'thruBlk': null, 'dur': _transitionDurations[effect] ?? 500, if (options.isNotEmpty) ...options.first.$2});
     if (effect.isNotEmpty && effect != 'cut') _preview();
   }
 
@@ -548,7 +576,12 @@ class _PresentationEditorState extends State<PresentationEditor> {
   }
 
   /// The line the Borders menu draws.
-  var _pen = <String, Object?>{'w': 12700, 'fill': {'solid': {'rgb': '000000'}}};
+  var _pen = <String, Object?>{
+    'w': 12700,
+    'fill': {
+      'solid': {'rgb': '000000'},
+    },
+  };
 
   static const _penWeights = [3175, 6350, 9525, 12700, 19050, 28575, 38100, 57150, 76200];
 
@@ -578,23 +611,29 @@ class _PresentationEditorState extends State<PresentationEditor> {
   /// Sets the direction of the text; a placeholder is set horizontal
   /// explicitly, against what its layout may give it.
   void _setDirection(String vert) {
-    _edit(Edit([
-      for (final n in _textBoxes)
-        if (n.type == 'tc')
-          Change.set(n.id, attributes: {'vert': vert == 'horz' ? null : vert})
-        else
-          Change.set(n.id, attributes: {
-            'body': {
-              ...?(n.attributes['body'] as Map<String, Object?>?),
-              'vert': vert,
-            }..removeWhere((k, v) => k == 'vert' && v == 'horz' && n.attributes['ph'] == null),
-          }),
-    ]));
+    _edit(
+      Edit([
+        for (final n in _textBoxes)
+          if (n.type == 'tc')
+            Change.set(n.id, attributes: {'vert': vert == 'horz' ? null : vert})
+          else
+            Change.set(
+              n.id,
+              attributes: {
+                'body': {...?(n.attributes['body'] as Map<String, Object?>?), 'vert': vert}..removeWhere((k, v) => k == 'vert' && v == 'horz' && n.attributes['ph'] == null),
+              },
+            ),
+      ]),
+    );
   }
 
   /// Anchors the text of the cells selected, or of all the table's.
   void _anchorCells(String anchor) {
-    _edit(Edit([for (final c in _tableCells) Change.set(c.node.id, attributes: {'anchor': anchor})]));
+    _edit(
+      Edit([
+        for (final c in _tableCells) Change.set(c.node.id, attributes: {'anchor': anchor}),
+      ]),
+    );
   }
 
   void _merge() {
@@ -609,7 +648,10 @@ class _PresentationEditorState extends State<PresentationEditor> {
     final cell = _table?.$2;
     if (cell == null) return;
     if (cell.rowSpan > 1 || cell.colSpan > 1) return _tableEdit((e, c) => e.split(c!));
-    final size = await showDialog<(int, int)>(context: context, builder: (_) => _SplitDialog(strings: _s));
+    final size = await showDialog<(int, int)>(
+      context: context,
+      builder: (_) => _SplitDialog(strings: _s),
+    );
     if (size != null) _tableEdit((e, c) => e.splitInto(c!, size.$1, size.$2));
   }
 
@@ -655,7 +697,10 @@ class _PresentationEditorState extends State<PresentationEditor> {
     final edits = DeckEdits(_current);
     final changes = edits.copies(_clipboard, slide.id, shift: Offset(9.0 * _pastes, 9.0 * _pastes), last: true);
     if (_edit(Edit(changes))) {
-      _selection.selectShapes([for (final c in changes) if (c.parent == slide.id) c.id]);
+      _selection.selectShapes([
+        for (final c in changes)
+          if (c.parent == slide.id) c.id,
+      ]);
     }
   }
 
@@ -679,10 +724,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
     final slides = _current.slides;
     final start = fromCurrent ? slides.indexWhere((s) => s.id == _slide?.id) : 0;
     _selection.clear();
-    await Slideshow.show(
-      context,
-      Slideshow(deck: _current, painter: _paint, start: start < 0 ? 0 : start, strings: _s, images: _media, presenter: presenter),
-    );
+    await Slideshow.show(context, Slideshow(deck: _current, painter: _paint, start: start < 0 ? 0 : start, strings: _s, images: _media, presenter: presenter));
   }
 
   /// The keys of Office the editor answers wherever the focus is.
@@ -775,9 +817,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
     if (!_session.loaded || !OfficeFonts.settled) {
       final failure = _session.failure;
       return Center(
-        child: status == DocStatus.closed
-            ? _Failure(message: '$failure', retry: _s.retry, onRetry: _session.retry)
-            : const CircularProgressIndicator(),
+        child: status == DocStatus.closed ? _Failure(message: '$failure', retry: _s.retry, onRetry: _session.retry) : const CircularProgressIndicator(),
       );
     }
     final deck = _current;
@@ -789,40 +829,35 @@ class _PresentationEditorState extends State<PresentationEditor> {
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
       child: slide == null
           ? const SizedBox.expand()
-          : Stack(children: [
-              Positioned.fill(
-                child: SlideCanvas(
-                  session: _session,
-                  deck: deck,
-                  slide: slide,
-                  painter: _paint,
-                  selection: _selection,
-                  focusNode: _canvasFocus,
-                  strings: _s,
-                  onShortcut: _shortcut,
-                  comments: _commentsShown ? _threads : const [],
-                  activeComment: _activeComment,
-                  onComment: (id) => setState(() {
-                    _commentsShown = true;
-                    _activeComment = id;
-                  }),
-                  commands: widget.commands,
-                  onOpenLink: widget.onOpenLink,
-                  linkCard: widget.linkCard,
-                ),
-              ),
-              if (_previews > 0)
+          : Stack(
+              children: [
                 Positioned.fill(
-                  child: TransitionPreview(
-                    key: ValueKey(_previews),
+                  child: SlideCanvas(
+                    session: _session,
                     deck: deck,
-                    painter: _paint,
                     slide: slide,
-                    from: at > 0 ? slides[at - 1] : null,
-                    onDone: () => setState(() => _previews = 0),
+                    painter: _paint,
+                    selection: _selection,
+                    focusNode: _canvasFocus,
+                    strings: _s,
+                    onShortcut: _shortcut,
+                    comments: _commentsShown ? _threads : const [],
+                    activeComment: _activeComment,
+                    onComment: (id) => setState(() {
+                      _commentsShown = true;
+                      _activeComment = id;
+                    }),
+                    commands: widget.commands,
+                    onOpenLink: widget.onOpenLink,
+                    linkCard: widget.linkCard,
                   ),
                 ),
-            ]),
+                if (_previews > 0)
+                  Positioned.fill(
+                    child: TransitionPreview(key: ValueKey(_previews), deck: deck, painter: _paint, slide: slide, from: at > 0 ? slides[at - 1] : null, onDone: () => setState(() => _previews = 0)),
+                  ),
+              ],
+            ),
     );
     // a phone gives the slide its whole width, the thumbnails in a row below
     final phone = MediaQuery.sizeOf(context).width < phoneWidth;
@@ -859,10 +894,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
                               ],
                             ),
                           ),
-                          if (_commentsShown && slide != null) ...[
-                            const VerticalDivider(width: 1),
-                            SizedBox(width: 320, child: _commentsPane(slide)),
-                          ],
+                          if (_commentsShown && slide != null) ...[const VerticalDivider(width: 1), SizedBox(width: 320, child: _commentsPane(slide))],
                         ],
                       ),
               ),
@@ -881,21 +913,21 @@ class _PresentationEditorState extends State<PresentationEditor> {
       color: color,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        child: Row(children: [
-          Icon(icon, size: 18),
-          const SizedBox(width: 8),
-          Expanded(child: Text(text)),
-          if (action != null) TextButton(onPressed: action, child: Text(label!)),
-        ]),
+        child: Row(
+          children: [
+            Icon(icon, size: 18),
+            const SizedBox(width: 8),
+            Expanded(child: Text(text)),
+            if (action != null) TextButton(onPressed: action, child: Text(label!)),
+          ],
+        ),
       ),
     );
     final error = _session.saveError;
     return [
       if (error != null) banner(Icons.error_outline, _s.saveFailed(error), scheme.errorContainer),
-      if (_session.status == DocStatus.offline)
-        banner(Icons.cloud_off, _s.offline, scheme.tertiaryContainer, action: _session.retry, label: _s.retry),
-      if (_session.status == DocStatus.closed)
-        banner(Icons.block, '${_session.failure ?? ''}', scheme.errorContainer),
+      if (_session.status == DocStatus.offline) banner(Icons.cloud_off, _s.offline, scheme.tertiaryContainer, action: _session.retry, label: _s.retry),
+      if (_session.status == DocStatus.closed) banner(Icons.block, '${_session.failure ?? ''}', scheme.errorContainer),
       if (_session.readOnly) banner(Icons.visibility_outlined, _s.readOnly, scheme.secondaryContainer),
     ];
   }
@@ -908,11 +940,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
     final cell = editable ? table?.$2 : null;
     final cells = editable ? _cells : const <CellLayout>[];
     final options = table?.$1.attributes['tbl'] as Map<String, Object?>? ?? const {};
-    Widget option(String label, String key) => RibbonCheck(
-      label: label,
-      value: options[key] == true,
-      onChanged: editable ? (_) => _tableEdit((e, _) => e.toggle(key)) : null,
-    );
+    Widget option(String label, String key) => RibbonCheck(label: label, value: options[key] == true, onChanged: editable ? (_) => _tableEdit((e, _) => e.toggle(key)) : null);
     final run = _runProps;
     final para = _paraProps;
     final colors = _slide == null ? const <String, Color>{} : deck.themeOf(_slide!).colors;
@@ -926,23 +954,22 @@ class _PresentationEditorState extends State<PresentationEditor> {
         : f == '+mn-lt'
         ? '${theme?.typeface(f) ?? 'Calibri'} (Corps)'
         : f;
-    PopupMenuEntry<Map<String, Object?>?> palette(ValueChanged<Map<String, Object?>?> pick, {String? none}) =>
-        PopupMenuItem(
-          enabled: false,
-          padding: EdgeInsets.zero,
-          child: Builder(
-            builder: (context) => ColorPalette(
-              theme: colors,
-              themeLabel: _s.themeColors,
-              standardLabel: _s.standardColors,
-              noneLabel: none,
-              onSelected: (c) {
-                Navigator.of(context).pop();
-                pick(c);
-              },
-            ),
-          ),
-        );
+    PopupMenuEntry<Map<String, Object?>?> palette(ValueChanged<Map<String, Object?>?> pick, {String? none}) => PopupMenuItem(
+      enabled: false,
+      padding: EdgeInsets.zero,
+      child: Builder(
+        builder: (context) => ColorPalette(
+          theme: colors,
+          themeLabel: _s.themeColors,
+          standardLabel: _s.standardColors,
+          noneLabel: none,
+          onSelected: (c) {
+            Navigator.of(context).pop();
+            pick(c);
+          },
+        ),
+      ),
+    );
 
     Widget direction({bool large = false}) => RibbonMenu<String>(
       icon: const Icon(Icons.text_rotate_vertical),
@@ -950,8 +977,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
       large: large,
       enabled: editable && _textBoxes.isNotEmpty,
       items: [
-        for (final v in ['horz', 'vert', 'vert270'])
-          CheckedPopupMenuItem(value: v, checked: _direction == v, child: Text(_s.direction(v))),
+        for (final v in ['horz', 'vert', 'vert270']) CheckedPopupMenuItem(value: v, checked: _direction == v, child: Text(_s.direction(v))),
       ],
       onSelected: _setDirection,
     );
@@ -962,18 +988,8 @@ class _PresentationEditorState extends State<PresentationEditor> {
       onFile: () => setState(() => _backstage = true),
       leading: [
         if (!widget.hosted) ...[
-          IconButton(
-            tooltip: '${_s.undo} (Ctrl+Z)',
-            iconSize: 18,
-            onPressed: _session.canUndo ? () => setState(() => _session.undo()) : null,
-            icon: const Icon(Icons.undo),
-          ),
-          IconButton(
-            tooltip: '${_s.redo} (Ctrl+Y)',
-            iconSize: 18,
-            onPressed: _session.canRedo ? () => setState(() => _session.redo()) : null,
-            icon: const Icon(Icons.redo),
-          ),
+          IconButton(tooltip: '${_s.undo} (Ctrl+Z)', iconSize: 18, onPressed: _session.canUndo ? () => setState(() => _session.undo()) : null, icon: const Icon(Icons.undo)),
+          IconButton(tooltip: '${_s.redo} (Ctrl+Y)', iconSize: 18, onPressed: _session.canRedo ? () => setState(() => _session.redo()) : null, icon: const Icon(Icons.redo)),
         ],
       ],
       trailing: [
@@ -981,7 +997,10 @@ class _PresentationEditorState extends State<PresentationEditor> {
           for (final p in _session.peers.take(5))
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 2),
-              child: Tooltip(message: p.name, child: CircleAvatar(radius: 12, child: Text(p.name.isEmpty ? '?' : p.name.characters.first.toUpperCase(), style: const TextStyle(fontSize: 11)))),
+              child: Tooltip(
+                message: p.name,
+                child: CircleAvatar(radius: 12, child: Text(p.name.isEmpty ? '?' : p.name.characters.first.toUpperCase(), style: const TextStyle(fontSize: 11))),
+              ),
             ),
         const SizedBox(width: 8),
       ],
@@ -1006,75 +1025,99 @@ class _PresentationEditorState extends State<PresentationEditor> {
             RibbonButton(icon: const Icon(Icons.delete_outline), label: _s.deleteSlide, onPressed: editable ? _deleteSlide : null),
           ]),
           RibbonGroup(_s.font, [
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              RibbonDropdown(label: _s.font, value: run['font'] ?? '+mn-lt', values: fonts, display: fontName, onChanged: hasText ? (f) => _formatRuns({'font': f}) : null),
-              const SizedBox(width: 4),
-              RibbonDropdown(
-                label: _s.fontSize,
-                width: 56,
-                value: _size.toString().replaceAll(RegExp(r'\.0$'), ''),
-                values: [for (final s in _sizes) s.toString().replaceAll(RegExp(r'\.0$'), '')],
-                onChanged: hasText ? (v) => _setSize(double.parse(v)) : null,
-              ),
-              RibbonButton(icon: const Icon(Icons.text_increase), label: _s.growFont, shortcut: 'Ctrl+>', onPressed: hasText ? () => _growFont(true) : null),
-              RibbonButton(icon: const Icon(Icons.text_decrease), label: _s.shrinkFont, shortcut: 'Ctrl+<', onPressed: hasText ? () => _growFont(false) : null),
-            ]),
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              RibbonButton(icon: const Icon(Icons.format_bold), label: _s.bold, shortcut: 'Ctrl+G', selected: run['b'] == '1', onPressed: hasText ? () => _toggle('b', '1', '0') : null),
-              RibbonButton(icon: const Icon(Icons.format_italic), label: _s.italic, shortcut: 'Ctrl+I', selected: run['i'] == '1', onPressed: hasText ? () => _toggle('i', '1', '0') : null),
-              RibbonButton(icon: const Icon(Icons.format_underline), label: _s.underline, shortcut: 'Ctrl+U', selected: (run['u'] ?? 'none') != 'none', onPressed: hasText ? () => _toggle('u', 'sng', 'none') : null),
-              RibbonButton(icon: const Icon(Icons.format_strikethrough), label: _s.strikethrough, selected: (run['strike'] ?? 'noStrike') != 'noStrike', onPressed: hasText ? () => _toggle('strike', 'sngStrike', 'noStrike') : null),
-              RibbonMenu<Map<String, Object?>?>(
-                icon: const Icon(Icons.format_color_text),
-                label: _s.fontColor,
-                enabled: hasText,
-                items: [palette((c) => _formatRuns({'fill': c == null ? '' : jsonEncode({'solid': c})}), none: _s.automatic)],
-                onSelected: (_) {},
-              ),
-              RibbonMenu<Map<String, Object?>?>(
-                icon: const Icon(Icons.border_color),
-                label: _s.highlight,
-                enabled: hasText,
-                items: [palette((c) => _formatRuns({'hl': c == null ? '' : jsonEncode(c)}), none: _s.noFill)],
-                onSelected: (_) {},
-              ),
-            ]),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                RibbonDropdown(label: _s.font, value: run['font'] ?? '+mn-lt', values: fonts, display: fontName, onChanged: hasText ? (f) => _formatRuns({'font': f}) : null),
+                const SizedBox(width: 4),
+                RibbonDropdown(
+                  label: _s.fontSize,
+                  width: 56,
+                  value: _size.toString().replaceAll(RegExp(r'\.0$'), ''),
+                  values: [for (final s in _sizes) s.toString().replaceAll(RegExp(r'\.0$'), '')],
+                  onChanged: hasText ? (v) => _setSize(double.parse(v)) : null,
+                ),
+                RibbonButton(icon: const Icon(Icons.text_increase), label: _s.growFont, shortcut: 'Ctrl+>', onPressed: hasText ? () => _growFont(true) : null),
+                RibbonButton(icon: const Icon(Icons.text_decrease), label: _s.shrinkFont, shortcut: 'Ctrl+<', onPressed: hasText ? () => _growFont(false) : null),
+              ],
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                RibbonButton(icon: const Icon(Icons.format_bold), label: _s.bold, shortcut: 'Ctrl+G', selected: run['b'] == '1', onPressed: hasText ? () => _toggle('b', '1', '0') : null),
+                RibbonButton(icon: const Icon(Icons.format_italic), label: _s.italic, shortcut: 'Ctrl+I', selected: run['i'] == '1', onPressed: hasText ? () => _toggle('i', '1', '0') : null),
+                RibbonButton(
+                  icon: const Icon(Icons.format_underline),
+                  label: _s.underline,
+                  shortcut: 'Ctrl+U',
+                  selected: (run['u'] ?? 'none') != 'none',
+                  onPressed: hasText ? () => _toggle('u', 'sng', 'none') : null,
+                ),
+                RibbonButton(
+                  icon: const Icon(Icons.format_strikethrough),
+                  label: _s.strikethrough,
+                  selected: (run['strike'] ?? 'noStrike') != 'noStrike',
+                  onPressed: hasText ? () => _toggle('strike', 'sngStrike', 'noStrike') : null,
+                ),
+                RibbonMenu<Map<String, Object?>?>(
+                  icon: const Icon(Icons.format_color_text),
+                  label: _s.fontColor,
+                  enabled: hasText,
+                  items: [
+                    palette(
+                      (c) => _formatRuns({
+                        'fill': c == null ? '' : jsonEncode({'solid': c}),
+                      }),
+                      none: _s.automatic,
+                    ),
+                  ],
+                  onSelected: (_) {},
+                ),
+                RibbonMenu<Map<String, Object?>?>(
+                  icon: const Icon(Icons.border_color),
+                  label: _s.highlight,
+                  enabled: hasText,
+                  items: [
+                    palette((c) => _formatRuns({'hl': c == null ? '' : jsonEncode(c)}), none: _s.noFill),
+                  ],
+                  onSelected: (_) {},
+                ),
+              ],
+            ),
           ]),
           RibbonGroup(_s.paragraph, [
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              RibbonButton(
-                icon: const Icon(Icons.format_list_bulleted),
-                label: _s.bullets,
-                selected: (para['bu'] ?? '').startsWith('char:'),
-                onPressed: hasText ? () => _formatParagraphs({'bu': (para['bu'] ?? '').startsWith('char:') ? 'none' : 'char:•'}) : null,
-              ),
-              RibbonButton(
-                icon: const Icon(Icons.format_list_numbered),
-                label: _s.numbering,
-                selected: (para['bu'] ?? '').startsWith('auto:'),
-                onPressed: hasText ? () => _formatParagraphs({'bu': (para['bu'] ?? '').startsWith('auto:') ? 'none' : 'auto:arabicPeriod'}) : null,
-              ),
-              RibbonButton(
-                icon: const Icon(Icons.format_indent_decrease),
-                label: _s.decreaseLevel,
-                onPressed: hasText ? () => _level(-1) : null,
-              ),
-              RibbonButton(
-                icon: const Icon(Icons.format_indent_increase),
-                label: _s.increaseLevel,
-                onPressed: hasText ? () => _level(1) : null,
-              ),
-            ]),
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              for (final (algn, icon, label, key) in [
-                ('l', Icons.format_align_left, _s.alignLeft, 'Ctrl+L'),
-                ('ctr', Icons.format_align_center, _s.center, 'Ctrl+E'),
-                ('r', Icons.format_align_right, _s.alignRight, 'Ctrl+R'),
-                ('just', Icons.format_align_justify, _s.justify, 'Ctrl+J'),
-              ])
-                RibbonButton(icon: Icon(icon), label: label, shortcut: key, selected: (para['algn'] ?? 'l') == algn, onPressed: hasText ? () => _formatParagraphs({'algn': algn}) : null),
-              direction(),
-            ]),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                RibbonButton(
+                  icon: const Icon(Icons.format_list_bulleted),
+                  label: _s.bullets,
+                  selected: (para['bu'] ?? '').startsWith('char:'),
+                  onPressed: hasText ? () => _formatParagraphs({'bu': (para['bu'] ?? '').startsWith('char:') ? 'none' : 'char:•'}) : null,
+                ),
+                RibbonButton(
+                  icon: const Icon(Icons.format_list_numbered),
+                  label: _s.numbering,
+                  selected: (para['bu'] ?? '').startsWith('auto:'),
+                  onPressed: hasText ? () => _formatParagraphs({'bu': (para['bu'] ?? '').startsWith('auto:') ? 'none' : 'auto:arabicPeriod'}) : null,
+                ),
+                RibbonButton(icon: const Icon(Icons.format_indent_decrease), label: _s.decreaseLevel, onPressed: hasText ? () => _level(-1) : null),
+                RibbonButton(icon: const Icon(Icons.format_indent_increase), label: _s.increaseLevel, onPressed: hasText ? () => _level(1) : null),
+              ],
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final (algn, icon, label, key) in [
+                  ('l', Icons.format_align_left, _s.alignLeft, 'Ctrl+L'),
+                  ('ctr', Icons.format_align_center, _s.center, 'Ctrl+E'),
+                  ('r', Icons.format_align_right, _s.alignRight, 'Ctrl+R'),
+                  ('just', Icons.format_align_justify, _s.justify, 'Ctrl+J'),
+                ])
+                  RibbonButton(icon: Icon(icon), label: label, shortcut: key, selected: (para['algn'] ?? 'l') == algn, onPressed: hasText ? () => _formatParagraphs({'algn': algn}) : null),
+                direction(),
+              ],
+            ),
           ]),
           RibbonGroup(_s.drawing, [
             _shapesMenu(editable, large: true),
@@ -1120,38 +1163,41 @@ class _PresentationEditorState extends State<PresentationEditor> {
               items: [
                 PopupMenuItem(
                   enabled: false,
-                  child: Builder(builder: (context) => TableSizeGrid(
-                    strings: _s,
-                    onSelected: (cols, rows) {
-                      Navigator.of(context).pop();
-                      _insertTable(rows, cols);
-                    },
-                  )),
+                  child: Builder(
+                    builder: (context) => TableSizeGrid(
+                      strings: _s,
+                      onSelected: (cols, rows) {
+                        Navigator.of(context).pop();
+                        _insertTable(rows, cols);
+                      },
+                    ),
+                  ),
                 ),
               ],
               onSelected: (_) {},
             ),
           ]),
-          RibbonGroup(_s.drawing, [
-            _shapesMenu(editable, large: true),
-            RibbonButton(icon: const Icon(Icons.text_fields), label: _s.textBox, large: true, onPressed: editable ? _insertTextBox : null),
-          ]),
+          RibbonGroup(_s.drawing, [_shapesMenu(editable, large: true), RibbonButton(icon: const Icon(Icons.text_fields), label: _s.textBox, large: true, onPressed: editable ? _insertTextBox : null)]),
         ]),
         if (table != null)
           RibbonTab(_s.tableDesign, [
             RibbonGroup(_s.tableStyleOptions, [
-              Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  option(_s.headerRow, 'firstRow'),
-                  option(_s.totalRow, 'lastRow'),
-                  option(_s.bandedRows, 'bandRow'),
-                ]),
-                Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  option(_s.firstColumn, 'firstCol'),
-                  option(_s.lastColumn, 'lastCol'),
-                  option(_s.bandedColumns, 'bandCol'),
-                ]),
-              ]),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [option(_s.headerRow, 'firstRow'), option(_s.totalRow, 'lastRow'), option(_s.bandedRows, 'bandRow')],
+                  ),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [option(_s.firstColumn, 'firstCol'), option(_s.lastColumn, 'lastCol'), option(_s.bandedColumns, 'bandCol')],
+                  ),
+                ],
+              ),
             ]),
             RibbonGroup(_s.tableStyles, [
               RibbonMenu<String>(
@@ -1163,15 +1209,17 @@ class _PresentationEditorState extends State<PresentationEditor> {
                 items: [
                   PopupMenuItem(
                     enabled: false,
-                    child: Builder(builder: (context) => TableStyleGallery(
-                      deck: deck,
-                      table: table.$1,
-                      strings: _s,
-                      onSelected: (id) {
-                        Navigator.of(context).pop();
-                        _tableEdit((e, _) => e.restyle(id));
-                      },
-                    )),
+                    child: Builder(
+                      builder: (context) => TableStyleGallery(
+                        deck: deck,
+                        table: table.$1,
+                        strings: _s,
+                        onSelected: (id) {
+                          Navigator.of(context).pop();
+                          _tableEdit((e, _) => e.restyle(id));
+                        },
+                      ),
+                    ),
                   ),
                 ],
                 onSelected: (_) {},
@@ -1204,17 +1252,25 @@ class _PresentationEditorState extends State<PresentationEditor> {
                 icon: const Icon(Icons.line_weight),
                 label: _s.penWeight,
                 enabled: editable,
-                items: [
-                  for (final w in _penWeights)
-                    CheckedPopupMenuItem(value: w, checked: _pen['w'] == w, child: Text('${_points(w)} pt')),
-                ],
+                items: [for (final w in _penWeights) CheckedPopupMenuItem(value: w, checked: _pen['w'] == w, child: Text('${_points(w)} pt'))],
                 onSelected: (w) => setState(() => _pen = {..._pen, 'w': w}),
               ),
               RibbonMenu<Map<String, Object?>?>(
                 icon: const Icon(Icons.border_color),
                 label: _s.penColor,
                 enabled: editable,
-                items: [palette((c) => setState(() => _pen = {..._pen, 'fill': {'solid': c ?? {'rgb': '000000'}}}))],
+                items: [
+                  palette(
+                    (c) => setState(
+                      () => _pen = {
+                        ..._pen,
+                        'fill': {
+                          'solid': c ?? {'rgb': '000000'},
+                        },
+                      },
+                    ),
+                  ),
+                ],
                 onSelected: (_) {},
               ),
             ]),
@@ -1228,17 +1284,16 @@ class _PresentationEditorState extends State<PresentationEditor> {
                 large: true,
                 enabled: editable,
                 items: [
-                  if (cell != null) ...[
-                    PopupMenuItem(value: 'row', child: Text(_s.deleteRow)),
-                    PopupMenuItem(value: 'column', child: Text(_s.deleteColumn)),
-                  ],
+                  if (cell != null) ...[PopupMenuItem(value: 'row', child: Text(_s.deleteRow)), PopupMenuItem(value: 'column', child: Text(_s.deleteColumn))],
                   PopupMenuItem(value: 'table', child: Text(_s.deleteTable)),
                 ],
-                onSelected: (what) => _tableEdit((e, c) => switch (what) {
-                  'row' => e.deleteRow(c!.row),
-                  'column' => e.deleteColumn(c!.col),
-                  _ => e.deleteTable(),
-                }),
+                onSelected: (what) => _tableEdit(
+                  (e, c) => switch (what) {
+                    'row' => e.deleteRow(c!.row),
+                    'column' => e.deleteColumn(c!.col),
+                    _ => e.deleteTable(),
+                  },
+                ),
               ),
               RibbonButton(icon: const Icon(Icons.border_top), label: _s.insertAbove, large: true, onPressed: cell == null ? null : () => _tableEdit((e, c) => e.insertRow(c!.row))),
               RibbonButton(icon: const Icon(Icons.border_bottom), label: _s.insertBelow, large: true, onPressed: cell == null ? null : () => _tableEdit((e, c) => e.insertRow(c!.row + c.rowSpan))),
@@ -1246,27 +1301,24 @@ class _PresentationEditorState extends State<PresentationEditor> {
               RibbonButton(icon: const Icon(Icons.border_right), label: _s.insertRight, large: true, onPressed: cell == null ? null : () => _tableEdit((e, c) => e.insertColumn(c!.col + c.colSpan))),
             ]),
             RibbonGroup(_s.alignment, [
-              Row(mainAxisSize: MainAxisSize.min, children: [
-                for (final (algn, icon, label) in [
-                  ('l', Icons.format_align_left, _s.alignLeft),
-                  ('ctr', Icons.format_align_center, _s.center),
-                  ('r', Icons.format_align_right, _s.alignRight),
-                ])
-                  RibbonButton(icon: Icon(icon), label: label, selected: (para['algn'] ?? 'l') == algn, onPressed: hasText ? () => _formatParagraphs({'algn': algn}) : null),
-              ]),
-              Row(mainAxisSize: MainAxisSize.min, children: [
-                for (final (anchor, icon, label) in [
-                  ('t', Icons.vertical_align_top, _s.alignTop),
-                  ('ctr', Icons.vertical_align_center, _s.centerVertically),
-                  ('b', Icons.vertical_align_bottom, _s.alignBottom),
-                ])
-                  RibbonButton(
-                    icon: Icon(icon),
-                    label: label,
-                    selected: (table.$2?.node.attributes['anchor'] ?? 't') == anchor,
-                    onPressed: editable ? () => _anchorCells(anchor) : null,
-                  ),
-              ]),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final (algn, icon, label) in [('l', Icons.format_align_left, _s.alignLeft), ('ctr', Icons.format_align_center, _s.center), ('r', Icons.format_align_right, _s.alignRight)])
+                    RibbonButton(icon: Icon(icon), label: label, selected: (para['algn'] ?? 'l') == algn, onPressed: hasText ? () => _formatParagraphs({'algn': algn}) : null),
+                ],
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final (anchor, icon, label) in [
+                    ('t', Icons.vertical_align_top, _s.alignTop),
+                    ('ctr', Icons.vertical_align_center, _s.centerVertically),
+                    ('b', Icons.vertical_align_bottom, _s.alignBottom),
+                  ])
+                    RibbonButton(icon: Icon(icon), label: label, selected: (table.$2?.node.attributes['anchor'] ?? 't') == anchor, onPressed: editable ? () => _anchorCells(anchor) : null),
+                ],
+              ),
               direction(large: true),
             ]),
             RibbonGroup(_s.cellSize, [
@@ -1285,18 +1337,11 @@ class _PresentationEditorState extends State<PresentationEditor> {
             ]),
             RibbonGroup(_s.merge, [
               RibbonButton(icon: const Icon(Icons.call_merge), label: _s.mergeCells, large: true, onPressed: cells.length > 1 ? _merge : null),
-              RibbonButton(
-                icon: const Icon(Icons.call_split),
-                label: _s.splitCells,
-                large: true,
-                onPressed: cells.length == 1 ? _splitCells : null,
-              ),
+              RibbonButton(icon: const Icon(Icons.call_split), label: _s.splitCells, large: true, onPressed: cells.length == 1 ? _splitCells : null),
             ]),
           ]),
         RibbonTab(_s.transitions, [
-          RibbonGroup(_s.preview, [
-            RibbonButton(icon: const Icon(Icons.play_circle_outline), label: _s.preview, large: true, onPressed: _transition['effect'] != null ? _preview : null),
-          ]),
+          RibbonGroup(_s.preview, [RibbonButton(icon: const Icon(Icons.play_circle_outline), label: _s.preview, large: true, onPressed: _transition['effect'] != null ? _preview : null)]),
           RibbonGroup(_s.transitionToThisSlide, [
             for (final (effect, icon) in [
               ('', Icons.block),
@@ -1323,11 +1368,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
               enabled: editable && _effectOptions(_transition['effect']).isNotEmpty,
               items: [
                 for (final (name, keys) in _effectOptions(_transition['effect']))
-                  CheckedPopupMenuItem(
-                    value: keys,
-                    checked: keys.entries.every((e) => _transition[e.key] == e.value),
-                    child: Text(_s.effectOption(name)),
-                  ),
+                  CheckedPopupMenuItem(value: keys, checked: keys.entries.every((e) => _transition[e.key] == e.value), child: Text(_s.effectOption(name))),
               ],
               onSelected: (keys) {
                 _retransition(keys);
@@ -1345,56 +1386,34 @@ class _PresentationEditorState extends State<PresentationEditor> {
               value: (_transition['dur'] as num?)?.toDouble(),
               onChanged: editable && _transition['effect'] != null ? (ms) => _retransition({'dur': ms.round()}) : null,
             ),
-            RibbonCheck(
-              label: _s.onMouseClick,
-              value: _transition['noClick'] != true,
-              onChanged: editable && _slide != null ? (click) => _retransition({'noClick': click ? null : true}) : null,
+            RibbonCheck(label: _s.onMouseClick, value: _transition['noClick'] != true, onChanged: editable && _slide != null ? (click) => _retransition({'noClick': click ? null : true}) : null),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                RibbonCheck(label: _s.advanceAfter, value: _transition['after'] != null, onChanged: editable && _slide != null ? (after) => _retransition({'after': after ? 0 : null}) : null),
+                RibbonMeasure(
+                  label: _s.advanceAfter,
+                  icon: Icons.schedule,
+                  unit: 's',
+                  scale: 1000,
+                  value: (_transition['after'] as num?)?.toDouble() ?? 0,
+                  onChanged: editable && _slide != null ? (ms) => _retransition({'after': ms.round()}) : null,
+                ),
+              ],
             ),
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              RibbonCheck(
-                label: _s.advanceAfter,
-                value: _transition['after'] != null,
-                onChanged: editable && _slide != null ? (after) => _retransition({'after': after ? 0 : null}) : null,
-              ),
-              RibbonMeasure(
-                label: _s.advanceAfter,
-                icon: Icons.schedule,
-                unit: 's',
-                scale: 1000,
-                value: (_transition['after'] as num?)?.toDouble() ?? 0,
-                onChanged: editable && _slide != null ? (ms) => _retransition({'after': ms.round()}) : null,
-              ),
-            ]),
           ]),
         ]),
         RibbonTab(_s.slideShow, [
           RibbonGroup(_s.startSlideShow, [
             RibbonButton(icon: const Icon(Icons.slideshow), label: _s.fromBeginning, large: true, shortcut: 'F5', onPressed: _slideshow),
             RibbonButton(icon: const Icon(Icons.play_arrow), label: _s.fromCurrentSlide, large: true, shortcut: 'Maj+F5', onPressed: () => _slideshow(fromCurrent: true)),
-            RibbonButton(
-              icon: const Icon(Icons.co_present_outlined),
-              label: _s.presenterView,
-              large: true,
-              shortcut: 'Alt+F5',
-              onPressed: () => _slideshow(fromCurrent: true, presenter: true),
-            ),
-            RibbonButton(
-              icon: const Icon(Icons.visibility_off_outlined),
-              label: _s.hideSlide,
-              large: true,
-              selected: _slide?.attributes['hidden'] == true,
-              onPressed: editable ? _hideSlide : null,
-            ),
+            RibbonButton(icon: const Icon(Icons.co_present_outlined), label: _s.presenterView, large: true, shortcut: 'Alt+F5', onPressed: () => _slideshow(fromCurrent: true, presenter: true)),
+            RibbonButton(icon: const Icon(Icons.visibility_off_outlined), label: _s.hideSlide, large: true, selected: _slide?.attributes['hidden'] == true, onPressed: editable ? _hideSlide : null),
           ]),
         ]),
         RibbonTab(_s.review, [
           RibbonGroup(_s.comments, [
-            RibbonButton(
-              icon: const Icon(Icons.add_comment_outlined),
-              label: _s.newComment,
-              large: true,
-              onPressed: editable && _session.name.isNotEmpty && _slide != null ? _newComment : null,
-            ),
+            RibbonButton(icon: const Icon(Icons.add_comment_outlined), label: _s.newComment, large: true, onPressed: editable && _session.name.isNotEmpty && _slide != null ? _newComment : null),
             RibbonButton(
               icon: const Icon(Icons.forum_outlined),
               label: _s.showComments,
@@ -1412,9 +1431,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
             RibbonButton(icon: const Icon(Icons.view_sidebar_outlined), label: _s.normal, large: true, selected: !_sorter, onPressed: () => setState(() => _sorter = false)),
             RibbonButton(icon: const Icon(Icons.grid_view), label: _s.slideSorter, large: true, selected: _sorter, onPressed: () => setState(() => _sorter = true)),
           ]),
-          RibbonGroup(_s.show, [
-            RibbonButton(icon: const Icon(Icons.notes), label: _s.notes, large: true, selected: _notes, onPressed: () => setState(() => _notes = !_notes)),
-          ]),
+          RibbonGroup(_s.show, [RibbonButton(icon: const Icon(Icons.notes), label: _s.notes, large: true, selected: _notes, onPressed: () => setState(() => _notes = !_notes))]),
         ]),
       ],
     );
@@ -1445,19 +1462,21 @@ class _PresentationEditorState extends State<PresentationEditor> {
         child: Builder(
           builder: (context) => SizedBox(
             width: 8 * 34,
-            child: Wrap(children: [
-              for (final p in _presets)
-                InkWell(
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    _insertShape(p);
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.all(5),
-                    child: CustomPaint(size: const Size(24, 24), painter: _PresetIcon(p, Theme.of(context).colorScheme.onSurface)),
+            child: Wrap(
+              children: [
+                for (final p in _presets)
+                  InkWell(
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      _insertShape(p);
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.all(5),
+                      child: CustomPaint(size: const Size(24, 24), painter: _PresetIcon(p, Theme.of(context).colorScheme.onSurface)),
+                    ),
                   ),
-                ),
-            ]),
+              ],
+            ),
           ),
         ),
       ),
@@ -1469,20 +1488,15 @@ class _PresentationEditorState extends State<PresentationEditor> {
     final notes = _session.document['${slide.id}-notes'];
     return Container(
       height: 110,
-      decoration: BoxDecoration(border: Border(top: BorderSide(color: Theme.of(context).dividerColor))),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
+      ),
       child: notes == null
           ? Padding(
               padding: const EdgeInsets.all(16),
               child: Text(_s.notesPrompt, style: TextStyle(color: Theme.of(context).hintColor)),
             )
-          : PlainTextEditor(
-              key: ValueKey(notes.id),
-              session: _session,
-              node: notes.id,
-              style: const TextStyle(fontSize: 13),
-              commands: widget.commands,
-              strings: _s,
-            ),
+          : PlainTextEditor(key: ValueKey(notes.id), session: _session, node: notes.id, style: const TextStyle(fontSize: 13), commands: widget.commands, strings: _s),
     );
   }
 
@@ -1502,25 +1516,26 @@ class _PresentationEditorState extends State<PresentationEditor> {
       color: Theme.of(context).colorScheme.surfaceContainer,
       child: SizedBox(
         height: 26,
-        child: Row(children: [
-          const SizedBox(width: 12),
-          Text(slides.isEmpty ? '' : _s.slideOf(i + 1, slides.length), style: style),
-          const SizedBox(width: 16),
-          if (!phone) ...[Text(_s.language, style: style), const SizedBox(width: 16)],
-          Icon(
-            _session.saveError != null ? Icons.error_outline : (_session.saved ? Icons.cloud_done_outlined : Icons.cloud_upload_outlined),
-            size: 14,
-          ),
-          const SizedBox(width: 4),
-          Expanded(child: Text(state, style: style, overflow: TextOverflow.ellipsis)),
-          if (!phone) ...[
-            IconButton(iconSize: 16, tooltip: _s.notes, onPressed: () => setState(() => _notes = !_notes), icon: const Icon(Icons.notes)),
-            IconButton(iconSize: 16, tooltip: _s.normal, onPressed: () => setState(() => _sorter = false), icon: const Icon(Icons.view_sidebar_outlined)),
-            IconButton(iconSize: 16, tooltip: _s.slideSorter, onPressed: () => setState(() => _sorter = true), icon: const Icon(Icons.grid_view)),
+        child: Row(
+          children: [
+            const SizedBox(width: 12),
+            Text(slides.isEmpty ? '' : _s.slideOf(i + 1, slides.length), style: style),
+            const SizedBox(width: 16),
+            if (!phone) ...[Text(_s.language, style: style), const SizedBox(width: 16)],
+            Icon(_session.saveError != null ? Icons.error_outline : (_session.saved ? Icons.cloud_done_outlined : Icons.cloud_upload_outlined), size: 14),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(state, style: style, overflow: TextOverflow.ellipsis),
+            ),
+            if (!phone) ...[
+              IconButton(iconSize: 16, tooltip: _s.notes, onPressed: () => setState(() => _notes = !_notes), icon: const Icon(Icons.notes)),
+              IconButton(iconSize: 16, tooltip: _s.normal, onPressed: () => setState(() => _sorter = false), icon: const Icon(Icons.view_sidebar_outlined)),
+              IconButton(iconSize: 16, tooltip: _s.slideSorter, onPressed: () => setState(() => _sorter = true), icon: const Icon(Icons.grid_view)),
+            ],
+            IconButton(iconSize: 16, tooltip: _s.startSlideShow, onPressed: () => _slideshow(fromCurrent: true), icon: const Icon(Icons.slideshow)),
+            const SizedBox(width: 8),
           ],
-          IconButton(iconSize: 16, tooltip: _s.startSlideShow, onPressed: () => _slideshow(fromCurrent: true), icon: const Icon(Icons.slideshow)),
-          const SizedBox(width: 8),
-        ]),
+        ),
       ),
     );
   }
@@ -1571,7 +1586,11 @@ class _Thumbnail extends StatelessWidget {
         children: [
           SizedBox(
             width: 22,
-            child: Text('$number', textAlign: TextAlign.right, style: TextStyle(fontSize: 11, decoration: hidden ? TextDecoration.lineThrough : null)),
+            child: Text(
+              '$number',
+              textAlign: TextAlign.right,
+              style: TextStyle(fontSize: 11, decoration: hidden ? TextDecoration.lineThrough : null),
+            ),
           ),
           const SizedBox(width: 4),
           Expanded(
@@ -1731,8 +1750,7 @@ class _Backstage extends StatelessWidget {
                         title: Text(editor._exporting ? s.exporting : s.exportPdf),
                         onTap: editor._exporting ? null : editor._exportPdf,
                       ),
-                    if (editor.widget.onClose != null)
-                      ListTile(leading: const Icon(Icons.close), title: Text(s.close), onTap: editor.widget.onClose),
+                    if (editor.widget.onClose != null) ListTile(leading: const Icon(Icons.close), title: Text(s.close), onTap: editor.widget.onClose),
                   ],
                 ),
               ),
@@ -1797,10 +1815,7 @@ class _SplitDialogState extends State<_SplitDialog> {
     );
     return AlertDialog(
       title: Text(s.splitCells),
-      content: Column(mainAxisSize: MainAxisSize.min, children: [
-        field(_columns, s.numberOfColumns),
-        field(_rows, s.numberOfRows),
-      ]),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [field(_columns, s.numberOfColumns), field(_rows, s.numberOfRows)]),
       actions: [
         TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(s.cancel)),
         FilledButton(onPressed: _done, child: Text(s.ok)),

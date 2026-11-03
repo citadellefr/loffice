@@ -250,13 +250,20 @@ class TableLayout {
         'tl2br' => (r.topLeft, r.bottomRight),
         _ => (r.bottomLeft, r.topRight),
       };
-      DrawingPainter(colors).line(canvas, Path()
-        ..moveTo(from.dx, from.dy)
-        ..lineTo(to.dx, to.dy), line);
+      DrawingPainter(colors).line(
+        canvas,
+        Path()
+          ..moveTo(from.dx, from.dy)
+          ..lineTo(to.dx, to.dy),
+        line,
+      );
     }
   }
 
-  static List<Node> _rows(Tree tree, Node table) => [for (final n in tree.children(table.id)) if (n.type == 'tr') n];
+  static List<Node> _rows(Tree tree, Node table) => [
+    for (final n in tree.children(table.id))
+      if (n.type == 'tr') n,
+  ];
 
   /// The text of a cell laid out in [size]; to [measure] the height it
   /// needs, vertical text is laid out on one line.

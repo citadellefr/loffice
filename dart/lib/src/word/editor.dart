@@ -178,7 +178,10 @@ class _WordEditorState extends State<WordEditor> {
     if (_laid != tree || _layout == null) {
       final doc = WordDocument(tree, previous: _doc);
       _doc = doc;
-      _context = WordContext(doc, fonts: Fonts(theme: doc.typeface, package: widget.fonts));
+      _context = WordContext(
+        doc,
+        fonts: Fonts(theme: doc.typeface, package: widget.fonts),
+      );
       _layout = WordLayout(doc, _context!, _cache);
       _laid = tree;
       _threads = null;
@@ -225,9 +228,7 @@ class _WordEditorState extends State<WordEditor> {
     if (flow == null) return const {};
     final editing = wordEditing(flow);
     final mark = editing.markAt(_selection.start);
-    final own = _selection.collapsed
-        ? (_selection.typing ?? editing.typingAttributes(_selection.start))
-        : (editing.attributesAt(_selection.start) ?? const <String, String>{});
+    final own = _selection.collapsed ? (_selection.typing ?? editing.typingAttributes(_selection.start)) : (editing.attributesAt(_selection.start) ?? const <String, String>{});
     return _document.run(_document.paragraphRun(mark), own);
   }
 
@@ -237,16 +238,17 @@ class _WordEditorState extends State<WordEditor> {
     final flow = _flow;
     if (flow == null) return;
     if (_selection.spans) {
-      _edit(Edit([
-        for (final (node, a, b) in _ranges)
-          if (wordEditing(node).formatRuns(a, b, attributes) case final d?) Change.text(node.id, d),
-      ]));
+      _edit(
+        Edit([
+          for (final (node, a, b) in _ranges)
+            if (wordEditing(node).formatRuns(a, b, attributes) case final d?) Change.text(node.id, d),
+        ]),
+      );
       return;
     }
     final editing = wordEditing(flow);
     if (_selection.collapsed) {
-      _selection.typing = {...(_selection.typing ?? editing.typingAttributes(_selection.start)), ...attributes}
-        ..removeWhere((_, v) => v.isEmpty);
+      _selection.typing = {...(_selection.typing ?? editing.typingAttributes(_selection.start)), ...attributes}..removeWhere((_, v) => v.isEmpty);
       _repaint();
       return;
     }
@@ -288,9 +290,7 @@ class _WordEditorState extends State<WordEditor> {
 
   void _growFont(bool up) {
     final now = _size;
-    final next = up
-        ? _sizes.firstWhere((s) => s > now + 0.01, orElse: () => now + 12)
-        : _sizes.lastWhere((s) => s < now - 0.01, orElse: () => now > 1 ? now - 1 : now);
+    final next = up ? _sizes.firstWhere((s) => s > now + 0.01, orElse: () => now + 12) : _sizes.lastWhere((s) => s < now - 0.01, orElse: () => now > 1 ? now - 1 : now);
     _setSize(next.toDouble());
   }
 
@@ -322,10 +322,12 @@ class _WordEditorState extends State<WordEditor> {
       _formatParagraphs({'num': fromStyle ? '0' : '', 'lvl': ''});
       return;
     }
-    final existing = _document.numbering.entries.where((e) {
-      final first = e.value.levels.firstOrNull;
-      return first != null && (first.format == 'bullet') == (kind == 'bullet') && (kind == 'bullet' || first.format == 'decimal');
-    }).map((e) => e.key);
+    final existing = _document.numbering.entries
+        .where((e) {
+          final first = e.value.levels.firstOrNull;
+          return first != null && (first.format == 'bullet') == (kind == 'bullet') && (kind == 'bullet' || first.format == 'decimal');
+        })
+        .map((e) => e.key);
     final num = existing.firstOrNull ?? kind;
     _formatParagraphs({'num': num, 'lvl': '0'});
   }
@@ -412,10 +414,7 @@ class _WordEditorState extends State<WordEditor> {
     }
     final kind = footer ? 'ftr' : 'hdr';
     final style = footer ? 'Footer' : 'Header';
-    final mark = <String, String>{
-      if (_document.styles.containsKey(style)) 'pstyle': style,
-      if (pageNumber) 'jc': 'center',
-    };
+    final mark = <String, String>{if (_document.styles.containsKey(style)) 'pstyle': style, if (pageNumber) 'jc': 'center'};
     final text = Delta();
     if (pageNumber) text.insert('1', {'field': 'PAGE'});
     text.insert('\n', mark.isEmpty ? null : mark);
@@ -424,7 +423,17 @@ class _WordEditorState extends State<WordEditor> {
       final last = flowsOf(_session.document, existing).lastOrNull;
       if (last == null) return;
       final at = last.text!.length - 1;
-      _edit(Edit([Change.text(last.id, Delta()..retain(at)..insert('\n', WordEdits.paragraphLike(wordEditing(last).markAt(at)))..insert('1', {'field': 'PAGE'}))]));
+      _edit(
+        Edit([
+          Change.text(
+            last.id,
+            Delta()
+              ..retain(at)
+              ..insert('\n', WordEdits.paragraphLike(wordEditing(last).markAt(at)))
+              ..insert('1', {'field': 'PAGE'}),
+          ),
+        ]),
+      );
       return;
     }
     final id = randomId();
@@ -483,19 +492,22 @@ class _WordEditorState extends State<WordEditor> {
 
   // page layout
 
-  void _margins(int top, int right, int bottom, int left) =>
-      _edit(WordEdits(_document).pageSetup((s) => {...s, 'top': top, 'right': right, 'bottom': bottom, 'left': left}));
+  void _margins(int top, int right, int bottom, int left) => _edit(WordEdits(_document).pageSetup((s) => {...s, 'top': top, 'right': right, 'bottom': bottom, 'left': left}));
 
-  void _orientation(bool landscape) => _edit(WordEdits(_document).pageSetup((s) {
-    final w = (s['w'] as num?) ?? 12240, h = (s['h'] as num?) ?? 15840;
-    final long = w > h ? w : h, short = w > h ? h : w;
-    return {...s, 'w': landscape ? long : short, 'h': landscape ? short : long, 'orient': landscape ? 'landscape' : 'portrait'};
-  }));
+  void _orientation(bool landscape) => _edit(
+    WordEdits(_document).pageSetup((s) {
+      final w = (s['w'] as num?) ?? 12240, h = (s['h'] as num?) ?? 15840;
+      final long = w > h ? w : h, short = w > h ? h : w;
+      return {...s, 'w': landscape ? long : short, 'h': landscape ? short : long, 'orient': landscape ? 'landscape' : 'portrait'};
+    }),
+  );
 
-  void _paperSize(int w, int h) => _edit(WordEdits(_document).pageSetup((s) {
-    final landscape = s['orient'] == 'landscape';
-    return {...s, 'w': landscape ? h : w, 'h': landscape ? w : h};
-  }));
+  void _paperSize(int w, int h) => _edit(
+    WordEdits(_document).pageSetup((s) {
+      final landscape = s['orient'] == 'landscape';
+      return {...s, 'w': landscape ? h : w, 'h': landscape ? w : h};
+    }),
+  );
 
   void _columns(int n) => _edit(WordEdits(_document).pageSetup((s) => {...s, 'cols': n, 'colSpace': s['colSpace'] ?? 720}));
 
@@ -603,11 +615,7 @@ class _WordEditorState extends State<WordEditor> {
     return _threads!;
   }
 
-  CommentAuthor get _author => (
-    name: _session.name,
-    date: DateTime.now(),
-    style: _document.styles.containsKey('CommentText') ? 'CommentText' : null,
-  );
+  CommentAuthor get _author => (name: _session.name, date: DateTime.now(), style: _document.styles.containsKey('CommentText') ? 'CommentText' : null);
 
   /// The thread whose range holds the caret, the innermost.
   String? _threadAt(String flow, int offset) {
@@ -761,8 +769,7 @@ class _WordEditorState extends State<WordEditor> {
   // searching
 
   /// What the search finds in the body, in reading order.
-  List<(Node, int, int)> get _matches =>
-      _finding ? findIn(flowsOf(_session.document), _find.text, matchCase: _matchCase) : const [];
+  List<(Node, int, int)> get _matches => _finding ? findIn(flowsOf(_session.document), _find.text, matchCase: _matchCase) : const [];
 
   // tracked changes
 
@@ -778,7 +785,11 @@ class _WordEditorState extends State<WordEditor> {
     return author == null ? edit : trackEdit(_session.document, edit, author, revisionDate(DateTime.now()));
   }
 
-  void _toggleTracking() => _edit(Edit([Change.set('doc', attributes: {'track': !_tracking})]));
+  void _toggleTracking() => _edit(
+    Edit([
+      Change.set('doc', attributes: {'track': !_tracking}),
+    ]),
+  );
 
   List<WordRevision> get _revisions {
     _current;
@@ -806,10 +817,12 @@ class _WordEditorState extends State<WordEditor> {
         : !_selection.collapsed
         ? _selection.ranges(tree, flows)
         : [if (flow != null) (flow, r!.start, r.end)];
-    _edit(Edit([
-      ...settle(ranges, accept: accept).changes,
-      if (stop && _tracking) Change.set('doc', attributes: {'track': false}),
-    ]));
+    _edit(
+      Edit([
+        ...settle(ranges, accept: accept).changes,
+        if (stop && _tracking) Change.set('doc', attributes: {'track': false}),
+      ]),
+    );
     if (next) _stepRevision(1);
     _focus.requestFocus();
   }
@@ -838,8 +851,7 @@ class _WordEditorState extends State<WordEditor> {
     PopupMenuItem(value: 'stop', enabled: _tracking, child: Text(accept ? _s.acceptAllAndStop : _s.rejectAllAndStop)),
   ];
 
-  void _settleChosen(bool accept, String choice) =>
-      _settle(accept: accept, all: choice == 'all' || choice == 'stop', next: choice == 'next', stop: choice == 'stop');
+  void _settleChosen(bool accept, String choice) => _settle(accept: accept, all: choice == 'all' || choice == 'stop', next: choice == 'next', stop: choice == 'stop');
 
   void _openFind({bool replace = false}) {
     setState(() {
@@ -930,17 +942,26 @@ class _WordEditorState extends State<WordEditor> {
             runSpacing: 6,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              field(_find, s.find, focus: _findFocus, submit: (_) {
-                _step(1);
-                _findFocus.requestFocus();
-              }),
+              field(
+                _find,
+                s.find,
+                focus: _findFocus,
+                submit: (_) {
+                  _step(1);
+                  _findFocus.requestFocus();
+                },
+              ),
               IconButton(tooltip: s.findPrevious, iconSize: 18, onPressed: () => _step(-1), icon: const Icon(Icons.keyboard_arrow_up)),
               IconButton(tooltip: s.findNext, iconSize: 18, onPressed: () => _step(1), icon: const Icon(Icons.keyboard_arrow_down)),
               Text(_find.text.isEmpty ? '' : count, style: Theme.of(context).textTheme.labelMedium),
-              FilterChip(label: Text(s.matchCase), selected: _matchCase, onSelected: (v) => setState(() {
-                _matchCase = v;
-                _match = -1;
-              })),
+              FilterChip(
+                label: Text(s.matchCase),
+                selected: _matchCase,
+                onSelected: (v) => setState(() {
+                  _matchCase = v;
+                  _match = -1;
+                }),
+              ),
               if (!_replacing && !_session.readOnly) TextButton(onPressed: () => setState(() => _replacing = true), child: Text(s.replace)),
               if (_replacing && !_session.readOnly) ...[
                 field(_replacement, s.replaceWith, submit: (_) => _replaceOne()),
@@ -1041,9 +1062,7 @@ class _WordEditorState extends State<WordEditor> {
     if (!_session.loaded || !OfficeFonts.settled) {
       final failure = _session.failure;
       return Center(
-        child: status == DocStatus.closed
-            ? _Failure(message: '$failure', retry: _s.retry, onRetry: _session.retry)
-            : const CircularProgressIndicator(),
+        child: status == DocStatus.closed ? _Failure(message: '$failure', retry: _s.retry, onRetry: _session.retry) : const CircularProgressIndicator(),
       );
     }
     final layout = _current;
@@ -1088,10 +1107,7 @@ class _WordEditorState extends State<WordEditor> {
                       ),
                     ),
                   ),
-                  if (comments && !phone) ...[
-                    const VerticalDivider(width: 1),
-                    SizedBox(width: 320, child: _commentsPane(context)),
-                  ],
+                  if (comments && !phone) ...[const VerticalDivider(width: 1), SizedBox(width: 320, child: _commentsPane(context))],
                 ],
               ),
             ),
@@ -1110,24 +1126,24 @@ class _WordEditorState extends State<WordEditor> {
       color: color,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        child: Row(children: [
-          Icon(icon, size: 18),
-          const SizedBox(width: 8),
-          Expanded(child: Text(text)),
-          if (action != null) TextButton(onPressed: action, child: Text(label!)),
-        ]),
+        child: Row(
+          children: [
+            Icon(icon, size: 18),
+            const SizedBox(width: 8),
+            Expanded(child: Text(text)),
+            if (action != null) TextButton(onPressed: action, child: Text(label!)),
+          ],
+        ),
       ),
     );
     final error = _session.saveError;
     return [
       if (error != null) banner(Icons.error_outline, _s.saveFailed(error), scheme.errorContainer),
-      if (_session.status == DocStatus.offline)
-        banner(Icons.cloud_off, _s.offline, scheme.tertiaryContainer, action: _session.retry, label: _s.retry),
+      if (_session.status == DocStatus.offline) banner(Icons.cloud_off, _s.offline, scheme.tertiaryContainer, action: _session.retry, label: _s.retry),
       if (_session.status == DocStatus.closed) banner(Icons.block, '${_session.failure ?? ''}', scheme.errorContainer),
       if (_session.readOnly) banner(Icons.visibility_outlined, _s.readOnly, scheme.secondaryContainer),
       if (_tracking && !_session.readOnly && _session.name.isEmpty) banner(Icons.person_off_outlined, _s.untracked, scheme.errorContainer),
-      if (_selection.area != PageArea.body)
-        banner(Icons.vertical_split_outlined, _s.headerFooter, scheme.primaryContainer, action: _closeHeaderFooter, label: _s.closeHeaderFooter),
+      if (_selection.area != PageArea.body) banner(Icons.vertical_split_outlined, _s.headerFooter, scheme.primaryContainer, action: _closeHeaderFooter, label: _s.closeHeaderFooter),
     ];
   }
 
@@ -1145,7 +1161,10 @@ class _WordEditorState extends State<WordEditor> {
         : f == '+minor'
         ? '${doc.typeface(f)} (Corps)'
         : f;
-    final theme = {for (final e in doc.themeColors.entries) if (hexColor(e.value) != null) e.key: hexColor(e.value)!};
+    final theme = {
+      for (final e in doc.themeColors.entries)
+        if (hexColor(e.value) != null) e.key: hexColor(e.value)!,
+    };
     PopupMenuEntry<Map<String, Object?>?> palette(ValueChanged<Color?> pick, {String? none}) => PopupMenuItem(
       enabled: false,
       padding: EdgeInsets.zero,
@@ -1203,90 +1222,128 @@ class _WordEditorState extends State<WordEditor> {
             RibbonButton(icon: const Icon(Icons.content_copy), label: _s.copy, shortcut: 'Ctrl+C', onPressed: !_selection.collapsed ? () => _clipboard(LogicalKeyboardKey.keyC) : null),
           ]),
           RibbonGroup(_s.font, [
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              RibbonDropdown(label: _s.font, value: run['font'] ?? '+minor', values: fonts, display: fontName, onChanged: editable ? (f) => _formatRuns({'font': f}) : null),
-              const SizedBox(width: 4),
-              RibbonDropdown(
-                label: _s.fontSize,
-                width: 56,
-                value: _size.toString().replaceAll(RegExp(r'\.0$'), ''),
-                values: [for (final s in _sizes) s.toString().replaceAll(RegExp(r'\.0$'), '')],
-                onChanged: editable ? (v) => _setSize(double.parse(v)) : null,
-              ),
-              RibbonButton(icon: const Icon(Icons.text_increase), label: _s.growFont, shortcut: 'Ctrl+>', onPressed: editable ? () => _growFont(true) : null),
-              RibbonButton(icon: const Icon(Icons.text_decrease), label: _s.shrinkFont, shortcut: 'Ctrl+<', onPressed: editable ? () => _growFont(false) : null),
-              RibbonButton(icon: const Icon(Icons.format_clear), label: _s.clearFormatting, onPressed: editable ? _clearFormatting : null),
-            ]),
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              RibbonButton(icon: const Icon(Icons.format_bold), label: _s.bold, shortcut: 'Ctrl+G', selected: run['b'] == '1', onPressed: editable ? () => _toggle('b') : null),
-              RibbonButton(icon: const Icon(Icons.format_italic), label: _s.italic, shortcut: 'Ctrl+I', selected: run['i'] == '1', onPressed: editable ? () => _toggle('i') : null),
-              RibbonButton(icon: const Icon(Icons.format_underline), label: _s.underline, shortcut: 'Ctrl+U', selected: (run['u'] ?? 'none') != 'none', onPressed: editable ? _toggleUnderline : null),
-              RibbonButton(icon: const Icon(Icons.format_strikethrough), label: _s.strikethrough, selected: run['strike'] == '1', onPressed: editable ? () => _toggle('strike') : null),
-              RibbonButton(icon: const Icon(Icons.subscript), label: _s.subscript, shortcut: 'Ctrl+=', selected: run['va'] == 'subscript', onPressed: editable ? () => _toggleVertical('subscript') : null),
-              RibbonButton(icon: const Icon(Icons.superscript), label: _s.superscript, shortcut: 'Ctrl+Maj+=', selected: run['va'] == 'superscript', onPressed: editable ? () => _toggleVertical('superscript') : null),
-              RibbonMenu<Map<String, Object?>?>(
-                icon: const Icon(Icons.border_color),
-                label: _s.highlight,
-                enabled: editable,
-                items: [palette((c) => _formatRuns({'shd': c == null ? '' : hex(c), 'hl': ''}), none: _s.noFill)],
-                onSelected: (_) {},
-              ),
-              RibbonMenu<Map<String, Object?>?>(
-                icon: const Icon(Icons.format_color_text),
-                label: _s.fontColor,
-                enabled: editable,
-                items: [palette((c) => _formatRuns({'color': c == null ? 'auto' : hex(c)}), none: _s.automatic)],
-                onSelected: (_) {},
-              ),
-            ]),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                RibbonDropdown(label: _s.font, value: run['font'] ?? '+minor', values: fonts, display: fontName, onChanged: editable ? (f) => _formatRuns({'font': f}) : null),
+                const SizedBox(width: 4),
+                RibbonDropdown(
+                  label: _s.fontSize,
+                  width: 56,
+                  value: _size.toString().replaceAll(RegExp(r'\.0$'), ''),
+                  values: [for (final s in _sizes) s.toString().replaceAll(RegExp(r'\.0$'), '')],
+                  onChanged: editable ? (v) => _setSize(double.parse(v)) : null,
+                ),
+                RibbonButton(icon: const Icon(Icons.text_increase), label: _s.growFont, shortcut: 'Ctrl+>', onPressed: editable ? () => _growFont(true) : null),
+                RibbonButton(icon: const Icon(Icons.text_decrease), label: _s.shrinkFont, shortcut: 'Ctrl+<', onPressed: editable ? () => _growFont(false) : null),
+                RibbonButton(icon: const Icon(Icons.format_clear), label: _s.clearFormatting, onPressed: editable ? _clearFormatting : null),
+              ],
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                RibbonButton(icon: const Icon(Icons.format_bold), label: _s.bold, shortcut: 'Ctrl+G', selected: run['b'] == '1', onPressed: editable ? () => _toggle('b') : null),
+                RibbonButton(icon: const Icon(Icons.format_italic), label: _s.italic, shortcut: 'Ctrl+I', selected: run['i'] == '1', onPressed: editable ? () => _toggle('i') : null),
+                RibbonButton(
+                  icon: const Icon(Icons.format_underline),
+                  label: _s.underline,
+                  shortcut: 'Ctrl+U',
+                  selected: (run['u'] ?? 'none') != 'none',
+                  onPressed: editable ? _toggleUnderline : null,
+                ),
+                RibbonButton(icon: const Icon(Icons.format_strikethrough), label: _s.strikethrough, selected: run['strike'] == '1', onPressed: editable ? () => _toggle('strike') : null),
+                RibbonButton(
+                  icon: const Icon(Icons.subscript),
+                  label: _s.subscript,
+                  shortcut: 'Ctrl+=',
+                  selected: run['va'] == 'subscript',
+                  onPressed: editable ? () => _toggleVertical('subscript') : null,
+                ),
+                RibbonButton(
+                  icon: const Icon(Icons.superscript),
+                  label: _s.superscript,
+                  shortcut: 'Ctrl+Maj+=',
+                  selected: run['va'] == 'superscript',
+                  onPressed: editable ? () => _toggleVertical('superscript') : null,
+                ),
+                RibbonMenu<Map<String, Object?>?>(
+                  icon: const Icon(Icons.border_color),
+                  label: _s.highlight,
+                  enabled: editable,
+                  items: [
+                    palette((c) => _formatRuns({'shd': c == null ? '' : hex(c), 'hl': ''}), none: _s.noFill),
+                  ],
+                  onSelected: (_) {},
+                ),
+                RibbonMenu<Map<String, Object?>?>(
+                  icon: const Icon(Icons.format_color_text),
+                  label: _s.fontColor,
+                  enabled: editable,
+                  items: [
+                    palette((c) => _formatRuns({'color': c == null ? 'auto' : hex(c)}), none: _s.automatic),
+                  ],
+                  onSelected: (_) {},
+                ),
+              ],
+            ),
           ]),
           RibbonGroup(_s.paragraph, [
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              RibbonButton(icon: const Icon(Icons.format_list_bulleted), label: _s.bullets, selected: level?.format == 'bullet', onPressed: editable ? () => _list('bullet') : null),
-              RibbonButton(icon: const Icon(Icons.format_list_numbered), label: _s.numbering, selected: level != null && level.format != 'bullet', onPressed: editable ? () => _list('decimal') : null),
-              RibbonButton(icon: const Icon(Icons.format_indent_decrease), label: _s.decreaseIndent, onPressed: editable ? () => _indent(-1) : null),
-              RibbonButton(icon: const Icon(Icons.format_indent_increase), label: _s.increaseIndent, onPressed: editable ? () => _indent(1) : null),
-            ]),
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              for (final (value, icon, label, key) in [
-                ('left', Icons.format_align_left, _s.alignLeft, 'Ctrl+L'),
-                ('center', Icons.format_align_center, _s.center, 'Ctrl+E'),
-                ('right', Icons.format_align_right, _s.alignRight, 'Ctrl+R'),
-                ('both', Icons.format_align_justify, _s.justify, 'Ctrl+J'),
-              ])
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                RibbonButton(icon: const Icon(Icons.format_list_bulleted), label: _s.bullets, selected: level?.format == 'bullet', onPressed: editable ? () => _list('bullet') : null),
                 RibbonButton(
-                  icon: Icon(icon),
-                  label: label,
-                  shortcut: key,
-                  selected: jc == value || (value == 'left' && jc == 'start') || (value == 'right' && jc == 'end'),
-                  onPressed: editable ? () => _formatParagraphs({'jc': value}) : null,
+                  icon: const Icon(Icons.format_list_numbered),
+                  label: _s.numbering,
+                  selected: level != null && level.format != 'bullet',
+                  onPressed: editable ? () => _list('decimal') : null,
                 ),
-              RibbonMenu<String>(
-                icon: const Icon(Icons.format_line_spacing),
-                label: _s.lineSpacing,
-                enabled: editable,
-                items: [
-                  for (final l in const [1.0, 1.08, 1.15, 1.5, 2.0, 2.5, 3.0])
-                    PopupMenuItem(value: 'line:$l', child: Text(l.toString().replaceAll('.', ','))),
-                  const PopupMenuDivider(),
-                  PopupMenuItem(value: 'before:1', child: Text(_s.addSpaceBefore)),
-                  PopupMenuItem(value: 'before:0', child: Text(_s.removeSpaceBefore)),
-                  PopupMenuItem(value: 'after:1', child: Text(_s.addSpaceAfter)),
-                  PopupMenuItem(value: 'after:0', child: Text(_s.removeSpaceAfter)),
-                ],
-                onSelected: (v) {
-                  final [what, value] = v.split(':');
-                  switch (what) {
-                    case 'line':
-                      _lineSpacing(double.parse(value));
-                    case 'before':
-                      _spacing('sp.before', value == '1');
-                    case 'after':
-                      _spacing('sp.after', value == '1');
-                  }
-                },
-              ),
-            ]),
+                RibbonButton(icon: const Icon(Icons.format_indent_decrease), label: _s.decreaseIndent, onPressed: editable ? () => _indent(-1) : null),
+                RibbonButton(icon: const Icon(Icons.format_indent_increase), label: _s.increaseIndent, onPressed: editable ? () => _indent(1) : null),
+              ],
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final (value, icon, label, key) in [
+                  ('left', Icons.format_align_left, _s.alignLeft, 'Ctrl+L'),
+                  ('center', Icons.format_align_center, _s.center, 'Ctrl+E'),
+                  ('right', Icons.format_align_right, _s.alignRight, 'Ctrl+R'),
+                  ('both', Icons.format_align_justify, _s.justify, 'Ctrl+J'),
+                ])
+                  RibbonButton(
+                    icon: Icon(icon),
+                    label: label,
+                    shortcut: key,
+                    selected: jc == value || (value == 'left' && jc == 'start') || (value == 'right' && jc == 'end'),
+                    onPressed: editable ? () => _formatParagraphs({'jc': value}) : null,
+                  ),
+                RibbonMenu<String>(
+                  icon: const Icon(Icons.format_line_spacing),
+                  label: _s.lineSpacing,
+                  enabled: editable,
+                  items: [
+                    for (final l in const [1.0, 1.08, 1.15, 1.5, 2.0, 2.5, 3.0]) PopupMenuItem(value: 'line:$l', child: Text(l.toString().replaceAll('.', ','))),
+                    const PopupMenuDivider(),
+                    PopupMenuItem(value: 'before:1', child: Text(_s.addSpaceBefore)),
+                    PopupMenuItem(value: 'before:0', child: Text(_s.removeSpaceBefore)),
+                    PopupMenuItem(value: 'after:1', child: Text(_s.addSpaceAfter)),
+                    PopupMenuItem(value: 'after:0', child: Text(_s.removeSpaceAfter)),
+                  ],
+                  onSelected: (v) {
+                    final [what, value] = v.split(':');
+                    switch (what) {
+                      case 'line':
+                        _lineSpacing(double.parse(value));
+                      case 'before':
+                        _spacing('sp.before', value == '1');
+                      case 'after':
+                        _spacing('sp.after', value == '1');
+                    }
+                  },
+                ),
+              ],
+            ),
           ]),
           RibbonGroup(_s.styles, [
             _StyleGallery(
@@ -1309,13 +1366,8 @@ class _WordEditorState extends State<WordEditor> {
           ]),
         ]),
         RibbonTab(_s.insert, [
-          RibbonGroup(_s.pages, [
-            RibbonButton(icon: const Icon(Icons.insert_page_break_outlined), label: _s.pageBreak, large: true, shortcut: 'Ctrl+Entrée', onPressed: editable ? _pageBreak : null),
-          ]),
-          if (widget.onPicture != null)
-            RibbonGroup(_s.illustrations, [
-              RibbonButton(icon: const Icon(Icons.image_outlined), label: _s.pictures, large: true, onPressed: editable ? _picture : null),
-            ]),
+          RibbonGroup(_s.pages, [RibbonButton(icon: const Icon(Icons.insert_page_break_outlined), label: _s.pageBreak, large: true, shortcut: 'Ctrl+Entrée', onPressed: editable ? _pageBreak : null)]),
+          if (widget.onPicture != null) RibbonGroup(_s.illustrations, [RibbonButton(icon: const Icon(Icons.image_outlined), label: _s.pictures, large: true, onPressed: editable ? _picture : null)]),
           RibbonGroup(_s.tables, [
             RibbonMenu<(int, int)>(
               icon: const Icon(Icons.table_chart_outlined),
@@ -1325,21 +1377,21 @@ class _WordEditorState extends State<WordEditor> {
               items: [
                 PopupMenuItem(
                   enabled: false,
-                  child: Builder(builder: (context) => TableSizeGrid(
-                    strings: _s,
-                    onSelected: (cols, rows) {
-                      Navigator.of(context).pop();
-                      _insertTable(rows, cols);
-                    },
-                  )),
+                  child: Builder(
+                    builder: (context) => TableSizeGrid(
+                      strings: _s,
+                      onSelected: (cols, rows) {
+                        Navigator.of(context).pop();
+                        _insertTable(rows, cols);
+                      },
+                    ),
+                  ),
                 ),
               ],
               onSelected: (_) {},
             ),
           ]),
-          RibbonGroup(_s.comments, [
-            RibbonButton(icon: const Icon(Icons.add_comment_outlined), label: _s.newComment, large: true, shortcut: 'Ctrl+Alt+M', onPressed: editable ? _newComment : null),
-          ]),
+          RibbonGroup(_s.comments, [RibbonButton(icon: const Icon(Icons.add_comment_outlined), label: _s.newComment, large: true, shortcut: 'Ctrl+Alt+M', onPressed: editable ? _newComment : null)]),
           RibbonGroup(_s.headerFooter, [
             RibbonButton(icon: const Icon(Icons.vertical_align_top), label: _s.header, large: true, onPressed: editable ? () => _headerFooter(footer: false) : null),
             RibbonButton(icon: const Icon(Icons.vertical_align_bottom), label: _s.footer, large: true, onPressed: editable ? () => _headerFooter(footer: true) : null),
@@ -1366,7 +1418,10 @@ class _WordEditorState extends State<WordEditor> {
               label: _s.orientation,
               large: true,
               enabled: editable,
-              items: [PopupMenuItem(value: false, child: Text(_s.portrait)), PopupMenuItem(value: true, child: Text(_s.landscape))],
+              items: [
+                PopupMenuItem(value: false, child: Text(_s.portrait)),
+                PopupMenuItem(value: true, child: Text(_s.landscape)),
+              ],
               onSelected: _orientation,
             ),
             RibbonMenu<(int, int)>(
@@ -1382,7 +1437,9 @@ class _WordEditorState extends State<WordEditor> {
               label: _s.columns,
               large: true,
               enabled: editable,
-              items: [for (final n in const [1, 2, 3]) PopupMenuItem(value: n, child: Text('$n'))],
+              items: [
+                for (final n in const [1, 2, 3]) PopupMenuItem(value: n, child: Text('$n')),
+              ],
               onSelected: _columns,
             ),
             RibbonButton(icon: const Icon(Icons.insert_page_break_outlined), label: _s.breaks, large: true, onPressed: editable ? _pageBreak : null),
@@ -1391,12 +1448,7 @@ class _WordEditorState extends State<WordEditor> {
         RibbonTab(_s.review, [
           RibbonGroup(_s.comments, [
             RibbonButton(icon: const Icon(Icons.add_comment_outlined), label: _s.newComment, large: true, shortcut: 'Ctrl+Alt+M', onPressed: editable ? _newComment : null),
-            RibbonButton(
-              icon: const Icon(Icons.delete_outline),
-              label: _s.delete,
-              large: true,
-              onPressed: !_session.readOnly && _active != null ? () => _deleteComment(_active!.root) : null,
-            ),
+            RibbonButton(icon: const Icon(Icons.delete_outline), label: _s.delete, large: true, onPressed: !_session.readOnly && _active != null ? () => _deleteComment(_active!.root) : null),
             RibbonButton(icon: const Icon(Icons.arrow_upward), label: _s.previousComment, large: true, onPressed: _commentThreads.isEmpty ? null : () => _stepThread(-1)),
             RibbonButton(icon: const Icon(Icons.arrow_downward), label: _s.nextComment, large: true, onPressed: _commentThreads.isEmpty ? null : () => _stepThread(1)),
             RibbonButton(
@@ -1440,10 +1492,16 @@ class _WordEditorState extends State<WordEditor> {
         ]),
         RibbonTab(_s.view, [
           RibbonGroup(_s.zoom, [
-            RibbonButton(icon: const Icon(Icons.zoom_in), label: '100 %', large: true, selected: !_fitWidth && _zoom == 1, onPressed: () => setState(() {
-              _fitWidth = false;
-              _zoom = 1;
-            })),
+            RibbonButton(
+              icon: const Icon(Icons.zoom_in),
+              label: '100 %',
+              large: true,
+              selected: !_fitWidth && _zoom == 1,
+              onPressed: () => setState(() {
+                _fitWidth = false;
+                _zoom = 1;
+              }),
+            ),
             RibbonButton(icon: const Icon(Icons.fit_screen_outlined), label: _s.pageWidth, large: true, selected: _fitWidth, onPressed: () => setState(() => _fitWidth = true)),
           ]),
         ]),
@@ -1470,55 +1528,57 @@ class _WordEditorState extends State<WordEditor> {
       color: Theme.of(context).colorScheme.surfaceContainer,
       child: SizedBox(
         height: 26,
-        child: Row(children: [
-          const SizedBox(width: 12),
-          Text(_s.pageOf(page, layout.pages.length), style: style),
-          const SizedBox(width: 16),
-          if (!phone) ...[Text(_s.words(_words), style: style), const SizedBox(width: 16), Text(_s.language, style: style), const SizedBox(width: 16)],
-          if (_tracking || !phone) ...[
-            Flexible(
-              child: InkWell(
-                onTap: _session.readOnly ? null : _toggleTracking,
-                child: phone
-                    ? const Icon(Icons.track_changes, size: 14)
-                    : Text(_s.trackChangesState(_tracking), style: style, maxLines: 1, overflow: TextOverflow.ellipsis),
-              ),
-            ),
+        child: Row(
+          children: [
+            const SizedBox(width: 12),
+            Text(_s.pageOf(page, layout.pages.length), style: style),
             const SizedBox(width: 16),
-          ],
-          if (revision != null) ...[
-            Flexible(
-              child: Text(
-                _s.revision(revision.deleted, revision.author, revision.date),
-                style: style?.copyWith(color: revisionColor(revision.author)),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+            if (!phone) ...[Text(_s.words(_words), style: style), const SizedBox(width: 16), Text(_s.language, style: style), const SizedBox(width: 16)],
+            if (_tracking || !phone) ...[
+              Flexible(
+                child: InkWell(
+                  onTap: _session.readOnly ? null : _toggleTracking,
+                  child: phone ? const Icon(Icons.track_changes, size: 14) : Text(_s.trackChangesState(_tracking), style: style, maxLines: 1, overflow: TextOverflow.ellipsis),
+                ),
               ),
-            ),
-            const SizedBox(width: 16),
-          ],
-          Icon(_session.saveError != null ? Icons.error_outline : (_session.saved ? Icons.cloud_done_outlined : Icons.cloud_upload_outlined), size: 14),
-          const SizedBox(width: 4),
-          Expanded(child: Text(state, style: style, overflow: TextOverflow.ellipsis)),
-          if (!phone) ...[
-            IconButton(iconSize: 16, tooltip: _s.zoom, onPressed: () => setState(() => _zoom = (_zoom - 0.1).clamp(0.1, 5)), icon: const Icon(Icons.remove)),
-            SizedBox(
-              width: 120,
-              child: Slider(
-                value: _zoom.clamp(0.1, 5),
-                min: 0.1,
-                max: 5,
-                onChanged: (v) => setState(() {
-                  _fitWidth = false;
-                  _zoom = v;
-                }),
+              const SizedBox(width: 16),
+            ],
+            if (revision != null) ...[
+              Flexible(
+                child: Text(
+                  _s.revision(revision.deleted, revision.author, revision.date),
+                  style: style?.copyWith(color: revisionColor(revision.author)),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
+              const SizedBox(width: 16),
+            ],
+            Icon(_session.saveError != null ? Icons.error_outline : (_session.saved ? Icons.cloud_done_outlined : Icons.cloud_upload_outlined), size: 14),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(state, style: style, overflow: TextOverflow.ellipsis),
             ),
-            IconButton(iconSize: 16, tooltip: _s.zoom, onPressed: () => setState(() => _zoom = (_zoom + 0.1).clamp(0.1, 5)), icon: const Icon(Icons.add)),
-            SizedBox(width: 44, child: Text('${(_zoom * 100).round()} %', style: style)),
+            if (!phone) ...[
+              IconButton(iconSize: 16, tooltip: _s.zoom, onPressed: () => setState(() => _zoom = (_zoom - 0.1).clamp(0.1, 5)), icon: const Icon(Icons.remove)),
+              SizedBox(
+                width: 120,
+                child: Slider(
+                  value: _zoom.clamp(0.1, 5),
+                  min: 0.1,
+                  max: 5,
+                  onChanged: (v) => setState(() {
+                    _fitWidth = false;
+                    _zoom = v;
+                  }),
+                ),
+              ),
+              IconButton(iconSize: 16, tooltip: _s.zoom, onPressed: () => setState(() => _zoom = (_zoom + 0.1).clamp(0.1, 5)), icon: const Icon(Icons.add)),
+              SizedBox(width: 44, child: Text('${(_zoom * 100).round()} %', style: style)),
+            ],
+            const SizedBox(width: 8),
           ],
-          const SizedBox(width: 8),
-        ]),
+        ),
       ),
     );
   }

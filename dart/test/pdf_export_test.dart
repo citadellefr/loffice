@@ -25,14 +25,12 @@ void main() {
 
   setUpAll(() async {
     await OfficeFonts.register({
-      for (final f in Directory('fonts').listSync().whereType<File>().where((f) => f.path.endsWith('.ttf')))
-        f.uri.pathSegments.last.replaceAll('.ttf', ''): f.readAsBytesSync(),
+      for (final f in Directory('fonts').listSync().whereType<File>().where((f) => f.path.endsWith('.ttf'))) f.uri.pathSegments.last.replaceAll('.ttf', ''): f.readAsBytesSync(),
     });
   });
 
   Tree tree(File file) => Tree.fromEdit(Edit.fromJson(jsonDecode(file.readAsStringSync()))!)!;
-  Iterable<File> trees(String dir) =>
-      Directory('../testdata/$dir').listSync().whereType<File>().where((f) => f.path.endsWith('.json'));
+  Iterable<File> trees(String dir) => Directory('../testdata/$dir').listSync().whereType<File>().where((f) => f.path.endsWith('.json'));
   String name(File f) => f.uri.pathSegments.last.replaceAll('.json', '');
 
   Future<void> screen(String name, ui.Size size, void Function(ui.Canvas) paint) async {
