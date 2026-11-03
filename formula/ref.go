@@ -174,7 +174,7 @@ func (r *Ref) String() string {
 // Prefix is the sheet prefix of the reference, "!" included, "" when it
 // has none.
 func (r *Ref) Prefix() string {
-	if r.Sheet == "" && r.Book == "" {
+	if r.Sheet == "" && r.LastSheet == "" && r.Book == "" {
 		return ""
 	}
 	name := r.Sheet
