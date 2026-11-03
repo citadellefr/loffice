@@ -50,7 +50,7 @@ func TestBuiltinStyles(t *testing.T) {
 	}
 	for _, f := range files {
 		data, _ := os.ReadFile(f)
-		pkg, err := opc.Open(data, Limits)
+		pkg, err := opc.Open(data, opc.Limits{})
 		if err != nil {
 			continue
 		}

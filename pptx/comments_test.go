@@ -101,7 +101,7 @@ func TestComments(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pkg, err := opc.Open(saved, Limits)
+	pkg, err := opc.Open(saved, opc.Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,7 +116,7 @@ func reopen(t *testing.T, d *Document, tree *ot.Tree) (*Document, *ot.Tree) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d, tree, err = Open(saved)
+	d, tree, err = Open(saved, opc.Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +161,7 @@ func TestEmptyCommentsKept(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pkg, err := opc.Open(data, Limits)
+	pkg, err := opc.Open(data, opc.Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}

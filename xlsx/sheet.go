@@ -410,7 +410,7 @@ func (c *cellReader) row(tok xmltok.Token, last int) (int, error) {
 
 func (c *cellReader) put(row, col int, fields json.RawMessage) error {
 	c.d.cellData += len(fields)
-	if c.d.cellData > MaxCellData {
+	if c.d.cellData > c.d.limits.MaxCellData {
 		return fmt.Errorf("xlsx: cells: %w", opc.ErrTooLarge)
 	}
 	if row < c.lastRow || row == c.lastRow && col <= c.lastCol {

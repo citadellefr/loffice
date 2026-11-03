@@ -12,10 +12,7 @@ import (
 	"github.com/citadellefr/trame/ot"
 )
 
-var (
-	ErrReadOnly = errors.New("docx: this part of the document cannot be edited")
-	ErrNoMedia  = errors.New("docx: no such picture")
-)
+var ErrReadOnly = errors.New("docx: this part of the document cannot be edited")
 
 // holders are the nodes blocks go in.
 var holders = map[string]bool{"body": true, "tc": true, "sdt": true, "hdr": true, "ftr": true, "note": true, "comment": true}
@@ -131,7 +128,7 @@ func boolean(v json.RawMessage) bool {
 func (d *Document) Media(name string) ([]byte, string, error) {
 	r, ok := d.names.Lookup("@" + name)
 	if !ok || r.Type != partrel.Image || r.External {
-		return nil, "", ErrNoMedia
+		return nil, "", partrel.ErrNoMedia
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -140,7 +137,7 @@ func (d *Document) Media(name string) ([]byte, string, error) {
 	}
 	data, err := d.pkg.Read(r.Target)
 	if err != nil {
-		return nil, "", errors.Join(ErrNoMedia, err)
+		return nil, "", errors.Join(partrel.ErrNoMedia, err)
 	}
 	return data, d.pkg.ContentType(r.Target), nil
 }

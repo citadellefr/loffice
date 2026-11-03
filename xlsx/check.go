@@ -33,7 +33,9 @@ var editable = map[string]map[string]bool{
 // their settings and cells, and cell formats added to those of the
 // workbook. An edit that inserts or removes rows or columns does nothing
 // else, so that the formulas it moves are those of the workbook before it.
-func (d *Document) Check(tree *ot.Tree, e ot.Edit) error {
+// The author is the editor's, as docx and pptx take it: a workbook has no
+// use for it.
+func (d *Document) Check(tree *ot.Tree, e ot.Edit, _ string) error {
 	created := map[string]string{}
 	typeOf := func(id string) string {
 		if t, ok := created[id]; ok {

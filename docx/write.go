@@ -28,7 +28,7 @@ const (
 // content changed are rewritten: the main part when the body or the last
 // section did, a header or footer when its own blocks did.
 func (d *Document) Save(tree *ot.Tree) ([]byte, error) {
-	pkg, err := opc.Open(d.original, Limits)
+	pkg, err := opc.Open(d.original, d.limits)
 	if err != nil {
 		return nil, err
 	}

@@ -16,12 +16,16 @@ var Legacy = map[string]string{".xls": ".xlsx"}
 // serves. name is the file's, whose extension tells its format; ext is
 // the extension of the document returned, and lost what the file held
 // that it does not. The file itself is left as it is: nothing of it is
-// edited.
-func Convert(name string, data []byte) (out []byte, ext string, lost []legacy.Loss, err error) {
+// edited. A file larger than limits allow is refused.
+func Convert(name string, data []byte, limits Limits) (out []byte, ext string, lost []legacy.Loss, err error) {
+	limits = limits.withDefaults()
+	if err := limits.check(len(data)); err != nil {
+		return nil, "", nil, err
+	}
 	from := strings.ToLower(path.Ext(name))
 	switch from {
 	case ".xls":
-		out, lost, err = legacy.Workbook(data)
+		out, lost, err = legacy.Workbook(data, limits.legacy())
 	default:
 		return nil, "", nil, fmt.Errorf("loffice: %q files are not converted", from)
 	}

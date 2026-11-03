@@ -26,9 +26,25 @@ var (
 	ErrTooLarge  = errors.New("legacy: the workbook holds too many cells")
 )
 
-// MaxCells bounds the cells of a workbook: a file names millions of empty
-// ones in little room. What they hold is bounded by xlsx.MaxCellData.
-var MaxCells = 4 << 20
+// Limits bound what Workbook accepts. Zero fields take the defaults.
+type Limits struct {
+	// MaxCells bounds the cells of a workbook, 4 Mi by default: a file
+	// names millions of empty ones in little room.
+	MaxCells int
+	// MaxCellData bounds what the cells hold, in bytes: see
+	// xlsx.Limits.
+	MaxCellData int
+}
+
+func (l Limits) withDefaults() Limits {
+	if l.MaxCells <= 0 {
+		l.MaxCells = 4 << 20
+	}
+	if l.MaxCellData <= 0 {
+		l.MaxCellData = 64 << 20
+	}
+	return l
+}
 
 // Loss is something a document held that its conversion leaves out.
 type Loss string
@@ -62,7 +78,8 @@ const blankSheet = "S1"
 // its sheets, their cells with their values, formulas and formats, the
 // sizes of rows and columns, merged cells, frozen panes, filtered areas
 // and the names defined. lost is what it held that the .xlsx does not.
-func Workbook(data []byte) (out []byte, lost []Loss, err error) {
+// limits bound the cells read.
+func Workbook(data []byte, limits Limits) (out []byte, lost []Loss, err error) {
 	// before Excel 5 a workbook was its records alone, without a container
 	if len(data) > 4 && data[0] == 0x09 && data[1] <= 0x08 && data[3] == 0 {
 		return nil, nil, ErrTooOld
@@ -82,6 +99,7 @@ func Workbook(data []byte) (out []byte, lost []Loss, err error) {
 		return nil, nil, ErrInvalid
 	}
 	b := &book{
+		limits:  limits.withDefaults(),
 		formats: map[int]string{},
 		lost:    map[Loss]bool{},
 		xfIDs:   map[int]string{},
@@ -101,7 +119,7 @@ func Workbook(data []byte) (out []byte, lost []Loss, err error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	doc, tree, err := xlsx.Open(blank)
+	doc, tree, err := xlsx.Open(blank, xlsx.Limits{})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -137,6 +155,7 @@ type book struct {
 	nodes  ot.Edit
 	// filters are the filtered areas, by sheet.
 	filters map[int]string
+	limits  Limits
 	// cells counts the cells read, and size what they hold.
 	cells, size int
 }

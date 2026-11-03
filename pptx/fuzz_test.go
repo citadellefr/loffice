@@ -50,7 +50,7 @@ func blankPptx(t testing.TB) []byte {
 // comments and every part FuzzOpen puts its input in.
 func fuzzSkeleton(t testing.TB) *opc.Package {
 	t.Helper()
-	pkg, err := opc.Open(blankPptx(t), Limits)
+	pkg, err := opc.Open(blankPptx(t), opc.Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func FuzzOpen(f *testing.F) {
 		f.Fatal(err)
 	}
 	f.Fuzz(func(t *testing.T, which uint8, data []byte) {
-		pkg, err := opc.Open(base, Limits)
+		pkg, err := opc.Open(base, opc.Limits{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -101,7 +101,7 @@ func FuzzOpen(f *testing.F) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		d, tree, err := Open(in)
+		d, tree, err := Open(in, opc.Limits{})
 		if err != nil {
 			return
 		}
@@ -109,7 +109,7 @@ func FuzzOpen(f *testing.F) {
 		if err != nil {
 			t.Fatalf("rewrite: %v", err)
 		}
-		if _, _, err := Open(saved); err != nil {
+		if _, _, err := Open(saved, opc.Limits{}); err != nil {
 			t.Fatalf("rewritten package does not open: %v", err)
 		}
 		slides := slidesOf(tree)
@@ -127,7 +127,7 @@ func FuzzOpen(f *testing.F) {
 		if err != nil {
 			t.Fatalf("save: %v", err)
 		}
-		if _, _, err := Open(saved); err != nil {
+		if _, _, err := Open(saved, opc.Limits{}); err != nil {
 			t.Fatalf("edited package does not open: %v", err)
 		}
 	})

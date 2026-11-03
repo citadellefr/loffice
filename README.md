@@ -64,6 +64,17 @@ Edits and how they are reconciled are those of
 session of the Dart package. A document is a tree of nodes; what each format
 makes of its file is described by the package that reads it.
 
+## Limits
+
+`loffice.NewHub(store, options, limits)` takes the `loffice.Limits` of the
+files it opens, and `loffice.Convert` those of the files it converts; the
+format packages take theirs as an argument of `Open` (`opc.Limits`,
+`xlsx.Limits`, `legacy.Limits`). A zero field takes its default, which holds
+every file of the test corpus (but its zip bomb): a file of 32 MiB as stored,
+4096 parts, 64 MiB for a part and 128 MiB for all of them once decompressed,
+64 MiB of cell data in a workbook, 4 Mi cells in a workbook of Office 97 to
+2003. A file over a limit is refused with `loffice.ErrTooLarge`.
+
 ## Tests
 
 ```sh

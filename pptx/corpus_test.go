@@ -35,7 +35,7 @@ func presentations(t *testing.T) []string {
 
 // save is Save, every slide rewritten when force is set.
 func save(d *Document, tree *ot.Tree, force bool) ([]byte, error) {
-	pkg, err := opc.Open(d.original, Limits)
+	pkg, err := opc.Open(d.original, opc.Limits{})
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +54,7 @@ func TestCorpusOpenAndSave(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		d, tree, err := Open(data)
+		d, tree, err := Open(data, opc.Limits{})
 		if err != nil {
 			refused++
 			var reason string
@@ -81,11 +81,11 @@ func TestCorpusOpenAndSave(t *testing.T) {
 // samePackage checks that two packages hold the same parts, byte for byte.
 func samePackage(t *testing.T, name string, a, b []byte) {
 	t.Helper()
-	pa, err := opc.Open(a, Limits)
+	pa, err := opc.Open(a, opc.Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	pb, err := opc.Open(b, Limits)
+	pb, err := opc.Open(b, opc.Limits{})
 	if err != nil {
 		t.Fatalf("%s: saved package does not open: %v", name, err)
 	}
@@ -109,7 +109,7 @@ func TestCorpusRewrite(t *testing.T) {
 	var files, parts int
 	for _, f := range presentations(t) {
 		data, _ := os.ReadFile(f)
-		d, tree, err := Open(data)
+		d, tree, err := Open(data, opc.Limits{})
 		if err != nil {
 			continue
 		}
@@ -118,8 +118,8 @@ func TestCorpusRewrite(t *testing.T) {
 			t.Fatalf("%s: %v", f, err)
 		}
 		files++
-		before, _ := opc.Open(data, Limits)
-		after, err := opc.Open(saved, Limits)
+		before, _ := opc.Open(data, opc.Limits{})
+		after, err := opc.Open(saved, opc.Limits{})
 		if err != nil {
 			t.Fatalf("%s: rewritten package does not open: %v", f, err)
 		}
@@ -139,7 +139,7 @@ func TestCorpusRewrite(t *testing.T) {
 				}
 			}
 		}
-		if _, _, err := Open(saved); err != nil {
+		if _, _, err := Open(saved, opc.Limits{}); err != nil {
 			t.Fatalf("%s: rewritten package does not open: %v", f, err)
 		}
 		if out != "" {

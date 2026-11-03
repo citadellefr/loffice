@@ -21,7 +21,7 @@ func TestListsRead(t *testing.T) {
 		if err != nil {
 			t.Skip("no corpus: go run ./tools/corpus")
 		}
-		_, tree, err := Open(data)
+		_, tree, err := Open(data, Limits{})
 		if err != nil {
 			t.Fatal(err)
 		}

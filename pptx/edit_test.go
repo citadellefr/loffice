@@ -16,7 +16,7 @@ func openCorpus(t *testing.T, name string) (*Document, *ot.Tree) {
 	if err != nil {
 		t.Skip("no corpus: go run ./tools/corpus")
 	}
-	d, tree, err := Open(data)
+	d, tree, err := Open(data, opc.Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +171,7 @@ func TestEdits(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	d2, again, err := Open(saved)
+	d2, again, err := Open(saved, opc.Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,7 +246,7 @@ func TestEdits(t *testing.T) {
 		t.Fatalf("new shape formatting %v", flow)
 	}
 
-	pkg, _ := opc.Open(saved, Limits)
+	pkg, _ := opc.Open(saved, opc.Limits{})
 	if pkg.Has(d.slides[slides[8].ID].name) {
 		t.Fatal("the deleted slide's part is still there")
 	}
@@ -268,7 +268,7 @@ func BenchmarkOpen(b *testing.B) {
 				b.Skip("no corpus: go run ./tools/corpus")
 			}
 			for b.Loop() {
-				if _, _, err := Open(data); err != nil {
+				if _, _, err := Open(data, opc.Limits{}); err != nil {
 					b.Fatal(err)
 				}
 			}

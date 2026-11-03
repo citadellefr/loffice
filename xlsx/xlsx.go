@@ -68,16 +68,33 @@ var (
 	ErrNoSheet     = errors.New("xlsx: a workbook needs a sheet")
 )
 
-// Limits of the packages Open accepts.
-var Limits = opc.Limits{}
+// Limits bound what Open accepts. Zero fields take the defaults.
+type Limits struct {
+	// MaxParts, MaxPartSize and MaxTotalSize bound the package: see
+	// opc.Limits.
+	MaxParts     int
+	MaxPartSize  int64
+	MaxTotalSize int64
+	// MaxCellData bounds the fields of all the cells of a workbook, once
+	// shared strings are copied into them: a long string shared by many
+	// cells would otherwise take the memory of a large workbook.
+	MaxCellData int
+}
 
-// MaxCellData bounds the fields of all the cells of a workbook, once
-// shared strings are copied into them: a long string shared by many cells
-// would otherwise take the memory of a large workbook.
-var MaxCellData = 256 << 20
+func (l Limits) withDefaults() Limits {
+	if l.MaxCellData <= 0 {
+		l.MaxCellData = 64 << 20
+	}
+	return l
+}
+
+func (l Limits) packageLimits() opc.Limits {
+	return opc.Limits{MaxParts: l.MaxParts, MaxPartSize: l.MaxPartSize, MaxTotalSize: l.MaxTotalSize}
+}
 
 // Document is a workbook open for editing.
 type Document struct {
+	limits   Limits
 	mu       sync.Mutex // guards pkg once open
 	original []byte
 	pkg      *opc.Package
@@ -123,12 +140,13 @@ type sheetPart struct {
 }
 
 // Open reads a workbook.
-func Open(data []byte) (*Document, *ot.Tree, error) {
-	pkg, err := opc.Open(data, Limits)
+func Open(data []byte, limits Limits) (*Document, *ot.Tree, error) {
+	limits = limits.withDefaults()
+	pkg, err := opc.Open(data, limits.packageLimits())
 	if err != nil {
 		return nil, nil, err
 	}
-	d := &Document{original: data, pkg: pkg, sheets: map[string]*sheetPart{}, tables: map[string][]formula.Area{}, trusted: map[uint64]bool{}, seed: maphash.MakeSeed()}
+	d := &Document{limits: limits, original: data, pkg: pkg, sheets: map[string]*sheetPart{}, tables: map[string][]formula.Area{}, trusted: map[uint64]bool{}, seed: maphash.MakeSeed()}
 	root, err := pkg.Relationships("")
 	if err != nil {
 		return nil, nil, err

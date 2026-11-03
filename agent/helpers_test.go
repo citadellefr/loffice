@@ -135,7 +135,7 @@ type room struct {
 func newRoom(t *testing.T, opt loffice.Options) *room {
 	store := trametest.NewStore()
 	store.Data[key] = sample(t)
-	return &room{t, loffice.NewHub(store, opt), store}
+	return &room{t, loffice.NewHub(store, opt, loffice.Limits{}), store}
 }
 
 func (r *room) join(name string, opt Options) *Agent {

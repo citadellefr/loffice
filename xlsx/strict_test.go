@@ -59,7 +59,7 @@ func openFile(t *testing.T, name string) (*Document, *ot.Tree, []byte) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d, tree, err := Open(data)
+	d, tree, err := Open(data, Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func TestStrict(t *testing.T) {
 			t.Errorf("%s changed", name)
 		}
 	}
-	_, again, err := Open(saved)
+	_, again, err := Open(saved, Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +161,7 @@ func TestNeitherStrictNorTransitional(t *testing.T) {
 	} {
 		parts := rawParts(t, data)
 		parts[c.part] = bytes.ReplaceAll(parts[c.part], []byte(c.old), []byte(`"urn:other"`))
-		if _, _, err := Open(zipOf(t, parts)); !errors.Is(err, ErrNotWorkbook) || err.Error() != "xlsx: not a workbook" {
+		if _, _, err := Open(zipOf(t, parts), Limits{}); !errors.Is(err, ErrNotWorkbook) || err.Error() != "xlsx: not a workbook" {
 			t.Errorf("%s changed: %v", c.part, err)
 		}
 	}

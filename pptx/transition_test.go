@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/citadellefr/loffice/opc"
 	"github.com/citadellefr/trame/ot"
 )
 
@@ -26,7 +27,7 @@ func saveCorpus(t *testing.T, d *Document, tree *ot.Tree, name string) *ot.Tree 
 			t.Fatal(err)
 		}
 	}
-	_, again, err := Open(saved)
+	_, again, err := Open(saved, opc.Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
