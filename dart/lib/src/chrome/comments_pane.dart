@@ -139,25 +139,21 @@ class _CommentsPaneState<T extends CommentThread> extends State<CommentsPane<T>>
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 4, 8),
-            child: Row(children: [
-              Icon(Icons.forum_outlined, size: 18, color: theme.colorScheme.primary),
-              const SizedBox(width: 8),
-              Expanded(child: Text(_s.comments, style: theme.textTheme.titleSmall)),
-              if (threads.isNotEmpty) Text('${threads.length}', style: theme.textTheme.labelMedium),
-              IconButton(tooltip: _s.close, iconSize: 18, onPressed: widget.onClose, icon: const Icon(Icons.close)),
-            ]),
+            child: Row(
+              children: [
+                Icon(Icons.forum_outlined, size: 18, color: theme.colorScheme.primary),
+                const SizedBox(width: 8),
+                Expanded(child: Text(_s.comments, style: theme.textTheme.titleSmall)),
+                if (threads.isNotEmpty) Text('${threads.length}', style: theme.textTheme.labelMedium),
+                IconButton(tooltip: _s.close, iconSize: 18, onPressed: widget.onClose, icon: const Icon(Icons.close)),
+              ],
+            ),
           ),
           const Divider(height: 1),
           Expanded(
             child: threads.isEmpty && !widget.drafting
                 ? _empty(theme)
-                : ListView(
-                    padding: const EdgeInsets.all(12),
-                    children: [
-                      if (widget.drafting) _draftCard(theme),
-                      for (final t in threads) _threadCard(theme, t),
-                    ],
-                  ),
+                : ListView(padding: const EdgeInsets.all(12), children: [if (widget.drafting) _draftCard(theme), for (final t in threads) _threadCard(theme, t)]),
           ),
         ],
       ),
@@ -167,13 +163,16 @@ class _CommentsPaneState<T extends CommentThread> extends State<CommentsPane<T>>
   Widget _empty(ThemeData theme) => Center(
     child: Padding(
       padding: const EdgeInsets.all(24),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.chat_bubble_outline, size: 36, color: theme.colorScheme.outline),
-        const SizedBox(height: 12),
-        Text(_s.noComments, style: theme.textTheme.titleSmall),
-        const SizedBox(height: 6),
-        if (!widget.readOnly) Text(widget.emptyHint ?? _s.noCommentsHint, textAlign: TextAlign.center, style: theme.textTheme.bodySmall),
-      ]),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.chat_bubble_outline, size: 36, color: theme.colorScheme.outline),
+          const SizedBox(height: 12),
+          Text(_s.noComments, style: theme.textTheme.titleSmall),
+          const SizedBox(height: 6),
+          if (!widget.readOnly) Text(widget.emptyHint ?? _s.noCommentsHint, textAlign: TextAlign.center, style: theme.textTheme.bodySmall),
+        ],
+      ),
     ),
   );
 
@@ -192,7 +191,10 @@ class _CommentsPaneState<T extends CommentThread> extends State<CommentsPane<T>>
             side: BorderSide(color: active ? scheme.primary : scheme.outlineVariant, width: active ? 1.5 : 1),
           ),
           clipBehavior: Clip.antiAlias,
-          child: InkWell(onTap: onTap, child: Padding(padding: const EdgeInsets.all(12), child: child)),
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(padding: const EdgeInsets.all(12), child: child),
+          ),
         ),
       ),
     );
@@ -201,23 +203,26 @@ class _CommentsPaneState<T extends CommentThread> extends State<CommentsPane<T>>
   Widget _draftCard(ThemeData theme) => _card(
     theme,
     active: true,
-    child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      _header(theme, widget.me, initialsOf(widget.me), null),
-      const SizedBox(height: 8),
-      _field(_draft, _s.startConversation, focus: _draftFocus, submit: _post, cancel: widget.onCancelDraft),
-      const SizedBox(height: 8),
-      OverflowBar(alignment: MainAxisAlignment.end, spacing: 8, children: [
-        TextButton(onPressed: widget.onCancelDraft, child: Text(_s.cancel)),
-        ListenableBuilder(
-          listenable: _draft,
-          builder: (context, _) => FilledButton.icon(
-            onPressed: _draft.text.trim().isEmpty ? null : _post,
-            icon: const Icon(Icons.send, size: 16),
-            label: Text(_s.post),
-          ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _header(theme, widget.me, initialsOf(widget.me), null),
+        const SizedBox(height: 8),
+        _field(_draft, _s.startConversation, focus: _draftFocus, submit: _post, cancel: widget.onCancelDraft),
+        const SizedBox(height: 8),
+        OverflowBar(
+          alignment: MainAxisAlignment.end,
+          spacing: 8,
+          children: [
+            TextButton(onPressed: widget.onCancelDraft, child: Text(_s.cancel)),
+            ListenableBuilder(
+              listenable: _draft,
+              builder: (context, _) => FilledButton.icon(onPressed: _draft.text.trim().isEmpty ? null : _post, icon: const Icon(Icons.send, size: 16), label: Text(_s.post)),
+            ),
+          ],
         ),
-      ]),
-    ]),
+      ],
+    ),
   );
 
   Widget _threadCard(ThemeData theme, T t) {
@@ -230,40 +235,44 @@ class _CommentsPaneState<T extends CommentThread> extends State<CommentsPane<T>>
       active: active,
       dim: t.done,
       onTap: () => widget.onSelect(t),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        _comment(theme, t.root, t, first: true, collapsed: collapsed),
-        if (!collapsed)
-          for (final r in t.replies) ...[
-            const SizedBox(height: 10),
-            _comment(theme, r, t, first: false, collapsed: false),
-          ],
-        if (collapsed && t.replies.isNotEmpty)
-          Padding(padding: const EdgeInsets.only(top: 6), child: Text(_s.replies(t.replies.length), style: theme.textTheme.labelSmall)),
-        if (!t.anchored)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(_s.commentedTextGone, style: theme.textTheme.bodySmall?.copyWith(fontStyle: FontStyle.italic, color: theme.colorScheme.outline)),
-          ),
-        if (active && editable && !t.done) ...[
-          const SizedBox(height: 10),
-          Row(children: [
-            Expanded(child: _field(_reply, _s.replyHint, submit: () => _sendReply(t))),
-            ListenableBuilder(
-              listenable: _reply,
-              builder: (context, _) => IconButton(
-                tooltip: _s.post,
-                onPressed: _reply.text.trim().isEmpty ? null : () => _sendReply(t),
-                icon: const Icon(Icons.send, size: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _comment(theme, t.root, t, first: true, collapsed: collapsed),
+          if (!collapsed)
+            for (final r in t.replies) ...[const SizedBox(height: 10), _comment(theme, r, t, first: false, collapsed: false)],
+          if (collapsed && t.replies.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(_s.replies(t.replies.length), style: theme.textTheme.labelSmall),
+            ),
+          if (!t.anchored)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                _s.commentedTextGone,
+                style: theme.textTheme.bodySmall?.copyWith(fontStyle: FontStyle.italic, color: theme.colorScheme.outline),
               ),
             ),
-          ]),
+          if (active && editable && !t.done) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(child: _field(_reply, _s.replyHint, submit: () => _sendReply(t))),
+                ListenableBuilder(
+                  listenable: _reply,
+                  builder: (context, _) => IconButton(tooltip: _s.post, onPressed: _reply.text.trim().isEmpty ? null : () => _sendReply(t), icon: const Icon(Icons.send, size: 18)),
+                ),
+              ],
+            ),
+          ],
+          if (active && editable && t.done)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(onPressed: () => widget.onResolve(t, false), icon: const Icon(Icons.replay, size: 16), label: Text(_s.reopen)),
+            ),
         ],
-        if (active && editable && t.done)
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(onPressed: () => widget.onResolve(t, false), icon: const Icon(Icons.replay, size: 16), label: Text(_s.reopen)),
-          ),
-      ]),
+      ),
     );
   }
 
@@ -271,79 +280,98 @@ class _CommentsPaneState<T extends CommentThread> extends State<CommentsPane<T>>
     final editable = !widget.readOnly;
     final mine = c.author == widget.me && widget.me.isNotEmpty;
     final text = _edited == c.id
-        ? Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            _field(_editing, '', autofocus: true, submit: () => _saveEditing(c), cancel: () => setState(() => _edited = null)),
-            OverflowBar(alignment: MainAxisAlignment.end, spacing: 8, children: [
-              TextButton(onPressed: () => setState(() => _edited = null), child: Text(_s.cancel)),
-              FilledButton(onPressed: () => _saveEditing(c), child: Text(_s.save)),
-            ]),
-          ])
-        : Text(c.text, maxLines: collapsed ? 1 : null, overflow: collapsed ? TextOverflow.ellipsis : null, style: theme.textTheme.bodyMedium);
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Row(children: [
-        Expanded(child: _header(theme, c.author, c.initials, c.date, small: !first)),
-        if (first && t.done)
-          Padding(
-            padding: const EdgeInsets.only(right: 4),
-            child: Chip(label: Text(_s.resolved), visualDensity: VisualDensity.compact, labelStyle: theme.textTheme.labelSmall),
-          ),
-        if (editable)
-          PopupMenuButton<String>(
-            tooltip: _s.moreActions,
-            iconSize: 18,
-            icon: const Icon(Icons.more_horiz),
-            itemBuilder: (context) => [
-              if (mine) PopupMenuItem(value: 'edit', child: Text(_s.editComment)),
-              if (first && widget.resolvable) PopupMenuItem(value: 'resolve', child: Text(t.done ? _s.reopen : _s.resolveThread)),
-              PopupMenuItem(value: 'delete', child: Text(first ? _s.deleteThread : _s.deleteComment)),
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _field(_editing, '', autofocus: true, submit: () => _saveEditing(c), cancel: () => setState(() => _edited = null)),
+              OverflowBar(
+                alignment: MainAxisAlignment.end,
+                spacing: 8,
+                children: [
+                  TextButton(onPressed: () => setState(() => _edited = null), child: Text(_s.cancel)),
+                  FilledButton(onPressed: () => _saveEditing(c), child: Text(_s.save)),
+                ],
+              ),
             ],
-            onSelected: (v) => switch (v) {
-              'edit' => _startEditing(c),
-              'resolve' => widget.onResolve(t, !t.done),
-              _ => widget.onDelete(c),
-            },
-          ),
-      ]),
-      const SizedBox(height: 4),
-      text,
-    ]);
+          )
+        : Text(c.text, maxLines: collapsed ? 1 : null, overflow: collapsed ? TextOverflow.ellipsis : null, style: theme.textTheme.bodyMedium);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(child: _header(theme, c.author, c.initials, c.date, small: !first)),
+            if (first && t.done)
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: Chip(label: Text(_s.resolved), visualDensity: VisualDensity.compact, labelStyle: theme.textTheme.labelSmall),
+              ),
+            if (editable)
+              PopupMenuButton<String>(
+                tooltip: _s.moreActions,
+                iconSize: 18,
+                icon: const Icon(Icons.more_horiz),
+                itemBuilder: (context) => [
+                  if (mine) PopupMenuItem(value: 'edit', child: Text(_s.editComment)),
+                  if (first && widget.resolvable) PopupMenuItem(value: 'resolve', child: Text(t.done ? _s.reopen : _s.resolveThread)),
+                  PopupMenuItem(value: 'delete', child: Text(first ? _s.deleteThread : _s.deleteComment)),
+                ],
+                onSelected: (v) => switch (v) {
+                  'edit' => _startEditing(c),
+                  'resolve' => widget.onResolve(t, !t.done),
+                  _ => widget.onDelete(c),
+                },
+              ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        text,
+      ],
+    );
   }
 
   Widget _header(ThemeData theme, String name, String initials, DateTime? date, {bool small = false}) {
     final color = authorColor(name);
-    return Row(children: [
-      CircleAvatar(
-        radius: small ? 11 : 14,
-        backgroundColor: color,
-        child: Text(initials.isEmpty ? '?' : initials, style: TextStyle(fontSize: small ? 9 : 11, color: Colors.white, fontWeight: FontWeight.w600)),
-      ),
-      const SizedBox(width: 8),
-      Expanded(
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(name.isEmpty ? _s.unknownAuthor : name, overflow: TextOverflow.ellipsis, style: theme.textTheme.labelLarge),
-          if (date != null) Text(_s.commentDate(date), style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.outline)),
-        ]),
-      ),
-    ]);
+    return Row(
+      children: [
+        CircleAvatar(
+          radius: small ? 11 : 14,
+          backgroundColor: color,
+          child: Text(
+            initials.isEmpty ? '?' : initials,
+            style: TextStyle(fontSize: small ? 9 : 11, color: Colors.white, fontWeight: FontWeight.w600),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(name.isEmpty ? _s.unknownAuthor : name, overflow: TextOverflow.ellipsis, style: theme.textTheme.labelLarge),
+              if (date != null) Text(_s.commentDate(date), style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.outline)),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
-  Widget _field(TextEditingController c, String hint, {FocusNode? focus, bool autofocus = false, required VoidCallback submit, VoidCallback? cancel}) =>
-      CallbackShortcuts(
-        bindings: {
-          const SingleActivator(LogicalKeyboardKey.enter, control: true): submit,
-          const SingleActivator(LogicalKeyboardKey.enter, meta: true): submit,
-          const SingleActivator(LogicalKeyboardKey.escape): ?cancel,
-        },
-        child: TextField(
-          controller: c,
-          focusNode: focus,
-          autofocus: autofocus,
-          minLines: 1,
-          maxLines: 6,
-          keyboardType: TextInputType.multiline,
-          decoration: InputDecoration(hintText: hint, isDense: true, border: const OutlineInputBorder(), contentPadding: const EdgeInsets.all(8)),
-        ),
-      );
+  Widget _field(TextEditingController c, String hint, {FocusNode? focus, bool autofocus = false, required VoidCallback submit, VoidCallback? cancel}) => CallbackShortcuts(
+    bindings: {
+      const SingleActivator(LogicalKeyboardKey.enter, control: true): submit,
+      const SingleActivator(LogicalKeyboardKey.enter, meta: true): submit,
+      const SingleActivator(LogicalKeyboardKey.escape): ?cancel,
+    },
+    child: TextField(
+      controller: c,
+      focusNode: focus,
+      autofocus: autofocus,
+      minLines: 1,
+      maxLines: 6,
+      keyboardType: TextInputType.multiline,
+      decoration: InputDecoration(hintText: hint, isDense: true, border: const OutlineInputBorder(), contentPadding: const EdgeInsets.all(8)),
+    ),
+  );
 }
 
 const _authorColors = [

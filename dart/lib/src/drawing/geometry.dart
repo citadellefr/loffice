@@ -34,21 +34,10 @@ class Geometry {
         if (c is! List<Object?> || c.isEmpty || c.any((x) => x is! String)) return null;
         commands.add(c.cast<String>());
       }
-      paths.add(_PathDef(
-        _num(raw['w']),
-        _num(raw['h']),
-        PathFill.values.asNameMap()[raw['fill']] ?? PathFill.norm,
-        raw['stroke'] != false,
-        commands,
-      ));
+      paths.add(_PathDef(_num(raw['w']), _num(raw['h']), PathFill.values.asNameMap()[raw['fill']] ?? PathFill.norm, raw['stroke'] != false, commands));
     }
     final rect = json['rect'];
-    return Geometry._(
-      _guides(json['av']),
-      _guides(json['gd']),
-      rect is List<Object?> && rect.length == 4 && rect.every((x) => x is String) ? rect.cast<String>() : null,
-      paths,
-    );
+    return Geometry._(_guides(json['av']), _guides(json['gd']), rect is List<Object?> && rect.length == 4 && rect.every((x) => x is String) ? rect.cast<String>() : null, paths);
   }
 
   static final _presets = <String, Geometry?>{};
@@ -170,14 +159,24 @@ class _Guides {
     final w = size.width, h = size.height;
     final ss = math.min(w, h), ls = math.max(w, h);
     _values.addAll({
-      'w': w, 'h': h, 'l': 0, 't': 0, 'r': w, 'b': h, 'hc': w / 2, 'vc': h / 2, 'ss': ss, 'ls': ls,
-      'cd2': 10800000, 'cd4': 5400000, 'cd8': 2700000, '3cd4': 16200000, '3cd8': 8100000, '5cd8': 13500000,
+      'w': w,
+      'h': h,
+      'l': 0,
+      't': 0,
+      'r': w,
+      'b': h,
+      'hc': w / 2,
+      'vc': h / 2,
+      'ss': ss,
+      'ls': ls,
+      'cd2': 10800000,
+      'cd4': 5400000,
+      'cd8': 2700000,
+      '3cd4': 16200000,
+      '3cd8': 8100000,
+      '5cd8': 13500000,
       '7cd8': 18900000,
-      for (final d in [2, 3, 4, 5, 6, 8, 10, 12, 16, 32]) ...{
-        'wd$d': w / d,
-        'hd$d': h / d,
-        'ssd$d': ss / d,
-      },
+      for (final d in [2, 3, 4, 5, 6, 8, 10, 12, 16, 32]) ...{'wd$d': w / d, 'hd$d': h / d, 'ssd$d': ss / d},
     });
     for (final (name, formula) in av) {
       _values[name] = _evaluate(adjust[name] ?? formula);

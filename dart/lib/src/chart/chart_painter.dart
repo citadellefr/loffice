@@ -143,14 +143,34 @@ class ChartPainter {
     }
     const rounds = [
       <List<Object>>[],
-      [['lumMod', 60000]],
-      [['lumMod', 80000], ['lumOff', 20000]],
-      [['lumMod', 80000]],
-      [['lumMod', 60000], ['lumOff', 40000]],
-      [['lumMod', 50000]],
-      [['lumMod', 70000], ['lumOff', 30000]],
-      [['lumMod', 70000]],
-      [['lumMod', 50000], ['lumOff', 50000]],
+      [
+        ['lumMod', 60000],
+      ],
+      [
+        ['lumMod', 80000],
+        ['lumOff', 20000],
+      ],
+      [
+        ['lumMod', 80000],
+      ],
+      [
+        ['lumMod', 60000],
+        ['lumOff', 40000],
+      ],
+      [
+        ['lumMod', 50000],
+      ],
+      [
+        ['lumMod', 70000],
+        ['lumOff', 30000],
+      ],
+      [
+        ['lumMod', 70000],
+      ],
+      [
+        ['lumMod', 50000],
+        ['lumOff', 50000],
+      ],
     ];
     return {'scheme': 'accent${i % 6 + 1}', 'mods': rounds[(i ~/ 6) % rounds.length]};
   }
@@ -222,7 +242,16 @@ class ChartPainter {
           fontSize: own != null ? own / 100 : (base != null ? base / 100 * size / 10 : size),
           fontWeight: (b == null ? bold : b == '1') ? FontWeight.bold : FontWeight.normal,
           fontStyle: p['i'] == '1' ? FontStyle.italic : FontStyle.normal,
-          color: color ?? colors.resolve(const {'scheme': 'tx1', 'mods': [['lumMod', 75000], ['lumOff', 25000]]}) ?? const Color(0xFF404040),
+          color:
+              color ??
+              colors.resolve(const {
+                'scheme': 'tx1',
+                'mods': [
+                  ['lumMod', 75000],
+                  ['lumOff', 25000],
+                ],
+              }) ??
+              const Color(0xFF404040),
           height: 1.15,
         ),
       ),
@@ -281,10 +310,7 @@ class ChartPainter {
       final p = plots.first;
       final s = p.series.first;
       final n = _count([s]);
-      return [
-        for (var i = 0; i < n; i++)
-          _Entry(_category(p.series, i), _fill(s, i, vary: true, count: n), _line(s, i, vary: true, count: n), null, false),
-      ];
+      return [for (var i = 0; i < n; i++) _Entry(_category(p.series, i), _fill(s, i, vary: true, count: n), _line(s, i, vary: true, count: n), null, false)];
     }
     return [
       for (final p in plots)
@@ -334,10 +360,7 @@ class ChartPainter {
         w += widths[i] + 10;
       }
       if (row.isNotEmpty) rows.add(row);
-      size = Size(
-        rows.map((r) => r.fold(0.0, (a, i) => a + widths[i] + 10) - 10).fold(0.0, math.max),
-        rows.length * (height + 2),
-      );
+      size = Size(rows.map((r) => r.fold(0.0, (a, i) => a + widths[i] + 10) - 10).fold(0.0, math.max), rows.length * (height + 2));
     }
     var at = switch (pos) {
       'l' => Offset(inner.left, inner.center.dy - size.height / 2),
@@ -377,7 +400,14 @@ class ChartPainter {
 
   void _key(Canvas canvas, _Entry e, Rect r) {
     if (e.lineKey) {
-      if (e.line != null) _painter.line(canvas, Path()..moveTo(r.left, r.center.dy)..lineTo(r.right, r.center.dy), e.line);
+      if (e.line != null)
+        _painter.line(
+          canvas,
+          Path()
+            ..moveTo(r.left, r.center.dy)
+            ..lineTo(r.right, r.center.dy),
+          e.line,
+        );
       if (e.marker != null) _mark(canvas, r.center, e.marker!);
       return;
     }
@@ -466,15 +496,25 @@ class ChartPainter {
       final spec = a.spec;
       for (final (has, shape, minor) in [(spec.hasMinorGrid, spec.minorGrid, true), (spec.hasGrid, spec.grid, false)]) {
         if (!has) continue;
-        final line = {'w': 9525, 'fill': {'solid': {'rgb': minor ? 'F2F2F2' : 'D9D9D9'}}, ...?_map(shape?['line'])};
+        final line = {
+          'w': 9525,
+          'fill': {
+            'solid': {'rgb': minor ? 'F2F2F2' : 'D9D9D9'},
+          },
+          ...?_map(shape?['line']),
+        };
         for (final at in a.gridAt(minor)) {
           final p = Path();
           if (spec.vertical) {
             final y = area.bottom - at * area.height;
-            p..moveTo(area.left, y)..lineTo(area.right, y);
+            p
+              ..moveTo(area.left, y)
+              ..lineTo(area.right, y);
           } else {
             final x = area.left + at * area.width;
-            p..moveTo(x, area.top)..lineTo(x, area.bottom);
+            p
+              ..moveTo(x, area.top)
+              ..lineTo(x, area.bottom);
           }
           _painter.line(canvas, p, line);
         }
@@ -491,12 +531,23 @@ class ChartPainter {
       final horizontal = !spec.vertical;
       final linePos = horizontal ? area.bottom - cross * area.height : area.left + cross * area.width;
       final line = spec.shape?['line'];
-      final stroke = line is Map<String, Object?> ? line : {'w': 9525, 'fill': {'solid': {'rgb': 'BFBFBF'}}};
+      final stroke = line is Map<String, Object?>
+          ? line
+          : {
+              'w': 9525,
+              'fill': {
+                'solid': {'rgb': 'BFBFBF'},
+              },
+            };
       final path = Path();
       if (horizontal) {
-        path..moveTo(area.left, linePos)..lineTo(area.right, linePos);
+        path
+          ..moveTo(area.left, linePos)
+          ..lineTo(area.right, linePos);
       } else {
-        path..moveTo(linePos, area.top)..lineTo(linePos, area.bottom);
+        path
+          ..moveTo(linePos, area.top)
+          ..lineTo(linePos, area.bottom);
       }
       _painter.line(canvas, path, stroke);
       if (spec.tick != 'none') {
@@ -510,10 +561,14 @@ class ChartPainter {
         for (final at in a.tickAt()) {
           if (horizontal) {
             final x = area.left + at * area.width;
-            ticks..moveTo(x, linePos - inward * sign)..lineTo(x, linePos + outward * sign);
+            ticks
+              ..moveTo(x, linePos - inward * sign)
+              ..lineTo(x, linePos + outward * sign);
           } else {
             final y = area.bottom - at * area.height;
-            ticks..moveTo(linePos + inward * sign, y)..lineTo(linePos - outward * sign, y);
+            ticks
+              ..moveTo(linePos + inward * sign, y)
+              ..lineTo(linePos - outward * sign, y);
           }
         }
         _painter.line(canvas, ticks, stroke);
@@ -606,7 +661,10 @@ class ChartPainter {
         final shape = Path()..addRect(rect);
         var fill = _fill(s, i, vary: vary, count: n);
         final invert = _pointInvert(s, i);
-        if (raw < 0 && invert) fill = {'solid': {'rgb': 'FFFFFF'}};
+        if (raw < 0 && invert)
+          fill = {
+            'solid': {'rgb': 'FFFFFF'},
+          };
         _painter.fill(canvas, shape, rect, fill);
         final line = _line(s, i, vary: vary, count: n);
         if (line != null) _painter.line(canvas, shape, line);
@@ -839,14 +897,27 @@ class ChartPainter {
       case 'triangle':
         path.addPolygon([box.topCenter, box.bottomRight, box.bottomLeft], true);
       case 'x':
-        path..moveTo(box.left, box.top)..lineTo(box.right, box.bottom)..moveTo(box.right, box.top)..lineTo(box.left, box.bottom);
+        path
+          ..moveTo(box.left, box.top)
+          ..lineTo(box.right, box.bottom)
+          ..moveTo(box.right, box.top)
+          ..lineTo(box.left, box.bottom);
         filled = false;
       case 'star':
-        path..moveTo(box.left, box.top)..lineTo(box.right, box.bottom)..moveTo(box.right, box.top)..lineTo(box.left, box.bottom)
-          ..moveTo(c.dx, box.top)..lineTo(c.dx, box.bottom);
+        path
+          ..moveTo(box.left, box.top)
+          ..lineTo(box.right, box.bottom)
+          ..moveTo(box.right, box.top)
+          ..lineTo(box.left, box.bottom)
+          ..moveTo(c.dx, box.top)
+          ..lineTo(c.dx, box.bottom);
         filled = false;
       case 'plus':
-        path..moveTo(c.dx, box.top)..lineTo(c.dx, box.bottom)..moveTo(box.left, c.dy)..lineTo(box.right, c.dy);
+        path
+          ..moveTo(c.dx, box.top)
+          ..lineTo(c.dx, box.bottom)
+          ..moveTo(box.left, c.dy)
+          ..lineTo(box.right, c.dy);
         filled = false;
       case 'dash':
         path.addRect(Rect.fromCenter(center: c, width: size, height: math.max(size / 4, 1)));
@@ -879,10 +950,12 @@ class ChartPainter {
     final n = _count(series);
     if (n == 0) return;
     final labelled = series.any((s) => (s.labels ?? p.labels)?.any ?? false);
-    final outside = labelled && series.any((s) {
-      final pos = (s.labels ?? p.labels)?.position ?? '';
-      return pos == 'outEnd' || pos == 'bestFit' || pos.isEmpty;
-    });
+    final outside =
+        labelled &&
+        series.any((s) {
+          final pos = (s.labels ?? p.labels)?.position ?? '';
+          return pos == 'outEnd' || pos == 'bestFit' || pos.isEmpty;
+        });
     var radius = math.min(area.width, area.height) / 2 * (outside && !doughnut ? 0.8 : 0.95);
     final explode = series.expand((s) => [s.explosion, for (final pt in s.points.values) (pt['explosion'] as num?)?.toInt() ?? 0]).fold(0, math.max);
     radius /= 1 + explode / 100;
@@ -966,13 +1039,25 @@ class ChartPainter {
       return center + Offset(math.cos(a), math.sin(a)) * (radius * f.clamp(0, 1));
     }
 
-    final grid = {'w': 9525, 'fill': {'solid': {'rgb': 'D9D9D9'}}, ...?_map(valAxis?.grid?['line'])};
+    final grid = {
+      'w': 9525,
+      'fill': {
+        'solid': {'rgb': 'D9D9D9'},
+      },
+      ...?_map(valAxis?.grid?['line']),
+    };
     for (final t in scale.ticks) {
       final f = scale.fraction(t);
       _painter.line(canvas, Path()..addPolygon([for (var i = 0; i < n; i++) at(i, f)], true), grid);
     }
     for (var i = 0; i < n; i++) {
-      _painter.line(canvas, Path()..moveTo(center.dx, center.dy)..lineTo(at(i, 1).dx, at(i, 1).dy), grid);
+      _painter.line(
+        canvas,
+        Path()
+          ..moveTo(center.dx, center.dy)
+          ..lineTo(at(i, 1).dx, at(i, 1).dy),
+        grid,
+      );
       final tp = labels[i];
       final a = -math.pi / 2 + i * 2 * math.pi / n;
       final c = center + Offset(math.cos(a), math.sin(a)) * (radius + 4 + math.max(tp.width, tp.height) / 2);
@@ -1116,8 +1201,7 @@ class _Group {
     final s = a.spec;
     var ticks = (length / 22).floor().clamp(2, 10);
     while (true) {
-      a.scale = Scale.auto(lo, hi,
-          min: s.min ?? (percent ? lo : null), max: s.max ?? (percent ? hi : null), major: s.major, log: s.log, ticks: ticks);
+      a.scale = Scale.auto(lo, hi, min: s.min ?? (percent ? lo : null), max: s.max ?? (percent ? hi : null), major: s.major, log: s.log, ticks: ticks);
       if (s.vertical || s.major > 0 || ticks <= 2) return;
       final values = a.scale!.ticks;
       final widest = values.map((t) => c._text(c._format(t, a.format), s.text, size: 9).width).fold(0.0, math.max);

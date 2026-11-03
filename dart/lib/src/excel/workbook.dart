@@ -46,7 +46,10 @@ class Workbook {
   final _looks = <String, (Node, Node?, SheetLooks)>{};
 
   /// The sheets in order, chart sheets included.
-  List<Node> get sheets => [for (final n in tree.children('book')) if (n.type == 'sheet' || n.type == 'kept') n];
+  List<Node> get sheets => [
+    for (final n in tree.children('book'))
+      if (n.type == 'sheet' || n.type == 'kept') n,
+  ];
 
   /// The format of cells whose "s" field is [id], the default one for null.
   CellStyle style(String? id) {
@@ -214,15 +217,7 @@ class CellStyle {
     return CellStyle._(
       json,
       json['fmt'] is String ? json['fmt']! as String : 'General',
-      CellFont(
-        name: name,
-        size: size,
-        bold: font['b'] == true,
-        italic: font['i'] == true,
-        underline: font['u'] is String,
-        strike: font['strike'] == true,
-        color: book.color(font['color']),
-      ),
+      CellFont(name: name, size: size, bold: font['b'] == true, italic: font['i'] == true, underline: font['u'] is String, strike: font['strike'] == true, color: book.color(font['color'])),
       background,
       edge('l'),
       edge('r'),
@@ -254,15 +249,7 @@ class CellStyle {
 }
 
 class CellFont {
-  const CellFont({
-    required this.name,
-    required this.size,
-    this.bold = false,
-    this.italic = false,
-    this.underline = false,
-    this.strike = false,
-    this.color,
-  });
+  const CellFont({required this.name, required this.size, this.bold = false, this.italic = false, this.underline = false, this.strike = false, this.color});
 
   final String name;
   final double size;
@@ -451,11 +438,7 @@ class SheetLayout {
 
 /// A rectangle of cells, from [top] [left] to [bottom] [right] included.
 class CellArea {
-  const CellArea(int r1, int c1, int r2, int c2)
-    : top = r1 < r2 ? r1 : r2,
-      left = c1 < c2 ? c1 : c2,
-      bottom = r1 < r2 ? r2 : r1,
-      right = c1 < c2 ? c2 : c1;
+  const CellArea(int r1, int c1, int r2, int c2) : top = r1 < r2 ? r1 : r2, left = c1 < c2 ? c1 : c2, bottom = r1 < r2 ? r2 : r1, right = c1 < c2 ? c2 : c1;
 
   const CellArea.cell(int row, int col) : this(row, col, row, col);
 
@@ -465,8 +448,7 @@ class CellArea {
 
   bool intersects(CellArea o) => o.left <= right && o.right >= left && o.top <= bottom && o.bottom >= top;
 
-  CellArea union(CellArea o) =>
-      CellArea(math.min(top, o.top), math.min(left, o.left), math.max(bottom, o.bottom), math.max(right, o.right));
+  CellArea union(CellArea o) => CellArea(math.min(top, o.top), math.min(left, o.left), math.max(bottom, o.bottom), math.max(right, o.right));
 
   int get rows => bottom - top + 1;
 
@@ -488,8 +470,7 @@ class CellArea {
   }
 
   @override
-  bool operator ==(Object other) =>
-      other is CellArea && other.top == top && other.left == left && other.bottom == bottom && other.right == right;
+  bool operator ==(Object other) => other is CellArea && other.top == top && other.left == left && other.bottom == bottom && other.right == right;
 
   @override
   int get hashCode => Object.hash(top, left, bottom, right);

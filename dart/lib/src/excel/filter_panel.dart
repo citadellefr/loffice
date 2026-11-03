@@ -34,18 +34,20 @@ Future<FilterChoice?> showFilterPanel(
   return showDialog<FilterChoice>(
     context: context,
     barrierColor: Colors.transparent,
-    builder: (_) => Stack(children: [
-      Positioned(
-        left: math.max(0, math.min(at.left, screen.width - width)),
-        top: math.max(0, math.min(at.bottom, screen.height - height)),
-        width: width,
-        height: math.min(height, screen.height),
-        child: Material(
-          elevation: 8,
-          child: _FilterPanel(name: name, values: values, blanks: blanks, current: current, strings: strings),
+    builder: (_) => Stack(
+      children: [
+        Positioned(
+          left: math.max(0, math.min(at.left, screen.width - width)),
+          top: math.max(0, math.min(at.bottom, screen.height - height)),
+          width: width,
+          height: math.min(height, screen.height),
+          child: Material(
+            elevation: 8,
+            child: _FilterPanel(name: name, values: values, blanks: blanks, current: current, strings: strings),
+          ),
         ),
-      ),
-    ]),
+      ],
+    ),
   );
 }
 
@@ -87,77 +89,72 @@ class _FilterPanelState extends State<_FilterPanel> {
   @override
   Widget build(BuildContext context) {
     final search = _search.toLowerCase();
-    final listed = [for (final v in widget.values) if (v.toLowerCase().contains(search)) v];
-    Widget item(IconData icon, String label, VoidCallback? onTap) => ListTile(
-      dense: true,
-      leading: Icon(icon, size: 18),
-      title: Text(label),
-      enabled: onTap != null,
-      onTap: onTap,
-    );
-    return Column(children: [
-      item(Icons.arrow_downward, _s.sortAscending, () => _pop(const FilterChoice(FilterAction.sortAscending))),
-      item(Icons.arrow_upward, _s.sortDescending, () => _pop(const FilterChoice(FilterAction.sortDescending))),
-      const Divider(height: 1),
-      item(Icons.filter_alt_off_outlined, _s.clearFilterFrom(widget.name),
-          widget.current == null ? null : () => _pop(const FilterChoice(FilterAction.clear))),
-      Padding(
-        padding: const EdgeInsets.all(8),
-        child: TextField(
-          autofocus: true,
-          decoration: InputDecoration(isDense: true, hintText: _s.search, prefixIcon: const Icon(Icons.search, size: 18), border: const OutlineInputBorder()),
-          onChanged: (v) => setState(() => _search = v),
-        ),
-      ),
-      Expanded(
-        child: ListView(children: [
-          if (search.isEmpty)
-            CheckboxListTile(
-              dense: true,
-              controlAffinity: ListTileControlAffinity.leading,
-              tristate: true,
-              value: _all ? true : (_none ? false : null),
-              title: Text(_s.selectAll),
-              onChanged: (_) => setState(() {
-                final all = !_all;
-                _shown.clear();
-                if (all) _shown.addAll(widget.values);
-                _blank = all;
-              }),
-            ),
-          for (final v in listed)
-            CheckboxListTile(
-              dense: true,
-              controlAffinity: ListTileControlAffinity.leading,
-              value: _shown.contains(v),
-              title: Text(v),
-              onChanged: (on) => setState(() => on == true ? _shown.add(v) : _shown.remove(v)),
-            ),
-          if (widget.blanks && search.isEmpty)
-            CheckboxListTile(
-              dense: true,
-              controlAffinity: ListTileControlAffinity.leading,
-              value: _blank,
-              title: Text(_s.blanks),
-              onChanged: (on) => setState(() => _blank = on == true),
-            ),
-        ]),
-      ),
-      Padding(
-        padding: const EdgeInsets.all(8),
-        child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-          FilledButton(
-            onPressed: _none
-                ? null
-                : () => _pop(_all
-                      ? const FilterChoice(FilterAction.clear)
-                      : FilterChoice(FilterAction.show, FilterColumn(values: {..._shown}, blank: _blank && widget.blanks))),
-            child: Text(_s.ok),
+    final listed = [
+      for (final v in widget.values)
+        if (v.toLowerCase().contains(search)) v,
+    ];
+    Widget item(IconData icon, String label, VoidCallback? onTap) => ListTile(dense: true, leading: Icon(icon, size: 18), title: Text(label), enabled: onTap != null, onTap: onTap);
+    return Column(
+      children: [
+        item(Icons.arrow_downward, _s.sortAscending, () => _pop(const FilterChoice(FilterAction.sortAscending))),
+        item(Icons.arrow_upward, _s.sortDescending, () => _pop(const FilterChoice(FilterAction.sortDescending))),
+        const Divider(height: 1),
+        item(Icons.filter_alt_off_outlined, _s.clearFilterFrom(widget.name), widget.current == null ? null : () => _pop(const FilterChoice(FilterAction.clear))),
+        Padding(
+          padding: const EdgeInsets.all(8),
+          child: TextField(
+            autofocus: true,
+            decoration: InputDecoration(isDense: true, hintText: _s.search, prefixIcon: const Icon(Icons.search, size: 18), border: const OutlineInputBorder()),
+            onChanged: (v) => setState(() => _search = v),
           ),
-          const SizedBox(width: 8),
-          OutlinedButton(onPressed: () => Navigator.pop(context), child: Text(_s.cancel)),
-        ]),
-      ),
-    ]);
+        ),
+        Expanded(
+          child: ListView(
+            children: [
+              if (search.isEmpty)
+                CheckboxListTile(
+                  dense: true,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  tristate: true,
+                  value: _all ? true : (_none ? false : null),
+                  title: Text(_s.selectAll),
+                  onChanged: (_) => setState(() {
+                    final all = !_all;
+                    _shown.clear();
+                    if (all) _shown.addAll(widget.values);
+                    _blank = all;
+                  }),
+                ),
+              for (final v in listed)
+                CheckboxListTile(
+                  dense: true,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  value: _shown.contains(v),
+                  title: Text(v),
+                  onChanged: (on) => setState(() => on == true ? _shown.add(v) : _shown.remove(v)),
+                ),
+              if (widget.blanks && search.isEmpty)
+                CheckboxListTile(dense: true, controlAffinity: ListTileControlAffinity.leading, value: _blank, title: Text(_s.blanks), onChanged: (on) => setState(() => _blank = on == true)),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              FilledButton(
+                onPressed: _none
+                    ? null
+                    : () => _pop(_all ? const FilterChoice(FilterAction.clear) : FilterChoice(FilterAction.show, FilterColumn(values: {..._shown}, blank: _blank && widget.blanks))),
+                child: Text(_s.ok),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton(onPressed: () => Navigator.pop(context), child: Text(_s.cancel)),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }

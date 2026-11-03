@@ -9,10 +9,11 @@ import 'package:trame/testing.dart';
 
 void main() {
   testWidgets('File > Export as PDF hands the host the document, named after it', (tester) async {
-    await tester.runAsync(() => OfficeFonts.register({
-      for (final f in Directory('fonts').listSync().whereType<File>().where((f) => f.path.endsWith('.ttf')))
-        f.uri.pathSegments.last.replaceAll('.ttf', ''): f.readAsBytesSync(),
-    }));
+    await tester.runAsync(
+      () => OfficeFonts.register({
+        for (final f in Directory('fonts').listSync().whereType<File>().where((f) => f.path.endsWith('.ttf'))) f.uri.pathSegments.last.replaceAll('.ttf', ''): f.readAsBytesSync(),
+      }),
+    );
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -21,19 +22,21 @@ void main() {
     addTearDown(session.dispose);
     Uint8List? exported;
     String? name;
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: WordEditor(
-          session: session,
-          media: (_) async => Uint8List(0),
-          title: 'Rapport annuel.docx',
-          onExport: (pdf, file) async {
-            exported = pdf;
-            name = file;
-          },
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: WordEditor(
+            session: session,
+            media: (_) async => Uint8List(0),
+            title: 'Rapport annuel.docx',
+            onExport: (pdf, file) async {
+              exported = pdf;
+              name = file;
+            },
+          ),
         ),
       ),
-    ));
+    );
     await tester.runAsync(hub.settle);
     await tester.pump();
 
@@ -51,10 +54,11 @@ void main() {
   });
 
   testWidgets('a workbook is exported on the pages it prints on', (tester) async {
-    await tester.runAsync(() => OfficeFonts.register({
-      for (final f in Directory('fonts').listSync().whereType<File>().where((f) => f.path.endsWith('.ttf')))
-        f.uri.pathSegments.last.replaceAll('.ttf', ''): f.readAsBytesSync(),
-    }));
+    await tester.runAsync(
+      () => OfficeFonts.register({
+        for (final f in Directory('fonts').listSync().whereType<File>().where((f) => f.path.endsWith('.ttf'))) f.uri.pathSegments.last.replaceAll('.ttf', ''): f.readAsBytesSync(),
+      }),
+    );
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -63,18 +67,20 @@ void main() {
     addTearDown(session.dispose);
     Uint8List? exported;
     String? name;
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: SpreadsheetEditor(
-          session: session,
-          title: 'Budget.xlsx',
-          onExport: (pdf, file) async {
-            exported = pdf;
-            name = file;
-          },
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SpreadsheetEditor(
+            session: session,
+            title: 'Budget.xlsx',
+            onExport: (pdf, file) async {
+              exported = pdf;
+              name = file;
+            },
+          ),
         ),
       ),
-    ));
+    );
     await tester.runAsync(hub.settle);
     await tester.pump();
 

@@ -27,16 +27,7 @@ import 'workbook.dart';
 /// An Excel editor on a session whose document is a workbook: the ribbon,
 /// the formula bar, the cells of a sheet, its tabs and the status bar.
 class SpreadsheetEditor extends StatefulWidget {
-  const SpreadsheetEditor({
-    super.key,
-    required this.session,
-    this.title = '',
-    this.onClose,
-    this.onExport,
-    this.strings = const LofficeStrings(),
-    this.fonts,
-    this.hosted = false,
-  });
+  const SpreadsheetEditor({super.key, required this.session, this.title = '', this.onClose, this.onExport, this.strings = const LofficeStrings(), this.fonts, this.hosted = false});
 
   final DocSession session;
   final String title;
@@ -134,7 +125,10 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
 
   SheetEdits get _edits => SheetEdits(_wb);
 
-  List<Node> get _visibleSheets => [for (final s in _wb.sheets) if (s.attributes['state'] == null) s];
+  List<Node> get _visibleSheets => [
+    for (final s in _wb.sheets)
+      if (s.attributes['state'] == null) s,
+  ];
 
   Node? get _sheet {
     final sheets = _wb.sheets;
@@ -183,7 +177,10 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     _editCell = _selection.active;
     setState(() => _editing = true);
     if (typed != null) {
-      _text.value = TextEditingValue(text: typed, selection: TextSelection.collapsed(offset: typed.length));
+      _text.value = TextEditingValue(
+        text: typed,
+        selection: TextSelection.collapsed(offset: typed.length),
+      );
     } else {
       _loadText();
       _text.selection = TextSelection.collapsed(offset: _text.text.length);
@@ -310,11 +307,22 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
       child: Container(
         constraints: const BoxConstraints(maxWidth: 240),
         padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(color: const Color(0xFFFFFFE1), border: Border.all(color: const Color(0xFF767676))),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-          if (rule.promptTitle.isNotEmpty) Text(rule.promptTitle, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black)),
-          if (rule.prompt.isNotEmpty) Text(rule.prompt, style: const TextStyle(fontSize: 12, color: Colors.black)),
-        ]),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFFFE1),
+          border: Border.all(color: const Color(0xFF767676)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (rule.promptTitle.isNotEmpty)
+              Text(
+                rule.promptTitle,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
+              ),
+            if (rule.prompt.isNotEmpty) Text(rule.prompt, style: const TextStyle(fontSize: 12, color: Colors.black)),
+          ],
+        ),
       ),
     );
   }
@@ -328,7 +336,10 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
         if (alt) {
           final v = _text.value;
           final text = v.text.replaceRange(v.selection.start, v.selection.end, '\n');
-          _text.value = TextEditingValue(text: text, selection: TextSelection.collapsed(offset: v.selection.start + 1));
+          _text.value = TextEditingValue(
+            text: text,
+            selection: TextSelection.collapsed(offset: v.selection.start + 1),
+          );
           return KeyEventResult.handled;
         }
         _commitAndStep(shift ? -1 : 1, 0);
@@ -488,7 +499,11 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
 
   void _setActive(double v, String format) {
     final (r, c) = _selection.active;
-    _edit(_edits.setCells(_sheet!, [(r, c, {'v': v, 'f': null, 'e': null})], format: format));
+    _edit(
+      _edits.setCells(_sheet!, [
+        (r, c, {'v': v, 'f': null, 'e': null}),
+      ], format: format),
+    );
   }
 
   // formats
@@ -499,30 +514,45 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     _edit(_edits.format(sheet, _selection.area, change, key: key));
   }
 
-  static Map<String, Object?> _part(Map<String, Object?> style, String key) =>
-      {...?(style[key] as Map<String, Object?>?)};
+  static Map<String, Object?> _part(Map<String, Object?> style, String key) => {...?(style[key] as Map<String, Object?>?)};
 
-  void _setFont(String key, Object? value) => _format((s, _, _) => {...s, 'font': {..._part(s, 'font'), key: value}});
+  void _setFont(String key, Object? value) => _format(
+    (s, _, _) => {
+      ...s,
+      'font': {..._part(s, 'font'), key: value},
+    },
+  );
 
   void _toggleFont(String key, bool on) => _setFont(key, on ? null : true);
 
-  void _setFontName(String name) =>
-      _format((s, _, _) => {...s, 'font': {..._part(s, 'font'), 'name': name, 'scheme': null}});
+  void _setFontName(String name) => _format(
+    (s, _, _) => {
+      ...s,
+      'font': {..._part(s, 'font'), 'name': name, 'scheme': null},
+    },
+  );
 
   void _growFont(bool up) {
     final now = _activeStyle.font.size;
-    final next = up
-        ? _sizes.firstWhere((s) => s > now + 0.01, orElse: () => now + 12)
-        : _sizes.lastWhere((s) => s < now - 0.01, orElse: () => math.max(1, now - 1));
+    final next = up ? _sizes.firstWhere((s) => s > now + 0.01, orElse: () => now + 12) : _sizes.lastWhere((s) => s < now - 0.01, orElse: () => math.max(1, now - 1));
     _setFont('sz', next);
   }
 
   static const _sizes = <double>[8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 48, 72];
 
-  void _align(String key, Object? value) => _format((s, _, _) => {...s, 'align': {..._part(s, 'align'), key: value}});
+  void _align(String key, Object? value) => _format(
+    (s, _, _) => {
+      ...s,
+      'align': {..._part(s, 'align'), key: value},
+    },
+  );
 
-  void _setFill(Map<String, Object?>? color) =>
-      _format((s, _, _) => {...s, 'fill': color == null ? null : {'pattern': 'solid', 'fg': color}});
+  void _setFill(Map<String, Object?>? color) => _format(
+    (s, _, _) => {
+      ...s,
+      'fill': color == null ? null : {'pattern': 'solid', 'fg': color},
+    },
+  );
 
   void _setNumberFormat(String code) => _format((s, _, _) => {...s, 'fmt': code});
 
@@ -533,40 +563,59 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
 
   void _border(String kind) {
     final a = _selection.area;
-    const thin = {'style': 'thin', 'color': {'auto': true}};
-    _format(
-      (s, r, c) {
-        final b = _part(s, 'border');
-        switch (kind) {
-          case 'none':
-            return {...s, 'border': null};
-          case 'all':
-            return {...s, 'border': {...b, 'l': thin, 'r': thin, 't': thin, 'b': thin}};
-          case 'outside':
-            return {
+    const thin = {
+      'style': 'thin',
+      'color': {'auto': true},
+    };
+    _format((s, r, c) {
+      final b = _part(s, 'border');
+      switch (kind) {
+        case 'none':
+          return {...s, 'border': null};
+        case 'all':
+          return {
+            ...s,
+            'border': {...b, 'l': thin, 'r': thin, 't': thin, 'b': thin},
+          };
+        case 'outside':
+          return {
+            ...s,
+            'border': {
+              ...b,
+              if (c == a.left || a.wholeRows) 'l': thin,
+              if (c == a.right || a.wholeRows) 'r': thin,
+              if (r == a.top || a.wholeCols) 't': thin,
+              if (r == a.bottom || a.wholeCols) 'b': thin,
+            },
+          };
+        case 'thickBottom':
+          return r == a.bottom || a.wholeCols
+              ? {
+                  ...s,
+                  'border': {
+                    ...b,
+                    'b': {
+                      'style': 'thick',
+                      'color': {'auto': true},
+                    },
+                  },
+                }
+              : s;
+      }
+      final side = {'bottom': 'b', 'top': 't', 'left': 'l', 'right': 'r'}[kind]!;
+      final edge = switch (side) {
+        'b' => r == a.bottom || a.wholeCols,
+        't' => r == a.top || a.wholeCols,
+        'l' => c == a.left || a.wholeRows,
+        _ => c == a.right || a.wholeRows,
+      };
+      return edge
+          ? {
               ...s,
-              'border': {
-                ...b,
-                if (c == a.left || a.wholeRows) 'l': thin,
-                if (c == a.right || a.wholeRows) 'r': thin,
-                if (r == a.top || a.wholeCols) 't': thin,
-                if (r == a.bottom || a.wholeCols) 'b': thin,
-              },
-            };
-          case 'thickBottom':
-            return r == a.bottom || a.wholeCols ? {...s, 'border': {...b, 'b': {'style': 'thick', 'color': {'auto': true}}}} : s;
-        }
-        final side = {'bottom': 'b', 'top': 't', 'left': 'l', 'right': 'r'}[kind]!;
-        final edge = switch (side) {
-          'b' => r == a.bottom || a.wholeCols,
-          't' => r == a.top || a.wholeCols,
-          'l' => c == a.left || a.wholeRows,
-          _ => c == a.right || a.wholeRows,
-        };
-        return edge ? {...s, 'border': {...b, side: thin}} : s;
-      },
-      key: (r, c) => (r == a.top, r == a.bottom, c == a.left, c == a.right),
-    );
+              'border': {...b, side: thin},
+            }
+          : s;
+    }, key: (r, c) => (r == a.top, r == a.bottom, c == a.left, c == a.right));
   }
 
   void _mergeCenter() {
@@ -587,18 +636,14 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     final sheet = _sheet;
     if (sheet == null) return;
     final a = _selection.area;
-    _edit(Edit([
-      rows ? Change.insert(sheet.id, dimRows, a.top, a.rows) : Change.insert(sheet.id, dimCols, a.left, a.cols),
-    ]));
+    _edit(Edit([rows ? Change.insert(sheet.id, dimRows, a.top, a.rows) : Change.insert(sheet.id, dimCols, a.left, a.cols)]));
   }
 
   void _delete({required bool rows}) {
     final sheet = _sheet;
     if (sheet == null) return;
     final a = _selection.area;
-    _edit(Edit([
-      rows ? Change.remove(sheet.id, dimRows, a.top, a.rows) : Change.remove(sheet.id, dimCols, a.left, a.cols),
-    ]));
+    _edit(Edit([rows ? Change.remove(sheet.id, dimRows, a.top, a.rows) : Change.remove(sheet.id, dimCols, a.left, a.cols)]));
   }
 
   void _resize(String dim, int index, double size) {
@@ -615,9 +660,16 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
   void _freeze(int rows, int cols) {
     final sheet = _sheet;
     if (sheet == null) return;
-    _edit(Edit([
-      Change.set(sheet.id, attributes: {'frozen': rows == 0 && cols == 0 ? null : {'r': ?(rows > 0 ? rows : null), 'c': ?(cols > 0 ? cols : null)}}),
-    ]));
+    _edit(
+      Edit([
+        Change.set(
+          sheet.id,
+          attributes: {
+            'frozen': rows == 0 && cols == 0 ? null : {'r': ?(rows > 0 ? rows : null), 'c': ?(cols > 0 ? cols : null)},
+          },
+        ),
+      ]),
+    );
   }
 
   // printing
@@ -632,7 +684,9 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
   void _fit({int? wide, int? tall}) {
     final (w, h) = PrintSetup.of(_sheet!).fit ?? (0, 0);
     final fit = (wide ?? w, tall ?? h);
-    _print({'fit': fit == (0, 0) ? null : [fit.$1, fit.$2]});
+    _print({
+      'fit': fit == (0, 0) ? null : [fit.$1, fit.$2],
+    });
   }
 
   void _closeBackstage() => setState(() => _backstage = false);
@@ -698,7 +752,11 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     controller.dispose();
     final trimmed = name?.trim() ?? '';
     if (trimmed.isEmpty || trimmed == sheet.attributes['name']) return;
-    _edit(Edit([Change.set(sheet.id, attributes: {'name': trimmed})]));
+    _edit(
+      Edit([
+        Change.set(sheet.id, attributes: {'name': trimmed}),
+      ]),
+    );
   }
 
   Future<void> _deleteSheet(Node sheet) async {
@@ -793,12 +851,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     }
     // a filtered list is summed as Excel does, leaving out the rows hidden
     final filter = SheetFilter.of(sheet);
-    final filtered = filter != null &&
-        filter.columns.isNotEmpty &&
-        filter.area.left <= c &&
-        c <= filter.area.right &&
-        top < filter.rows.$2 &&
-        r - 1 >= filter.rows.$1;
+    final filtered = filter != null && filter.columns.isNotEmpty && filter.area.left <= c && c <= filter.area.right && top < filter.rows.$2 && r - 1 >= filter.rows.$1;
     String formula;
     if (top < r - 1) {
       final range = '${cellName(top + 1, c)}:${cellName(r - 1, c)}';
@@ -815,7 +868,11 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
       _text.selection = TextSelection.collapsed(offset: _text.text.length - 1);
       return;
     }
-    _edit(_edits.setCells(sheet, [(r, c, {'f': formula, 'v': null, 'e': null})]));
+    _edit(
+      _edits.setCells(sheet, [
+        (r, c, {'f': formula, 'v': null, 'e': null}),
+      ]),
+    );
   }
 
   void _insertFunction(String name) {
@@ -823,7 +880,10 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     final v = _text.value;
     final at = v.selection.isValid ? v.selection.start : v.text.length;
     final text = v.text.replaceRange(at, v.selection.isValid ? v.selection.end : at, '$name(');
-    _text.value = TextEditingValue(text: text, selection: TextSelection.collapsed(offset: at + name.length + 1));
+    _text.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: at + name.length + 1),
+    );
   }
 
   void _sort({required bool descending}) {
@@ -865,15 +925,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     if (f == null) return;
     final (values, blanks) = columnValues(_wb, sheet!, f, col, _locale);
     final header = shownText(_wb, sheet.grid?.cell(f.area.top, col), _locale);
-    final choice = await showFilterPanel(
-      context,
-      at: at,
-      name: header.isEmpty ? columnName(col) : header,
-      values: values,
-      blanks: blanks,
-      current: f.columns[col - f.area.left],
-      strings: _s,
-    );
+    final choice = await showFilterPanel(context, at: at, name: header.isEmpty ? columnName(col) : header, values: values, blanks: blanks, current: f.columns[col - f.area.left], strings: _s);
     if (choice == null || !mounted) return;
     switch (choice.action) {
       case FilterAction.sortAscending || FilterAction.sortDescending:
@@ -937,14 +989,10 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
       case 'clear':
         _edit(_edits.clear(sheet, a));
       case 'hide':
-        _edit(_edits.resize(sheet, cols ? dimCols : dimRows, [
-          for (var i = cols ? a.left : a.top; i <= (cols ? a.right : a.bottom); i++) i,
-        ], 0));
+        _edit(_edits.resize(sheet, cols ? dimCols : dimRows, [for (var i = cols ? a.left : a.top; i <= (cols ? a.right : a.bottom); i++) i], 0));
       case 'unhide':
         final l = _wb.layout(sheet);
-        _edit(_edits.resize(sheet, cols ? dimCols : dimRows, [
-          for (var i = cols ? a.left : a.top; i <= (cols ? a.right : a.bottom); i++) i,
-        ], cols ? l.defaultWidth : l.defaultHeight));
+        _edit(_edits.resize(sheet, cols ? dimCols : dimRows, [for (var i = cols ? a.left : a.top; i <= (cols ? a.right : a.bottom); i++) i], cols ? l.defaultWidth : l.defaultHeight));
     }
   }
 
@@ -954,8 +1002,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     var i = 0;
     return [
       for (final p in _session.peers)
-        if (p.selection?.cells case final cells? when p.selection!.node == sheet.id)
-          PeerSelection(p.name, _peerColors[i++ % _peerColors.length], CellArea(cells[0], cells[1], cells[2], cells[3])),
+        if (p.selection?.cells case final cells? when p.selection!.node == sheet.id) PeerSelection(p.name, _peerColors[i++ % _peerColors.length], CellArea(cells[0], cells[1], cells[2], cells[3])),
     ];
   }
 
@@ -967,10 +1014,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     final spec = ChartSpec.fromJson(sheet.attributes['chart']);
     if (spec == null) return Center(child: Text(_s.chartSheet));
     return LayoutBuilder(
-      builder: (context, box) => CustomPaint(
-        size: box.biggest,
-        painter: _ChartSheetPainter(spec, _wb, sheet, widget.fonts),
-      ),
+      builder: (context, box) => CustomPaint(size: box.biggest, painter: _ChartSheetPainter(spec, _wb, sheet, widget.fonts)),
     );
   }
 
@@ -979,60 +1023,62 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     if (!_session.loaded || !OfficeFonts.settled) {
       final failure = _session.failure;
       return Center(
-        child: _session.status == DocStatus.closed
-            ? _Failure(message: '$failure', retry: _s.retry, onRetry: _session.retry)
-            : const CircularProgressIndicator(),
+        child: _session.status == DocStatus.closed ? _Failure(message: '$failure', retry: _s.retry, onRetry: _session.retry) : const CircularProgressIndicator(),
       );
     }
     final sheet = _sheet;
     _sheetId = sheet?.id;
-    return Stack(children: [
-      Column(children: [
-        _ribbon(context),
-        ..._banners(context),
-        _formulaBar(context),
-        Expanded(
-          child: sheet == null
-              ? const SizedBox.expand()
-              : sheet.grid == null
-              ? _chartSheet(sheet)
-              : Focus(
-                  focusNode: _gridFocus,
-                  autofocus: true,
-                  onKeyEvent: _gridKey,
-                  child: GestureDetector(
-                    onTapDown: (_) {
-                      if (!_editing) _gridFocus.requestFocus();
-                    },
-                    child: SheetView(
-                      key: _view,
-                      book: _wb,
-                      sheet: sheet,
-                      selection: _selection,
-                      locale: _locale,
-                      zoom: _zoom,
-                      peers: _peers,
-                      fonts: widget.fonts,
-                      editing: _editing,
-                      editor: _cellEditor(),
-                      onEdit: _session.readOnly ? null : _startEdit,
-                      onResize: _session.readOnly ? null : _resize,
-                      onZoom: (z) => setState(() => _zoom = z),
-                      onMenu: (at, {rows = false, cols = false}) => _cellsMenu(at, rows: rows, cols: cols),
-                      onFill: _session.readOnly ? null : (from, to) => _edit(_edits.fill(sheet, from, to)),
-                      onList: _activeList == null ? null : _openList,
-                      prompt: _prompt,
-                      filter: SheetFilter.of(sheet),
-                      onFilter: _session.readOnly ? null : _openFilter,
+    return Stack(
+      children: [
+        Column(
+          children: [
+            _ribbon(context),
+            ..._banners(context),
+            _formulaBar(context),
+            Expanded(
+              child: sheet == null
+                  ? const SizedBox.expand()
+                  : sheet.grid == null
+                  ? _chartSheet(sheet)
+                  : Focus(
+                      focusNode: _gridFocus,
+                      autofocus: true,
+                      onKeyEvent: _gridKey,
+                      child: GestureDetector(
+                        onTapDown: (_) {
+                          if (!_editing) _gridFocus.requestFocus();
+                        },
+                        child: SheetView(
+                          key: _view,
+                          book: _wb,
+                          sheet: sheet,
+                          selection: _selection,
+                          locale: _locale,
+                          zoom: _zoom,
+                          peers: _peers,
+                          fonts: widget.fonts,
+                          editing: _editing,
+                          editor: _cellEditor(),
+                          onEdit: _session.readOnly ? null : _startEdit,
+                          onResize: _session.readOnly ? null : _resize,
+                          onZoom: (z) => setState(() => _zoom = z),
+                          onMenu: (at, {rows = false, cols = false}) => _cellsMenu(at, rows: rows, cols: cols),
+                          onFill: _session.readOnly ? null : (from, to) => _edit(_edits.fill(sheet, from, to)),
+                          onList: _activeList == null ? null : _openList,
+                          prompt: _prompt,
+                          filter: SheetFilter.of(sheet),
+                          onFilter: _session.readOnly ? null : _openFilter,
+                        ),
+                      ),
                     ),
-                  ),
-                ),
+            ),
+            _tabs(context),
+            _statusBar(context),
+          ],
         ),
-        _tabs(context),
-        _statusBar(context),
-      ]),
-      if (_backstage) _Backstage(editor: this),
-    ]);
+        if (_backstage) _Backstage(editor: this),
+      ],
+    );
   }
 
   Widget _cellEditor() {
@@ -1065,39 +1111,41 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     return Container(
       height: 30,
       decoration: BoxDecoration(border: Border(bottom: border)),
-      child: Row(children: [
-        SizedBox(
-          width: 110,
-          child: TextField(
-            controller: _nameBox,
-            style: const TextStyle(fontSize: 13),
-            textAlign: TextAlign.center,
-            decoration: InputDecoration(isCollapsed: true, border: InputBorder.none, hintText: _s.nameBox, contentPadding: const EdgeInsets.all(7)),
-            onSubmitted: (_) => _goToName(),
-          ),
-        ),
-        VerticalDivider(width: 1, color: border.color),
-        if (_editing) ...[
-          IconButton(iconSize: 16, tooltip: _s.cancel, onPressed: _cancel, icon: const Icon(Icons.close)),
-          IconButton(iconSize: 16, tooltip: _s.ok, onPressed: () => _commitAndStep(0, 0), icon: const Icon(Icons.check)),
-        ],
-        _functionsMenu(small: true),
-        Expanded(
-          child: Focus(
-            onKeyEvent: _editorKey,
+      child: Row(
+        children: [
+          SizedBox(
+            width: 110,
             child: TextField(
-              controller: _text,
-              focusNode: _barFocus,
-              readOnly: _session.readOnly || _sheet?.grid == null,
-              style: const TextStyle(fontSize: 13, fontFamily: 'Carlito'),
-              decoration: const InputDecoration(isCollapsed: true, border: InputBorder.none, contentPadding: EdgeInsets.all(7)),
-              onTap: () {
-                if (!_editing) _startEdit(bar: true);
-              },
+              controller: _nameBox,
+              style: const TextStyle(fontSize: 13),
+              textAlign: TextAlign.center,
+              decoration: InputDecoration(isCollapsed: true, border: InputBorder.none, hintText: _s.nameBox, contentPadding: const EdgeInsets.all(7)),
+              onSubmitted: (_) => _goToName(),
             ),
           ),
-        ),
-      ]),
+          VerticalDivider(width: 1, color: border.color),
+          if (_editing) ...[
+            IconButton(iconSize: 16, tooltip: _s.cancel, onPressed: _cancel, icon: const Icon(Icons.close)),
+            IconButton(iconSize: 16, tooltip: _s.ok, onPressed: () => _commitAndStep(0, 0), icon: const Icon(Icons.check)),
+          ],
+          _functionsMenu(small: true),
+          Expanded(
+            child: Focus(
+              onKeyEvent: _editorKey,
+              child: TextField(
+                controller: _text,
+                focusNode: _barFocus,
+                readOnly: _session.readOnly || _sheet?.grid == null,
+                style: const TextStyle(fontSize: 13, fontFamily: 'Carlito'),
+                decoration: const InputDecoration(isCollapsed: true, border: InputBorder.none, contentPadding: EdgeInsets.all(7)),
+                onTap: () {
+                  if (!_editing) _startEdit(bar: true);
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1117,7 +1165,11 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
         for (final f in _commonFunctions) PopupMenuItem(value: f, child: Text(f)),
         const PopupMenuDivider(),
         for (final f in all)
-          if (!_commonFunctions.contains(f)) PopupMenuItem(value: f, child: Text(f, style: const TextStyle(fontSize: 12))),
+          if (!_commonFunctions.contains(f))
+            PopupMenuItem(
+              value: f,
+              child: Text(f, style: const TextStyle(fontSize: 12)),
+            ),
       ],
       onSelected: _insertFunction,
     );
@@ -1129,19 +1181,20 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
       color: color,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        child: Row(children: [
-          Icon(icon, size: 18),
-          const SizedBox(width: 8),
-          Expanded(child: Text(text)),
-          if (action != null) TextButton(onPressed: action, child: Text(label!)),
-        ]),
+        child: Row(
+          children: [
+            Icon(icon, size: 18),
+            const SizedBox(width: 8),
+            Expanded(child: Text(text)),
+            if (action != null) TextButton(onPressed: action, child: Text(label!)),
+          ],
+        ),
       ),
     );
     final error = _session.saveError;
     return [
       if (error != null) banner(Icons.error_outline, _s.saveFailed(error), scheme.errorContainer),
-      if (_session.status == DocStatus.offline)
-        banner(Icons.cloud_off, _s.offline, scheme.tertiaryContainer, action: _session.retry, label: _s.retry),
+      if (_session.status == DocStatus.offline) banner(Icons.cloud_off, _s.offline, scheme.tertiaryContainer, action: _session.retry, label: _s.retry),
       if (_session.status == DocStatus.closed) banner(Icons.block, '${_session.failure ?? ''}', scheme.errorContainer),
       if (_session.readOnly) banner(Icons.visibility_outlined, _s.readOnly, scheme.secondaryContainer),
       if (_wb.csv) banner(Icons.info_outline, _s.csvNotice, scheme.surfaceContainerHighest),
@@ -1183,18 +1236,8 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
       onFile: () => setState(() => _backstage = true),
       leading: [
         if (!widget.hosted) ...[
-          IconButton(
-            tooltip: '${_s.undo} (Ctrl+Z)',
-            iconSize: 18,
-            onPressed: _session.canUndo ? () => setState(_session.undo) : null,
-            icon: const Icon(Icons.undo),
-          ),
-          IconButton(
-            tooltip: '${_s.redo} (Ctrl+Y)',
-            iconSize: 18,
-            onPressed: _session.canRedo ? () => setState(_session.redo) : null,
-            icon: const Icon(Icons.redo),
-          ),
+          IconButton(tooltip: '${_s.undo} (Ctrl+Z)', iconSize: 18, onPressed: _session.canUndo ? () => setState(_session.undo) : null, icon: const Icon(Icons.undo)),
+          IconButton(tooltip: '${_s.redo} (Ctrl+Y)', iconSize: 18, onPressed: _session.canRedo ? () => setState(_session.redo) : null, icon: const Icon(Icons.redo)),
         ],
       ],
       trailing: [
@@ -1218,77 +1261,86 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
             RibbonButton(icon: const Icon(Icons.content_copy), label: _s.copy, shortcut: 'Ctrl+C', onPressed: _copy),
           ]),
           RibbonGroup(_s.font, [
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              RibbonDropdown(label: _s.font, value: font.name, values: fonts, onChanged: editable ? _setFontName : null),
-              const SizedBox(width: 4),
-              RibbonDropdown(
-                label: _s.fontSize,
-                width: 56,
-                value: size(font.size),
-                values: [for (final s in _sizes) size(s)],
-                onChanged: editable ? (v) => _setFont('sz', double.parse(v)) : null,
-              ),
-              RibbonButton(icon: const Icon(Icons.text_increase), label: _s.growFont, onPressed: editable ? () => _growFont(true) : null),
-              RibbonButton(icon: const Icon(Icons.text_decrease), label: _s.shrinkFont, onPressed: editable ? () => _growFont(false) : null),
-            ]),
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              RibbonButton(icon: const Icon(Icons.format_bold), label: _s.bold, shortcut: 'Ctrl+G', selected: font.bold, onPressed: editable ? () => _toggleFont('b', font.bold) : null),
-              RibbonButton(icon: const Icon(Icons.format_italic), label: _s.italic, shortcut: 'Ctrl+I', selected: font.italic, onPressed: editable ? () => _toggleFont('i', font.italic) : null),
-              RibbonButton(
-                icon: const Icon(Icons.format_underline),
-                label: _s.underline,
-                shortcut: 'Ctrl+U',
-                selected: font.underline,
-                onPressed: editable ? () => _setFont('u', font.underline ? null : 'single') : null,
-              ),
-              RibbonMenu<String>(
-                icon: const Icon(Icons.border_all),
-                label: _s.borders,
-                enabled: editable,
-                items: [
-                  for (final (kind, label, icon) in [
-                    ('bottom', _s.bottomBorder, Icons.border_bottom),
-                    ('top', _s.topBorder, Icons.border_top),
-                    ('left', _s.leftBorder, Icons.border_left),
-                    ('right', _s.rightBorder, Icons.border_right),
-                    ('none', _s.noBorder, Icons.border_clear),
-                    ('all', _s.allBorders, Icons.border_all),
-                    ('outside', _s.outsideBorders, Icons.border_outer),
-                    ('thickBottom', _s.thickBottomBorder, Icons.border_bottom),
-                  ])
-                    PopupMenuItem(value: kind, child: Row(children: [Icon(icon, size: 18), const SizedBox(width: 8), Text(label)])),
-                ],
-                onSelected: _border,
-              ),
-              RibbonMenu<Object?>(
-                icon: const Icon(Icons.format_color_fill),
-                label: _s.fillColor,
-                enabled: editable,
-                items: [palette(_setFill, none: _s.noFill)],
-                onSelected: (_) {},
-              ),
-              RibbonMenu<Object?>(
-                icon: const Icon(Icons.format_color_text),
-                label: _s.fontColor,
-                enabled: editable,
-                items: [palette((c) => _setFont('color', c), none: _s.automatic)],
-                onSelected: (_) {},
-              ),
-            ]),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                RibbonDropdown(label: _s.font, value: font.name, values: fonts, onChanged: editable ? _setFontName : null),
+                const SizedBox(width: 4),
+                RibbonDropdown(label: _s.fontSize, width: 56, value: size(font.size), values: [for (final s in _sizes) size(s)], onChanged: editable ? (v) => _setFont('sz', double.parse(v)) : null),
+                RibbonButton(icon: const Icon(Icons.text_increase), label: _s.growFont, onPressed: editable ? () => _growFont(true) : null),
+                RibbonButton(icon: const Icon(Icons.text_decrease), label: _s.shrinkFont, onPressed: editable ? () => _growFont(false) : null),
+              ],
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                RibbonButton(icon: const Icon(Icons.format_bold), label: _s.bold, shortcut: 'Ctrl+G', selected: font.bold, onPressed: editable ? () => _toggleFont('b', font.bold) : null),
+                RibbonButton(icon: const Icon(Icons.format_italic), label: _s.italic, shortcut: 'Ctrl+I', selected: font.italic, onPressed: editable ? () => _toggleFont('i', font.italic) : null),
+                RibbonButton(
+                  icon: const Icon(Icons.format_underline),
+                  label: _s.underline,
+                  shortcut: 'Ctrl+U',
+                  selected: font.underline,
+                  onPressed: editable ? () => _setFont('u', font.underline ? null : 'single') : null,
+                ),
+                RibbonMenu<String>(
+                  icon: const Icon(Icons.border_all),
+                  label: _s.borders,
+                  enabled: editable,
+                  items: [
+                    for (final (kind, label, icon) in [
+                      ('bottom', _s.bottomBorder, Icons.border_bottom),
+                      ('top', _s.topBorder, Icons.border_top),
+                      ('left', _s.leftBorder, Icons.border_left),
+                      ('right', _s.rightBorder, Icons.border_right),
+                      ('none', _s.noBorder, Icons.border_clear),
+                      ('all', _s.allBorders, Icons.border_all),
+                      ('outside', _s.outsideBorders, Icons.border_outer),
+                      ('thickBottom', _s.thickBottomBorder, Icons.border_bottom),
+                    ])
+                      PopupMenuItem(
+                        value: kind,
+                        child: Row(children: [Icon(icon, size: 18), const SizedBox(width: 8), Text(label)]),
+                      ),
+                  ],
+                  onSelected: _border,
+                ),
+                RibbonMenu<Object?>(
+                  icon: const Icon(Icons.format_color_fill),
+                  label: _s.fillColor,
+                  enabled: editable,
+                  items: [palette(_setFill, none: _s.noFill)],
+                  onSelected: (_) {},
+                ),
+                RibbonMenu<Object?>(
+                  icon: const Icon(Icons.format_color_text),
+                  label: _s.fontColor,
+                  enabled: editable,
+                  items: [palette((c) => _setFont('color', c), none: _s.automatic)],
+                  onSelected: (_) {},
+                ),
+              ],
+            ),
           ]),
           RibbonGroup(_s.alignment, [
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              RibbonButton(icon: const Icon(Icons.vertical_align_top), label: _s.alignTop, selected: v == 'top', onPressed: editable ? () => _align('v', 'top') : null),
-              RibbonButton(icon: const Icon(Icons.vertical_align_center), label: _s.alignMiddle, selected: v == 'center', onPressed: editable ? () => _align('v', 'center') : null),
-              RibbonButton(icon: const Icon(Icons.vertical_align_bottom), label: _s.alignBottom, selected: v == 'bottom', onPressed: editable ? () => _align('v', null) : null),
-              RibbonButton(icon: const Icon(Icons.wrap_text), label: _s.wrapText, selected: wrap, onPressed: editable ? () => _align('wrap', wrap ? null : true) : null),
-            ]),
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              RibbonButton(icon: const Icon(Icons.format_align_left), label: _s.alignLeft, selected: h == 'left', onPressed: editable ? () => _align('h', h == 'left' ? null : 'left') : null),
-              RibbonButton(icon: const Icon(Icons.format_align_center), label: _s.center, selected: h == 'center', onPressed: editable ? () => _align('h', h == 'center' ? null : 'center') : null),
-              RibbonButton(icon: const Icon(Icons.format_align_right), label: _s.alignRight, selected: h == 'right', onPressed: editable ? () => _align('h', h == 'right' ? null : 'right') : null),
-              RibbonButton(icon: const Icon(Icons.merge_type), label: _s.mergeAndCenter, onPressed: editable ? _mergeCenter : null),
-            ]),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                RibbonButton(icon: const Icon(Icons.vertical_align_top), label: _s.alignTop, selected: v == 'top', onPressed: editable ? () => _align('v', 'top') : null),
+                RibbonButton(icon: const Icon(Icons.vertical_align_center), label: _s.alignMiddle, selected: v == 'center', onPressed: editable ? () => _align('v', 'center') : null),
+                RibbonButton(icon: const Icon(Icons.vertical_align_bottom), label: _s.alignBottom, selected: v == 'bottom', onPressed: editable ? () => _align('v', null) : null),
+                RibbonButton(icon: const Icon(Icons.wrap_text), label: _s.wrapText, selected: wrap, onPressed: editable ? () => _align('wrap', wrap ? null : true) : null),
+              ],
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                RibbonButton(icon: const Icon(Icons.format_align_left), label: _s.alignLeft, selected: h == 'left', onPressed: editable ? () => _align('h', h == 'left' ? null : 'left') : null),
+                RibbonButton(icon: const Icon(Icons.format_align_center), label: _s.center, selected: h == 'center', onPressed: editable ? () => _align('h', h == 'center' ? null : 'center') : null),
+                RibbonButton(icon: const Icon(Icons.format_align_right), label: _s.alignRight, selected: h == 'right', onPressed: editable ? () => _align('h', h == 'right' ? null : 'right') : null),
+                RibbonButton(icon: const Icon(Icons.merge_type), label: _s.mergeAndCenter, onPressed: editable ? _mergeCenter : null),
+              ],
+            ),
           ]),
           RibbonGroup(_s.number, [
             RibbonDropdown(
@@ -1298,13 +1350,16 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
               values: {for (final f in formats) f.$2, currentFormat}.toList(),
               onChanged: editable ? (label) => _setNumberFormat(formats.firstWhere((f) => f.$2 == label, orElse: () => (label, label)).$1) : null,
             ),
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              RibbonButton(icon: const Icon(Icons.euro), label: _s.accountingFormat, onPressed: editable ? () => _setNumberFormat(formats[3].$1) : null),
-              RibbonButton(icon: const Icon(Icons.percent), label: _s.percentStyle, onPressed: editable ? () => _setNumberFormat('0%') : null),
-              RibbonButton(icon: const Icon(Icons.more_horiz), label: _s.commaStyle, onPressed: editable ? () => _setNumberFormat('#,##0.00') : null),
-              RibbonButton(icon: const Icon(Icons.add), label: _s.increaseDecimal, onPressed: editable ? () => _decimals(1) : null),
-              RibbonButton(icon: const Icon(Icons.remove), label: _s.decreaseDecimal, onPressed: editable ? () => _decimals(-1) : null),
-            ]),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                RibbonButton(icon: const Icon(Icons.euro), label: _s.accountingFormat, onPressed: editable ? () => _setNumberFormat(formats[3].$1) : null),
+                RibbonButton(icon: const Icon(Icons.percent), label: _s.percentStyle, onPressed: editable ? () => _setNumberFormat('0%') : null),
+                RibbonButton(icon: const Icon(Icons.more_horiz), label: _s.commaStyle, onPressed: editable ? () => _setNumberFormat('#,##0.00') : null),
+                RibbonButton(icon: const Icon(Icons.add), label: _s.increaseDecimal, onPressed: editable ? () => _decimals(1) : null),
+                RibbonButton(icon: const Icon(Icons.remove), label: _s.decreaseDecimal, onPressed: editable ? () => _decimals(-1) : null),
+              ],
+            ),
           ]),
           RibbonGroup(_s.cells, [
             RibbonMenu<String>(
@@ -1373,23 +1428,13 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
         ]),
         if (!_wb.csv) _printTab(editable),
         RibbonTab(_s.formulas, [
-          RibbonGroup(_s.functionLibrary, [
-            _functionsMenu(),
-            RibbonButton(icon: const Icon(Icons.functions), label: _s.autoSum, large: true, onPressed: editable ? _autoSum : null),
-          ]),
+          RibbonGroup(_s.functionLibrary, [_functionsMenu(), RibbonButton(icon: const Icon(Icons.functions), label: _s.autoSum, large: true, onPressed: editable ? _autoSum : null)]),
         ]),
         RibbonTab(_s.data, [
           RibbonGroup(_s.sortAndFilter, [
             RibbonButton(icon: const Icon(Icons.arrow_downward), label: _s.sortAscending, large: true, onPressed: editable ? () => _sort(descending: false) : null),
             RibbonButton(icon: const Icon(Icons.arrow_upward), label: _s.sortDescending, large: true, onPressed: editable ? () => _sort(descending: true) : null),
-            RibbonButton(
-              icon: const Icon(Icons.filter_alt_outlined),
-              label: _s.filter,
-              large: true,
-              shortcut: 'Ctrl+Maj+L',
-              selected: hasFilter,
-              onPressed: editable ? _toggleFilter : null,
-            ),
+            RibbonButton(icon: const Icon(Icons.filter_alt_outlined), label: _s.filter, large: true, shortcut: 'Ctrl+Maj+L', selected: hasFilter, onPressed: editable ? _toggleFilter : null),
             RibbonButton(icon: const Icon(Icons.filter_alt_off_outlined), label: _s.clearFilters, onPressed: editable && hasFilter ? () => _refilter(clear: true) : null),
             RibbonButton(icon: const Icon(Icons.refresh), label: _s.reapply, onPressed: editable && hasFilter ? _refilter : null),
           ]),
@@ -1431,7 +1476,11 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
               large: true,
               selected: frozen?.gridlines ?? true,
               onPressed: editable
-                  ? () => _edit(Edit([Change.set(_sheet!.id, attributes: {'grid': (frozen?.gridlines ?? true) ? false : null})]))
+                  ? () => _edit(
+                      Edit([
+                        Change.set(_sheet!.id, attributes: {'grid': (frozen?.gridlines ?? true) ? false : null}),
+                      ]),
+                    )
                   : null,
             ),
           ]),
@@ -1482,9 +1531,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
           label: _s.size,
           large: true,
           enabled: editable,
-          items: [
-            for (final (name, paper) in _s.sheetPapers) CheckedPopupMenuItem(value: paper, checked: setup.paper == paper, child: Text(name)),
-          ],
+          items: [for (final (name, paper) in _s.sheetPapers) CheckedPopupMenuItem(value: paper, checked: setup.paper == paper, child: Text(name))],
           onSelected: (paper) => _print({'paper': paper}),
         ),
         RibbonMenu<bool>(
@@ -1492,7 +1539,10 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
           label: _s.printArea,
           large: true,
           enabled: editable,
-          items: [PopupMenuItem(value: true, child: Text(_s.setPrintArea)), PopupMenuItem(value: false, child: Text(_s.clearPrintArea))],
+          items: [
+            PopupMenuItem(value: true, child: Text(_s.setPrintArea)),
+            PopupMenuItem(value: false, child: Text(_s.clearPrintArea)),
+          ],
           onSelected: (set) => _edit(_edits.printArea(sheet!, set ? _selection.area : null)),
         ),
         RibbonMenu<String>(
@@ -1512,19 +1562,25 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
         RibbonDropdown(
           label: _s.width,
           value: pages(wide),
-          values: [for (final n in {...fits, wide}) pages(n)],
+          values: [
+            for (final n in {...fits, wide}) pages(n),
+          ],
           onChanged: editable ? (v) => _fit(wide: {...fits, wide}.firstWhere((n) => pages(n) == v)) : null,
         ),
         RibbonDropdown(
           label: _s.height,
           value: pages(tall),
-          values: [for (final n in {...fits, tall}) pages(n)],
+          values: [
+            for (final n in {...fits, tall}) pages(n),
+          ],
           onChanged: editable ? (v) => _fit(tall: {...fits, tall}.firstWhere((n) => pages(n) == v)) : null,
         ),
         RibbonDropdown(
           label: _s.scale,
           value: '${(setup.scale * 100).round()} %',
-          values: [for (final n in {25, 50, 60, 70, 75, 80, 90, 100, 125, 150, 200, (setup.scale * 100).round()}.toList()..sort()) '$n %'],
+          values: [
+            for (final n in {25, 50, 60, 70, 75, 80, 90, 100, 125, 150, 200, (setup.scale * 100).round()}.toList()..sort()) '$n %',
+          ],
           onChanged: editable && setup.fit == null ? (v) => _print({'scale': int.parse(v.split(' ').first)}) : null,
         ),
       ]),
@@ -1545,57 +1601,62 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
         color: scheme.surfaceContainerLow,
         border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
       ),
-      child: Row(children: [
-        IconButton(iconSize: 16, onPressed: () => _stepSheet(-1), icon: const Icon(Icons.chevron_left)),
-        IconButton(iconSize: 16, onPressed: () => _stepSheet(1), icon: const Icon(Icons.chevron_right)),
-        Expanded(
-          child: ReorderableListView.builder(
-            scrollDirection: Axis.horizontal,
-            buildDefaultDragHandles: false,
-            itemCount: sheets.length,
-            onReorderItem: (from, to) {
-              if (editable) _edit(Edit([_edits.moveSheet(sheets[from], to > from ? to - 1 : to)]));
-            },
-            itemBuilder: (context, i) {
-              final s = sheets[i];
-              final selected = s.id == _sheet?.id;
-              final tab = _wb.color(s.attributes['tab']);
-              return ReorderableDelayedDragStartListener(
-                key: ValueKey(s.id),
-                index: i,
-                enabled: editable,
-                child: GestureDetector(
-                  onTap: () => _goToSheet(s),
-                  onDoubleTap: editable ? () => _renameSheet(s) : null,
-                  onSecondaryTapDown: (d) => _sheetMenu(s, d.globalPosition),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: selected ? Colors.white : null,
-                      border: Border(
-                        bottom: BorderSide(color: selected ? const Color(0xFF217346) : (tab ?? Colors.transparent), width: 3),
-                        right: BorderSide(color: Theme.of(context).dividerColor),
+      child: Row(
+        children: [
+          IconButton(iconSize: 16, onPressed: () => _stepSheet(-1), icon: const Icon(Icons.chevron_left)),
+          IconButton(iconSize: 16, onPressed: () => _stepSheet(1), icon: const Icon(Icons.chevron_right)),
+          Expanded(
+            child: ReorderableListView.builder(
+              scrollDirection: Axis.horizontal,
+              buildDefaultDragHandles: false,
+              itemCount: sheets.length,
+              onReorderItem: (from, to) {
+                if (editable) _edit(Edit([_edits.moveSheet(sheets[from], to > from ? to - 1 : to)]));
+              },
+              itemBuilder: (context, i) {
+                final s = sheets[i];
+                final selected = s.id == _sheet?.id;
+                final tab = _wb.color(s.attributes['tab']);
+                return ReorderableDelayedDragStartListener(
+                  key: ValueKey(s.id),
+                  index: i,
+                  enabled: editable,
+                  child: GestureDetector(
+                    onTap: () => _goToSheet(s),
+                    onDoubleTap: editable ? () => _renameSheet(s) : null,
+                    onSecondaryTapDown: (d) => _sheetMenu(s, d.globalPosition),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: selected ? Colors.white : null,
+                        border: Border(
+                          bottom: BorderSide(color: selected ? const Color(0xFF217346) : (tab ?? Colors.transparent), width: 3),
+                          right: BorderSide(color: Theme.of(context).dividerColor),
+                        ),
+                      ),
+                      child: Text(
+                        '${s.attributes['name'] ?? ''}',
+                        style: TextStyle(fontSize: 12, fontWeight: selected ? FontWeight.bold : FontWeight.normal, color: selected ? const Color(0xFF217346) : null),
                       ),
                     ),
-                    child: Text(
-                      '${s.attributes['name'] ?? ''}',
-                      style: TextStyle(fontSize: 12, fontWeight: selected ? FontWeight.bold : FontWeight.normal, color: selected ? const Color(0xFF217346) : null),
-                    ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
-        ),
-        if (!_wb.csv) IconButton(iconSize: 18, tooltip: _s.insertSheet, onPressed: editable ? _newSheet : null, icon: const Icon(Icons.add_circle_outline)),
-      ]),
+          if (!_wb.csv) IconButton(iconSize: 18, tooltip: _s.insertSheet, onPressed: editable ? _newSheet : null, icon: const Icon(Icons.add_circle_outline)),
+        ],
+      ),
     );
   }
 
   Future<void> _sheetMenu(Node sheet, Offset at) async {
     final editable = !_session.readOnly;
-    final hidden = [for (final s in _wb.sheets) if (s.attributes['state'] != null) s];
+    final hidden = [
+      for (final s in _wb.sheets)
+        if (s.attributes['state'] != null) s,
+    ];
     final choice = await showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(at.dx, at.dy, at.dx, at.dy),
@@ -1604,8 +1665,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
         PopupMenuItem(value: 'delete', enabled: editable && _visibleSheets.length > 1, child: Text(_s.deleteSheet)),
         PopupMenuItem(value: 'rename', enabled: editable, child: Text(_s.renameSheet)),
         PopupMenuItem(value: 'hide', enabled: editable && _visibleSheets.length > 1, child: Text(_s.hideSheet)),
-        for (final h in hidden)
-          PopupMenuItem(value: 'unhide:${h.id}', enabled: editable, child: Text('${_s.unhideSheet} « ${h.attributes['name']} »')),
+        for (final h in hidden) PopupMenuItem(value: 'unhide:${h.id}', enabled: editable, child: Text('${_s.unhideSheet} « ${h.attributes['name']} »')),
       ],
     );
     switch (choice) {
@@ -1616,9 +1676,18 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
       case 'rename':
         await _renameSheet(sheet);
       case 'hide':
-        if (_edit(Edit([Change.set(sheet.id, attributes: {'state': 'hidden'})]))) _stepSheet(0);
+        if (_edit(
+          Edit([
+            Change.set(sheet.id, attributes: {'state': 'hidden'}),
+          ]),
+        ))
+          _stepSheet(0);
       case final String c when c.startsWith('unhide:'):
-        _edit(Edit([Change.set(c.substring(7), attributes: {'state': null})]));
+        _edit(
+          Edit([
+            Change.set(c.substring(7), attributes: {'state': null}),
+          ]),
+        );
     }
   }
 
@@ -1654,43 +1723,39 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
       color: Theme.of(context).colorScheme.surfaceContainer,
       child: SizedBox(
         height: 26,
-        child: Row(children: [
-          const SizedBox(width: 12),
-          Icon(
-            _session.saveError != null ? Icons.error_outline : (_session.saved ? Icons.cloud_done_outlined : Icons.cloud_upload_outlined),
-            size: 14,
-          ),
-          const SizedBox(width: 4),
-          Expanded(child: Text(state, style: style, overflow: TextOverflow.ellipsis)),
-          if (count > 1) ...[
-            if (numbers > 0 && !phone) Text('${_s.average} : ${number(sum / numbers)}', style: style),
-            const SizedBox(width: 16),
-            if (!phone) Text('${_s.countLabel} : $count', style: style),
-            if (!phone) const SizedBox(width: 16),
-            if (numbers > 0) Text('${_s.sum} : ${number(sum)}', style: style),
-            const SizedBox(width: 16),
+        child: Row(
+          children: [
+            const SizedBox(width: 12),
+            Icon(_session.saveError != null ? Icons.error_outline : (_session.saved ? Icons.cloud_done_outlined : Icons.cloud_upload_outlined), size: 14),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(state, style: style, overflow: TextOverflow.ellipsis),
+            ),
+            if (count > 1) ...[
+              if (numbers > 0 && !phone) Text('${_s.average} : ${number(sum / numbers)}', style: style),
+              const SizedBox(width: 16),
+              if (!phone) Text('${_s.countLabel} : $count', style: style),
+              if (!phone) const SizedBox(width: 16),
+              if (numbers > 0) Text('${_s.sum} : ${number(sum)}', style: style),
+              const SizedBox(width: 16),
+            ],
+            if (phone) const SizedBox(width: 8) else ..._zoomControls(style),
           ],
-          if (phone) const SizedBox(width: 8) else ..._zoomControls(style),
-        ]),
+        ),
       ),
     );
   }
 
   List<Widget> _zoomControls(TextStyle? style) => [
-          Text(_s.language, style: style),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: 120,
-            child: Slider(
-              value: math.log(_zoom) / math.ln2,
-              min: math.log(0.1) / math.ln2,
-              max: 2,
-              onChanged: (v) => setState(() => _zoom = math.pow(2, v).toDouble()),
-            ),
-          ),
-          Text('${(_zoom * 100).round()} %', style: style),
-          const SizedBox(width: 12),
-        ];
+    Text(_s.language, style: style),
+    const SizedBox(width: 8),
+    SizedBox(
+      width: 120,
+      child: Slider(value: math.log(_zoom) / math.ln2, min: math.log(0.1) / math.ln2, max: 2, onChanged: (v) => setState(() => _zoom = math.pow(2, v).toDouble())),
+    ),
+    Text('${(_zoom * 100).round()} %', style: style),
+    const SizedBox(width: 12),
+  ];
 }
 
 /// A number format with a decimal more, or less: 0 becomes 0.0, 0.00 %
@@ -1720,43 +1785,51 @@ class _Backstage extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Material(
       color: scheme.surface,
-      child: Row(children: [
-        SizedBox(
-          width: 220,
-          child: Material(
-            color: const Color(0xFF217346),
-            child: ListTileTheme(
-              textColor: Colors.white,
-              iconColor: Colors.white,
-              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                ListTile(leading: const Icon(Icons.arrow_back), title: Text(s.back), onTap: editor._closeBackstage),
-                ListTile(leading: const Icon(Icons.info_outline), title: Text(s.info), selected: true, selectedColor: Colors.white),
-                if (editor.widget.onExport != null)
-                  ListTile(
-                    leading: editor._exporting
-                        ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Icon(Icons.picture_as_pdf_outlined),
-                    title: Text(editor._exporting ? s.exporting : s.exportPdf),
-                    onTap: editor._exporting ? null : editor._exportPdf,
-                  ),
-                if (editor.widget.onClose != null) ListTile(leading: const Icon(Icons.close), title: Text(s.close), onTap: editor.widget.onClose),
-              ]),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 220,
+            child: Material(
+              color: const Color(0xFF217346),
+              child: ListTileTheme(
+                textColor: Colors.white,
+                iconColor: Colors.white,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ListTile(leading: const Icon(Icons.arrow_back), title: Text(s.back), onTap: editor._closeBackstage),
+                    ListTile(leading: const Icon(Icons.info_outline), title: Text(s.info), selected: true, selectedColor: Colors.white),
+                    if (editor.widget.onExport != null)
+                      ListTile(
+                        leading: editor._exporting
+                            ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : const Icon(Icons.picture_as_pdf_outlined),
+                        title: Text(editor._exporting ? s.exporting : s.exportPdf),
+                        onTap: editor._exporting ? null : editor._exportPdf,
+                      ),
+                    if (editor.widget.onClose != null) ListTile(leading: const Icon(Icons.close), title: Text(s.close), onTap: editor.widget.onClose),
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
-        Expanded(
-          child: ListView(padding: const EdgeInsets.all(32), children: [
-            Text(s.info, style: Theme.of(context).textTheme.headlineMedium),
-            const SizedBox(height: 16),
-            Text(editor.widget.title, style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 16),
-            Text(session.saveError != null ? s.saveFailed(session.saveError!) : (session.saved ? s.saved : s.saving)),
-            if (session.readOnly) Text(s.readOnly),
-            const SizedBox(height: 16),
-            for (final p in session.peers) ListTile(leading: const Icon(Icons.person_outline), title: Text(p.name)),
-          ]),
-        ),
-      ]),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(32),
+              children: [
+                Text(s.info, style: Theme.of(context).textTheme.headlineMedium),
+                const SizedBox(height: 16),
+                Text(editor.widget.title, style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: 16),
+                Text(session.saveError != null ? s.saveFailed(session.saveError!) : (session.saved ? s.saved : s.saving)),
+                if (session.readOnly) Text(s.readOnly),
+                const SizedBox(height: 16),
+                for (final p in session.peers) ListTile(leading: const Icon(Icons.person_outline), title: Text(p.name)),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

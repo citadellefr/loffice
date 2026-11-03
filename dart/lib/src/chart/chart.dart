@@ -82,9 +82,7 @@ class SeriesSpec {
   int get explosion => _int(json['explosion']) ?? 0;
   bool get invert => json['invert'] == true;
 
-  late final Map<int, Map<String, Object?>> points = {
-    for (final p in _list<Map<String, Object?>>(json['points'])) _int(p['idx']) ?? -1: p,
-  };
+  late final Map<int, Map<String, Object?>> points = {for (final p in _list<Map<String, Object?>>(json['points'])) _int(p['idx']) ?? -1: p};
 }
 
 /// Values of a series: numbers, texts, or both, and where they come from.
@@ -226,7 +224,10 @@ class LegendSpec {
 
   String get position => json['pos'] as String? ?? 'r';
   bool get overlay => json['overlay'] == true;
-  late final hidden = {for (final i in _list<Object?>(json['hidden'])) if (i is num) i.toInt()};
+  late final hidden = {
+    for (final i in _list<Object?>(json['hidden']))
+      if (i is num) i.toInt(),
+  };
   late final Props text = _props(json['text']);
   late final Map<String, Object?>? shape = _map(json['shape']);
   late final layout = LayoutSpec.fromJson(json['layout']);
@@ -249,10 +250,20 @@ class LayoutSpec {
   double get h => (json['h'] as num?)?.toDouble() ?? 0;
 }
 
-List<T> _list<T>(Object? v) => v is List ? [for (final x in v) if (x is T) x] : const [];
+List<T> _list<T>(Object? v) => v is List
+    ? [
+        for (final x in v)
+          if (x is T) x,
+      ]
+    : const [];
 
 Map<String, Object?>? _map(Object? v) => v is Map<String, Object?> ? v : null;
 
 int? _int(Object? v) => v is num ? v.toInt() : null;
 
-Props _props(Object? v) => v is Map ? {for (final e in v.entries) if (e.value is String) '${e.key}': e.value as String} : const {};
+Props _props(Object? v) => v is Map
+    ? {
+        for (final e in v.entries)
+          if (e.value is String) '${e.key}': e.value as String,
+      }
+    : const {};

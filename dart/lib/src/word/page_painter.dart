@@ -78,35 +78,39 @@ class PagePainter {
       final fill = hexColor(p.picture['fill']), line = hexColor(p.picture['line']);
       if (fill != null) canvas.drawRect(p.rect, Paint()..color = fill);
       if (line != null) {
-        canvas.drawRect(p.rect, Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 0.75
-          ..color = line);
+        canvas.drawRect(
+          p.rect,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 0.75
+            ..color = line,
+        );
       }
       return;
     }
-    canvas.drawRect(p.rect, Paint()
-      ..style = PaintingStyle.stroke
-      ..color = const Color(0xFFB0B0B0));
+    canvas.drawRect(
+      p.rect,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..color = const Color(0xFFB0B0B0),
+    );
   }
 
   void _chart(Canvas canvas, ChartSpec chart, Rect rect) {
     final doc = context?.doc;
-    final colors = ColorContext(scheme: {
-      for (final e in (doc?.themeColors ?? const <String, String>{}).entries)
-        if (hexColor(e.value) != null) e.key: hexColor(e.value)!,
-    });
+    final colors = ColorContext(
+      scheme: {
+        for (final e in (doc?.themeColors ?? const <String, String>{}).entries)
+          if (hexColor(e.value) != null) e.key: hexColor(e.value)!,
+      },
+    );
     final fonts = context?.fonts;
     canvas.save();
     canvas.translate(rect.left, rect.top);
     ChartPainter(
       chart,
       colors: colors,
-      fonts: Fonts(
-        theme: (name) => doc?.typeface(name.startsWith('+mj') ? '+major' : '+minor') ?? 'Calibri',
-        substitutes: fonts?.substitutes ?? Fonts.defaultSubstitutes,
-        package: fonts?.package,
-      ),
+      fonts: Fonts(theme: (name) => doc?.typeface(name.startsWith('+mj') ? '+major' : '+minor') ?? 'Calibri', substitutes: fonts?.substitutes ?? Fonts.defaultSubstitutes, package: fonts?.package),
     ).paint(canvas, rect.size);
     canvas.restore();
   }

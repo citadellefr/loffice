@@ -823,11 +823,13 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
     };
     if (nudge != null) {
       final step = _ctrl ? 0.75 : 7.2;
-      _session.edit(DeckEdits(_deck).place({
-        for (final s in shapes)
-          if (_placeable(s))
-            if (_deck.styleOf(s).bounds case final b?) s: b.shift(_nudgeIn(s, nudge * step)),
-      }));
+      _session.edit(
+        DeckEdits(_deck).place({
+          for (final s in shapes)
+            if (_placeable(s))
+              if (_deck.styleOf(s).bounds case final b?) s: b.shift(_nudgeIn(s, nudge * step)),
+        }),
+      );
       return true;
     }
     final single = shapes.length == 1 ? shapes.single : null;
@@ -906,10 +908,12 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
         case LogicalKeyboardKey.keyV:
           // left to the browser, which then tells the page to paste
           if (_unwatchPaste != null) return false;
-          unawaited(Clipboard.getData(Clipboard.kTextPlain).then((data) {
-            final text = data?.text;
-            if (text != null) _pasted(text);
-          }));
+          unawaited(
+            Clipboard.getData(Clipboard.kTextPlain).then((data) {
+              final text = data?.text;
+              if (text != null) _pasted(text);
+            }),
+          );
           return true;
         case LogicalKeyboardKey.backspace:
           _delete(shape, editor.deleteBackward(editor.previous(s.start, word: true), s.collapsed ? s.start : s.end), editor.previous(s.start, word: true));
@@ -1001,18 +1005,13 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
       _input!.setEditingState(currentTextEditingValue);
       return;
     }
-    _input = TextInput.attach(
-      this,
-      const TextInputConfiguration(
-        inputType: TextInputType.multiline,
-        inputAction: TextInputAction.newline,
-        enableDeltaModel: true,
-        autocorrect: false,
-        enableSuggestions: false,
-      ),
-    )
-      ..setEditingState(currentTextEditingValue)
-      ..show();
+    _input =
+        TextInput.attach(
+            this,
+            const TextInputConfiguration(inputType: TextInputType.multiline, inputAction: TextInputAction.newline, enableDeltaModel: true, autocorrect: false, enableSuggestions: false),
+          )
+          ..setEditingState(currentTextEditingValue)
+          ..show();
   }
 
   @override
@@ -1072,9 +1071,7 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
         prefix++;
       }
       var suffix = 0;
-      while (suffix < old.length - prefix &&
-          suffix < now.length - prefix &&
-          old.codeUnitAt(old.length - 1 - suffix) == now.codeUnitAt(now.length - 1 - suffix)) {
+      while (suffix < old.length - prefix && suffix < now.length - prefix && old.codeUnitAt(old.length - 1 - suffix) == now.codeUnitAt(now.length - 1 - suffix)) {
         suffix++;
       }
       _replace(node, prefix, old.length - suffix, now.substring(prefix, now.length - suffix));
@@ -1135,36 +1132,30 @@ class SlideCanvasState extends State<SlideCanvas> implements DeltaTextInputClien
   @override
   Widget build(BuildContext context) {
     final size = _deck.size;
-    return LayoutBuilder(builder: (context, constraints) {
-      const margin = 24.0;
-      _scale = math.max(
-        math.min((constraints.maxWidth - 2 * margin) / size.width, (constraints.maxHeight - 2 * margin) / size.height),
-        0.05,
-      );
-      _origin = Offset((constraints.maxWidth - size.width * _scale) / 2, (constraints.maxHeight - size.height * _scale) / 2);
-      final theme = Theme.of(context);
-      final canvas = Focus(
-        focusNode: _focus,
-        onKeyEvent: _key,
-        child: Listener(
-          onPointerDown: _down,
-          onPointerMove: _move,
-          onPointerUp: _up,
-          onPointerHover: _hover,
-          child: MouseRegion(
-            onExit: (_) => _cards.hide(),
-            cursor: _cursor != MouseCursor.defer
-                ? _cursor
-                : (_selection.editing != null ? SystemMouseCursors.text : SystemMouseCursors.basic),
-            child: CustomPaint(
-              size: Size(constraints.maxWidth, constraints.maxHeight),
-              painter: _CanvasPainter(this, theme.colorScheme),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const margin = 24.0;
+        _scale = math.max(math.min((constraints.maxWidth - 2 * margin) / size.width, (constraints.maxHeight - 2 * margin) / size.height), 0.05);
+        _origin = Offset((constraints.maxWidth - size.width * _scale) / 2, (constraints.maxHeight - size.height * _scale) / 2);
+        final theme = Theme.of(context);
+        final canvas = Focus(
+          focusNode: _focus,
+          onKeyEvent: _key,
+          child: Listener(
+            onPointerDown: _down,
+            onPointerMove: _move,
+            onPointerUp: _up,
+            onPointerHover: _hover,
+            child: MouseRegion(
+              onExit: (_) => _cards.hide(),
+              cursor: _cursor != MouseCursor.defer ? _cursor : (_selection.editing != null ? SystemMouseCursors.text : SystemMouseCursors.basic),
+              child: CustomPaint(size: Size(constraints.maxWidth, constraints.maxHeight), painter: _CanvasPainter(this, theme.colorScheme)),
             ),
           ),
-        ),
-      );
-      return CommandsMenu(commands: _commands, child: canvas);
-    });
+        );
+        return CommandsMenu(commands: _commands, child: canvas);
+      },
+    );
   }
 }
 
@@ -1176,9 +1167,7 @@ class _CanvasPainter extends CustomPainter {
   final SlideCanvasState state;
   final ColorScheme colors;
 
-  static const _peerColors = [
-    Color(0xFFD83B01), Color(0xFF107C10), Color(0xFF8764B8), Color(0xFF0078D4), Color(0xFFC239B3), Color(0xFF00B7C3),
-  ];
+  static const _peerColors = [Color(0xFFD83B01), Color(0xFF107C10), Color(0xFF8764B8), Color(0xFF0078D4), Color(0xFFC239B3), Color(0xFF00B7C3)];
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1228,7 +1217,10 @@ class _CanvasPainter extends CustomPainter {
       final caret = frame.caretAt(s.extent);
       canvas.drawRect(_bar(caret, 1.5 / scale), Paint()..color = color);
       final label = TextPainter(
-        text: TextSpan(text: peer.name, style: TextStyle(fontSize: 10 / scale, color: Colors.white)),
+        text: TextSpan(
+          text: peer.name,
+          style: TextStyle(fontSize: 10 / scale, color: Colors.white),
+        ),
         textDirection: TextDirection.ltr,
       )..layout();
       final tag = Rect.fromLTWH(caret.left, caret.top - label.height - 2 / scale, label.width + 6 / scale, label.height + 2 / scale);
@@ -1352,7 +1344,10 @@ class _CanvasPainter extends CustomPainter {
           ..color = active ? Colors.white : const Color(0x66FFFFFF),
       );
       final label = TextPainter(
-        text: TextSpan(text: t.root.initials.isEmpty ? '?' : t.root.initials, style: TextStyle(fontSize: 9 / scale, color: Colors.white, fontWeight: FontWeight.w600)),
+        text: TextSpan(
+          text: t.root.initials.isEmpty ? '?' : t.root.initials,
+          style: TextStyle(fontSize: 9 / scale, color: Colors.white, fontWeight: FontWeight.w600),
+        ),
         textDirection: TextDirection.ltr,
       )..layout();
       label.paint(canvas, box.center - Offset(label.width / 2, label.height / 2));
@@ -1362,9 +1357,8 @@ class _CanvasPainter extends CustomPainter {
 
   /// A caret drawn [width] thick, across the line of the text: upright in
   /// a horizontal text, lying in a vertical one.
-  Rect _bar(Rect caret, double width) => caret.width == 0
-      ? Rect.fromLTWH(caret.left - width / 2, caret.top, width, caret.height)
-      : Rect.fromLTWH(caret.left, caret.top - width / 2, caret.width, width);
+  Rect _bar(Rect caret, double width) =>
+      caret.width == 0 ? Rect.fromLTWH(caret.left - width / 2, caret.top, width, caret.height) : Rect.fromLTWH(caret.left, caret.top - width / 2, caret.width, width);
 
   void _dashed(Canvas canvas, Rect r, Color color, double width) {
     final paint = Paint()

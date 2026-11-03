@@ -92,7 +92,12 @@ class PrintSetup {
   List<int> get rowBreaks => _ints(json['rows']);
   List<int> get colBreaks => _ints(json['cols']);
 
-  static List<int> _ints(Object? v) => v is List<Object?> ? [for (final i in v) if (i is int) i] : const [];
+  static List<int> _ints(Object? v) => v is List<Object?>
+      ? [
+          for (final i in v)
+            if (i is int) i,
+        ]
+      : const [];
 
   /// The header and the footer of page [number], the [first] of its sheet
   /// or not, in the codes of Excel.
@@ -204,10 +209,7 @@ class SheetPages {
   /// What the sheet prints: the areas it names, or its cells from the
   /// first one to the last that holds or shows something.
   List<CellArea> _areas() {
-    final named = [
-      for (final a in _named(printAreaName))
-        CellArea(a.top, a.left, math.min(a.bottom, math.max(layout.used, a.top)), math.min(a.right, math.max(layout.usedCols, a.left))),
-    ];
+    final named = [for (final a in _named(printAreaName)) CellArea(a.top, a.left, math.min(a.bottom, math.max(layout.used, a.top)), math.min(a.right, math.max(layout.usedCols, a.left)))];
     if (named.isNotEmpty) return named;
     var bottom = 0, right = 0;
     void reach(int row, int col) {
@@ -282,8 +284,14 @@ class SheetPages {
     cols.removeWhere((c) => _span(layout.width, c) == 0);
     rows.removeWhere((r) => _span(layout.height, r) == 0);
     return setup.across
-        ? [for (final r in rows) for (final c in cols) page(r, c)]
-        : [for (final c in cols) for (final r in rows) page(r, c)];
+        ? [
+            for (final r in rows)
+              for (final c in cols) page(r, c),
+          ]
+        : [
+            for (final c in cols)
+              for (final r in rows) page(r, c),
+          ];
   }
 
   /// The largest scale, in hundredths and no more than 1, at which the

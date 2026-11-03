@@ -13,15 +13,7 @@ import 'slide_painter.dart';
 /// left out; each comes on with its transition, and the show goes on by
 /// itself after the time a slide gives.
 class Slideshow extends StatefulWidget {
-  const Slideshow({
-    super.key,
-    required this.deck,
-    required this.painter,
-    this.start = 0,
-    this.strings = const LofficeStrings(),
-    this.images,
-    this.presenter = false,
-  });
+  const Slideshow({super.key, required this.deck, required this.painter, this.start = 0, this.strings = const LofficeStrings(), this.images, this.presenter = false});
 
   final Deck deck;
   final SlidePainter painter;
@@ -53,7 +45,8 @@ class Slideshow extends StatefulWidget {
 
 class _SlideshowState extends State<Slideshow> with SingleTickerProviderStateMixin {
   late final List<Node> _slides = [
-    for (final s in widget.deck.slides) if (s.attributes['hidden'] != true) s,
+    for (final s in widget.deck.slides)
+      if (s.attributes['hidden'] != true) s,
   ];
   late int _at;
   int? _from;
@@ -172,7 +165,9 @@ class _SlideshowState extends State<Slideshow> with SingleTickerProviderStateMix
       child: ColoredBox(
         color: Colors.black,
         child: end
-            ? Center(child: Text(widget.strings.endOfShow, style: const TextStyle(color: Colors.white70, fontSize: 18)))
+            ? Center(
+                child: Text(widget.strings.endOfShow, style: const TextStyle(color: Colors.white70, fontSize: 18)),
+              )
             : SizedBox.expand(
                 child: CustomPaint(
                   painter: _ShowPainter(widget.painter, widget.deck, _slides[_at], from: from, transition: _transition(_slides[_at]), progress: _progress),
@@ -197,59 +192,76 @@ class _SlideshowState extends State<Slideshow> with SingleTickerProviderStateMix
       color: const Color(0xFF202020),
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(children: [
-          Row(children: [
-            Text(time, style: light.copyWith(fontSize: 22, fontFeatures: const [FontFeature.tabularFigures()])),
-            IconButton(
-              tooltip: _running ? s.pauseTimer : s.resumeTimer,
-              color: Colors.white70,
-              icon: Icon(_running ? Icons.pause : Icons.play_arrow),
-              onPressed: () => setState(() => _running = !_running),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Text(time, style: light.copyWith(fontSize: 22, fontFeatures: const [FontFeature.tabularFigures()])),
+                IconButton(
+                  tooltip: _running ? s.pauseTimer : s.resumeTimer,
+                  color: Colors.white70,
+                  icon: Icon(_running ? Icons.pause : Icons.play_arrow),
+                  onPressed: () => setState(() => _running = !_running),
+                ),
+                IconButton(tooltip: s.restartTimer, color: Colors.white70, icon: const Icon(Icons.replay), onPressed: () => setState(() => _seconds = 0)),
+                const Spacer(),
+                TextButton(
+                  style: TextButton.styleFrom(foregroundColor: Colors.white),
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(s.endSlideShow),
+                ),
+              ],
             ),
-            IconButton(tooltip: s.restartTimer, color: Colors.white70, icon: const Icon(Icons.replay), onPressed: () => setState(() => _seconds = 0)),
-            const Spacer(),
-            TextButton(
-              style: TextButton.styleFrom(foregroundColor: Colors.white),
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(s.endSlideShow),
-            ),
-          ]),
-          const SizedBox(height: 12),
-          Expanded(
-            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(flex: 3, child: show),
-              const SizedBox(width: 16),
-              Expanded(
-                flex: 2,
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(s.nextSlide, style: light),
-                  const SizedBox(height: 6),
-                  AspectRatio(
-                    aspectRatio: widget.deck.size.width / widget.deck.size.height,
-                    child: ColoredBox(
-                      color: Colors.black,
-                      child: next == null
-                          ? Center(child: Text(s.endOfShow, textAlign: TextAlign.center, style: light))
-                          : CustomPaint(painter: _ShowPainter(widget.painter, widget.deck, next, transition: const {}, progress: kAlwaysCompleteAnimation)),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
+            const SizedBox(height: 12),
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 3, child: show),
+                  const SizedBox(width: 16),
                   Expanded(
-                    child: SingleChildScrollView(
-                      child: Text(notes == null || notes.isEmpty ? s.noNotes : notes, style: light.copyWith(fontSize: 18, color: Colors.white)),
+                    flex: 2,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(s.nextSlide, style: light),
+                        const SizedBox(height: 6),
+                        AspectRatio(
+                          aspectRatio: widget.deck.size.width / widget.deck.size.height,
+                          child: ColoredBox(
+                            color: Colors.black,
+                            child: next == null
+                                ? Center(
+                                    child: Text(s.endOfShow, textAlign: TextAlign.center, style: light),
+                                  )
+                                : CustomPaint(
+                                    painter: _ShowPainter(widget.painter, widget.deck, next, transition: const {}, progress: kAlwaysCompleteAnimation),
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Expanded(
+                          child: SingleChildScrollView(
+                            child: Text(notes == null || notes.isEmpty ? s.noNotes : notes, style: light.copyWith(fontSize: 18, color: Colors.white)),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ]),
+                ],
               ),
-            ]),
-          ),
-          const SizedBox(height: 8),
-          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            IconButton(tooltip: s.previousSlide, color: Colors.white70, icon: const Icon(Icons.chevron_left), onPressed: () => _go(_at - 1)),
-            Text(s.slideOf(math.min(_at + 1, _slides.length), _slides.length), style: light),
-            IconButton(tooltip: s.nextSlide, color: Colors.white70, icon: const Icon(Icons.chevron_right), onPressed: () => _go(_at + 1)),
-          ]),
-        ]),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(tooltip: s.previousSlide, color: Colors.white70, icon: const Icon(Icons.chevron_left), onPressed: () => _go(_at - 1)),
+                Text(s.slideOf(math.min(_at + 1, _slides.length), _slides.length), style: light),
+                IconButton(tooltip: s.nextSlide, color: Colors.white70, icon: const Icon(Icons.chevron_right), onPressed: () => _go(_at + 1)),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -355,12 +367,18 @@ class _ShowPainter extends CustomPainter {
       case 'wipe':
         final (w, h) = (size.width, size.height);
         back();
-        _draw(canvas, size, slide, clip: Path()..addRect(switch (dir) {
-          'r' => Rect.fromLTRB(0, 0, w * t, h),
-          'u' => Rect.fromLTRB(0, h * (1 - t), w, h),
-          'd' => Rect.fromLTRB(0, 0, w, h * t),
-          _ => Rect.fromLTRB(w * (1 - t), 0, w, h),
-        }));
+        _draw(
+          canvas,
+          size,
+          slide,
+          clip: Path()
+            ..addRect(switch (dir) {
+              'r' => Rect.fromLTRB(0, 0, w * t, h),
+              'u' => Rect.fromLTRB(0, h * (1 - t), w, h),
+              'd' => Rect.fromLTRB(0, 0, w, h * t),
+              _ => Rect.fromLTRB(w * (1 - t), 0, w, h),
+            }),
+        );
       case 'split':
         final horz = transition['orient'] != 'vert';
         final c = size.center(Offset.zero);

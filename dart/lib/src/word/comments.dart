@@ -73,16 +73,13 @@ List<WordThread> commentThreads(Tree tree) {
     return p == null ? (1 << 30, 0) : (order[p.$1] ?? 0, p.$2);
   }
 
-  return threads.values.toList()
-    ..sort((a, b) {
-      final (x, y) = (place(a), place(b));
-      return x.$1 != y.$1 ? x.$1.compareTo(y.$1) : x.$2.compareTo(y.$2);
-    });
+  return threads.values.toList()..sort((a, b) {
+    final (x, y) = (place(a), place(b));
+    return x.$1 != y.$1 ? x.$1.compareTo(y.$1) : x.$2.compareTo(y.$2);
+  });
 }
 
-String _plain(Tree tree, String id) => [
-  for (final f in flowsOf(tree, id)) f.text!.text.replaceAll('￼', '').replaceAll('\v', '\n'),
-].join().trimRight();
+String _plain(Tree tree, String id) => [for (final f in flowsOf(tree, id)) f.text!.text.replaceAll('￼', '').replaceAll('\v', '\n')].join().trimRight();
 
 /// The ranges of the flows a thread's comment is about, in reading order.
 List<(String, int, int)> threadRanges(WordThread t, List<Node> flows) {
@@ -91,11 +88,7 @@ List<(String, int, int)> threadRanges(WordThread t, List<Node> flows) {
   final i = flows.indexWhere((f) => f.id == start.$1), j = flows.indexWhere((f) => f.id == end.$1);
   if (i < 0 || j < i) return const [];
   if (i == j) return end.$2 > start.$2 ? [(start.$1, start.$2, end.$2)] : const [];
-  return [
-    (start.$1, start.$2, flows[i].text!.length - 1),
-    for (var k = i + 1; k < j; k++) (flows[k].id, 0, flows[k].text!.length - 1),
-    (end.$1, 0, end.$2),
-  ];
+  return [(start.$1, start.$2, flows[i].text!.length - 1), for (var k = i + 1; k < j; k++) (flows[k].id, 0, flows[k].text!.length - 1), (end.$1, 0, end.$2)];
 }
 
 /// Who writes a comment, when, and the style of its paragraphs.
@@ -137,12 +130,7 @@ Edit replyTo(Tree tree, WordThread thread, String text, CommentAuthor by) {
     type: 'comment',
     parent: 'doc',
     key: keyBetween(kids.isEmpty ? '' : kids.last.key, ''),
-    attributes: {
-      'author': by.name,
-      'initials': initialsOf(by.name),
-      'date': '${by.date.toUtc().toIso8601String().substring(0, 19)}Z',
-      'parent': ?parent,
-    },
+    attributes: {'author': by.name, 'initials': initialsOf(by.name), 'date': '${by.date.toUtc().toIso8601String().substring(0, 19)}Z', 'parent': ?parent},
   );
   final mark = by.style == null ? null : {'pstyle': by.style!};
   final flow = Delta();
@@ -174,8 +162,9 @@ Delta _insertAll(List<(int, Attributes)> inserts) {
 }
 
 /// Resolves a thread, or opens it again: its comment and the answers.
-Edit resolveThread(WordThread thread, bool done) =>
-    Edit([for (final c in thread.all) Change.set(c.id, attributes: {'done': done})]);
+Edit resolveThread(WordThread thread, bool done) => Edit([
+  for (final c in thread.all) Change.set(c.id, attributes: {'done': done}),
+]);
 
 /// Deletes comments, and their anchors in the flows of the body.
 Edit deleteComments(Tree tree, Set<String> ids) {

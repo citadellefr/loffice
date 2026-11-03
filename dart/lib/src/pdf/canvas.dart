@@ -47,9 +47,7 @@ T flat<T extends ui.Shader>(T shader, Color color) {
 
 /// The shader of a gradient, remembered for the exports.
 ui.Gradient gradient(GradientSpec spec) {
-  final shader = spec.center == null
-      ? ui.Gradient.linear(spec.from!, spec.to!, spec.colors, spec.stops)
-      : ui.Gradient.radial(spec.center!, spec.radius, spec.colors, spec.stops);
+  final shader = spec.center == null ? ui.Gradient.linear(spec.from!, spec.to!, spec.colors, spec.stops) : ui.Gradient.radial(spec.center!, spec.radius, spec.colors, spec.stops);
   _gradients[shader] = spec;
   return shader;
 }
@@ -170,8 +168,7 @@ class PdfCanvas implements Canvas {
   }
 
   @override
-  dynamic noSuchMethod(Invocation invocation) =>
-      throw UnsupportedError('${invocation.memberName} is not exported to PDF');
+  dynamic noSuchMethod(Invocation invocation) => throw UnsupportedError('${invocation.memberName} is not exported to PDF');
 
   // state
 
@@ -197,8 +194,7 @@ class PdfCanvas implements Canvas {
   @override
   int getSaveCount() => _states.length;
 
-  void _matrix(double a, double b, double c, double d, double e, double f) =>
-      _out.writeln('${[a, b, c, d, e, f].map(pdfNumber).join(' ')} cm');
+  void _matrix(double a, double b, double c, double d, double e, double f) => _out.writeln('${[a, b, c, d, e, f].map(pdfNumber).join(' ')} cm');
 
   @override
   void translate(double dx, double dy) => _matrix(1, 0, 0, 1, dx, dy);
@@ -216,15 +212,13 @@ class PdfCanvas implements Canvas {
   void transform(Float64List matrix4) => _matrix(matrix4[0], matrix4[1], matrix4[4], matrix4[5], matrix4[12], matrix4[13]);
 
   @override
-  void clipRect(Rect rect, {ui.ClipOp clipOp = ui.ClipOp.intersect, bool doAntiAlias = true}) =>
-      _out.writeln('${_rect(rect)} W n');
+  void clipRect(Rect rect, {ui.ClipOp clipOp = ui.ClipOp.intersect, bool doAntiAlias = true}) => _out.writeln('${_rect(rect)} W n');
 
   @override
   void clipRRect(RRect rrect, {bool doAntiAlias = true}) => _out.writeln('${_rrect(rrect)} W n');
 
   @override
-  void clipPath(Path path, {bool doAntiAlias = true}) =>
-      _out.writeln('${_path(path)} ${path.fillType == PathFillType.evenOdd ? 'W*' : 'W'} n');
+  void clipPath(Path path, {bool doAntiAlias = true}) => _out.writeln('${_path(path)} ${path.fillType == PathFillType.evenOdd ? 'W*' : 'W'} n');
 
   // shapes
 
@@ -265,11 +259,7 @@ class PdfCanvas implements Canvas {
       void cut(double d0, Offset p0, double d1, Offset p1, int depth) {
         final middle = (d0 + d1) / 2;
         final pm = at(middle);
-        if (depth >= 18 ||
-            d1 - d0 < 0.01 ||
-            _away(pm, p0, p1) < _tolerance &&
-                _away(at((d0 + middle) / 2), p0, p1) < _tolerance &&
-                _away(at((middle + d1) / 2), p0, p1) < _tolerance) {
+        if (depth >= 18 || d1 - d0 < 0.01 || _away(pm, p0, p1) < _tolerance && _away(at((d0 + middle) / 2), p0, p1) < _tolerance && _away(at((middle + d1) / 2), p0, p1) < _tolerance) {
           points.add(p1);
           return;
         }
@@ -346,10 +336,10 @@ class PdfCanvas implements Canvas {
       _out.writeln('$shape ${evenOdd ? 'f*' : 'f'}');
       return;
     }
-    final coords = spec.center == null
-        ? [spec.from!.dx, spec.from!.dy, spec.to!.dx, spec.to!.dy]
-        : [spec.center!.dx, spec.center!.dy, 0.0, spec.center!.dx, spec.center!.dy, spec.radius];
-    final name = _doc.shading(coords, [for (final c in spec.colors) [c.r, c.g, c.b]], spec.stops);
+    final coords = spec.center == null ? [spec.from!.dx, spec.from!.dy, spec.to!.dx, spec.to!.dy] : [spec.center!.dx, spec.center!.dy, 0.0, spec.center!.dx, spec.center!.dy, spec.radius];
+    final name = _doc.shading(coords, [
+      for (final c in spec.colors) [c.r, c.g, c.b],
+    ], spec.stops);
     _opacity(spec.colors.map((c) => c.a).reduce(math.max) * paint.color.a);
     _out.writeln('q $shape ${evenOdd ? 'W*' : 'W'} n /$name sh Q');
   }
@@ -361,8 +351,7 @@ class PdfCanvas implements Canvas {
   void drawRRect(RRect rrect, Paint paint) => _draw(_rrect(rrect), paint);
 
   @override
-  void drawOval(Rect rect, Paint paint) =>
-      _draw(_rrect(RRect.fromRectAndRadius(rect, Radius.elliptical(rect.width / 2, rect.height / 2))), paint);
+  void drawOval(Rect rect, Paint paint) => _draw(_rrect(RRect.fromRectAndRadius(rect, Radius.elliptical(rect.width / 2, rect.height / 2))), paint);
 
   @override
   void drawCircle(Offset c, double radius, Paint paint) => drawOval(Rect.fromCircle(center: c, radius: radius), paint);

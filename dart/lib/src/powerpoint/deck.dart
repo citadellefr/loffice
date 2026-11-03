@@ -33,7 +33,10 @@ class Deck {
     return w is num && h is num && w > 0 && h > 0 ? Size(w / emuPerPoint, h / emuPerPoint) : const Size(960, 540);
   }
 
-  List<Node> get slides => [for (final n in tree.children('deck')) if (n.type == 'slide') n];
+  List<Node> get slides => [
+    for (final n in tree.children('deck'))
+      if (n.type == 'slide') n,
+  ];
 
   Node? layoutOf(Node slide) {
     final id = slide.attributes['layout'];
@@ -95,7 +98,10 @@ class Deck {
   }
 
   /// The shapes of a slide, notes left out.
-  List<Node> shapesOf(Node parent) => [for (final n in tree.children(parent.id)) if (isShape(n)) n];
+  List<Node> shapesOf(Node parent) => [
+    for (final n in tree.children(parent.id))
+      if (isShape(n)) n,
+  ];
 
   /// The slide, layout or master a shape is on.
   Node? pageOf(Node shape) {
@@ -128,11 +134,7 @@ class Deck {
   List<Map<String, Props>> cellLevels(Node cell) {
     final page = pageOf(cell);
     final master = page == null ? null : (page.type == 'master' ? page : masterOf(page));
-    return [
-      _levels(tree['deck']?.attributes['lst']),
-      if (master != null) _levels(master.attributes['other']),
-      _levels(cell.attributes['lst']),
-    ];
+    return [_levels(tree['deck']?.attributes['lst']), if (master != null) _levels(master.attributes['other']), _levels(cell.attributes['lst'])];
   }
 
   /// What a shape looks like once it inherited from its placeholders.
@@ -172,11 +174,15 @@ class Deck {
     final deckStyle = _levels(tree['deck']?.attributes['lst']);
     final levels = <Map<String, Props>>[deckStyle];
     if (master != null) {
-      levels.add(_levels(master.attributes[switch (type) {
-        'title' => 'title',
-        'body' => 'body',
-        _ => 'other',
-      }]));
+      levels.add(
+        _levels(
+          master.attributes[switch (type) {
+            'title' => 'title',
+            'body' => 'body',
+            _ => 'other',
+          }],
+        ),
+      );
     }
     for (final n in chain) {
       levels.add(_levels(n.attributes['lst']));
@@ -215,16 +221,7 @@ class Deck {
 /// What a shape looks like, what it inherited included. Values are as the
 /// Go package writes them.
 class ShapeStyle {
-  const ShapeStyle({
-    this.xfrm,
-    this.geometry,
-    this.fill,
-    this.line,
-    this.style,
-    this.body = const {},
-    this.levels = const [],
-    this.placeholder,
-  });
+  const ShapeStyle({this.xfrm, this.geometry, this.fill, this.line, this.style, this.body = const {}, this.levels = const [], this.placeholder});
 
   final Map<String, Object?>? xfrm;
   final Map<String, Object?>? geometry;
@@ -263,13 +260,8 @@ class ShapeStyle {
 /// refer to.
 class DeckTheme {
   DeckTheme(Map<String, Object?>? json)
-    : colors = {
-        for (final e in (_map(json?['colors']) ?? const {}).entries)
-          e.key: ?const ColorContext().resolve(e.value),
-      },
-      fonts = {
-        for (final e in (_map(json?['fonts']) ?? const {}).entries) e.key: _strings(e.value),
-      },
+    : colors = {for (final e in (_map(json?['colors']) ?? const {}).entries) e.key: ?const ColorContext().resolve(e.value)},
+      fonts = {for (final e in (_map(json?['fonts']) ?? const {}).entries) e.key: _strings(e.value)},
       fills = _list(json?['fills']),
       lines = _list(json?['lines']),
       backgroundFills = _list(json?['bgFills']);

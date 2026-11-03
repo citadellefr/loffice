@@ -100,7 +100,18 @@ Edit trackEdit(Tree tree, Edit edit, String author, String date) => Edit([
 /// nothing joins, nothing is removed but the author's own insertions.
 Edit trackDeletion(List<(Node, int, int)> ranges, String author, String date) => Edit([
   for (final (flow, start, end) in ranges)
-    if (end > start) Change.text(flow.id, track(flow.text!, Delta()..retain(start)..delete(end - start), author, date).delta),
+    if (end > start)
+      Change.text(
+        flow.id,
+        track(
+          flow.text!,
+          Delta()
+            ..retain(start)
+            ..delete(end - start),
+          author,
+          date,
+        ).delta,
+      ),
 ]);
 
 /// A tracked change: text of a flow an author inserted or deleted.
@@ -128,8 +139,7 @@ List<WordRevision> revisionsOf(List<Node> flows) {
       if (author != null) {
         final date = a[deleted ? 'deld' : 'insd'];
         final last = out.lastOrNull;
-        if (last != null && last.flow == flow.id && last.end == at && last.deleted == deleted && last.author == author &&
-            last.date == DateTime.tryParse(date ?? '')) {
+        if (last != null && last.flow == flow.id && last.end == at && last.deleted == deleted && last.author == author && last.date == DateTime.tryParse(date ?? '')) {
           out.last = WordRevision(flow.id, last.start, at + length, deleted: deleted, author: author, date: last.date);
         } else {
           out.add(WordRevision(flow.id, at, at + length, deleted: deleted, author: author, date: DateTime.tryParse(date ?? '')));

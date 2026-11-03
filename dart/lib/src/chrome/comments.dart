@@ -33,5 +33,4 @@ class CommentThread {
 }
 
 /// The initials a name gives: the first letter of its first two words.
-String initialsOf(String name) =>
-    name.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).take(2).map((w) => String.fromCharCode(w.runes.first).toUpperCase()).join();
+String initialsOf(String name) => name.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).take(2).map((w) => String.fromCharCode(w.runes.first).toUpperCase()).join();

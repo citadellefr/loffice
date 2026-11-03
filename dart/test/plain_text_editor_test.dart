@@ -22,7 +22,13 @@ void main() {
     theirs = DocSession(hub.connect)..start();
     addTearDown(mine.dispose);
     addTearDown(theirs.dispose);
-    await tester.pumpWidget(MaterialApp(home: Scaffold(body: PlainTextEditor(session: mine, commands: commands))));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: PlainTextEditor(session: mine, commands: commands),
+        ),
+      ),
+    );
     await settle(tester);
   }
 
@@ -64,10 +70,12 @@ void main() {
     Future<void> type(String text) async {
       final value = tester.widget<TextField>(find.byType(TextField)).controller!.value;
       final at = value.selection.extentOffset;
-      tester.testTextInput.updateEditingValue(TextEditingValue(
-        text: value.text.replaceRange(at, at, text),
-        selection: TextSelection.collapsed(offset: at + text.length),
-      ));
+      tester.testTextInput.updateEditingValue(
+        TextEditingValue(
+          text: value.text.replaceRange(at, at, text),
+          selection: TextSelection.collapsed(offset: at + text.length),
+        ),
+      );
       await settle(tester);
     }
 

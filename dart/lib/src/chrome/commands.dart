@@ -100,10 +100,7 @@ class _Row {
 final _wordCharacter = RegExp(r"[\p{L}\p{N}_'-]", unicode: true);
 final _nameCharacter = RegExp(r'[\p{L}\p{N}_]', unicode: true);
 
-const _accents = {
-  'à': 'a', 'â': 'a', 'ä': 'a', 'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e', 'î': 'i', 'ï': 'i',
-  'ô': 'o', 'ö': 'o', 'ù': 'u', 'û': 'u', 'ü': 'u', 'ç': 'c', 'ñ': 'n',
-};
+const _accents = {'à': 'a', 'â': 'a', 'ä': 'a', 'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e', 'î': 'i', 'ï': 'i', 'ô': 'o', 'ö': 'o', 'ù': 'u', 'û': 'u', 'ü': 'u', 'ç': 'c', 'ñ': 'n'};
 
 String _fold(String text) => text.toLowerCase().split('').map((c) => _accents[c] ?? c).join();
 
@@ -174,14 +171,10 @@ class Commands extends ChangeNotifier {
     if (command == null) {
       _settle([
         for (final c in commands())
-          if (_fold(c.keyword).startsWith(_fold(query.text)))
-            _Row('@${c.keyword}', () => field.write(query.start, query.end, '@${c.keyword} '), icon: c.icon),
+          if (_fold(c.keyword).startsWith(_fold(query.text))) _Row('@${c.keyword}', () => field.write(query.start, query.end, '@${c.keyword} '), icon: c.icon),
       ]);
     } else if (command.answer != null) {
-      _settle([
-        if (query.text.isNotEmpty)
-          _Row(strings().ask, () => _ask(command, query), detail: strings().askHint, icon: Icons.keyboard_return),
-      ], note: same ? _note : null);
+      _settle([if (query.text.isNotEmpty) _Row(strings().ask, () => _ask(command, query), detail: strings().askHint, icon: Icons.keyboard_return)], note: same ? _note : null);
     } else if (!same) {
       if (before?.command != command) _rows = const [];
       _chosen = 0;
@@ -227,7 +220,12 @@ class Commands extends ChangeNotifier {
     if (search != _searches) return;
     _rows = [
       for (final m in found.take(8))
-        _Row(m.text, () => field.write(query.start, query.end, m.text, link: m.uri), detail: m.detail, icon: m.icon),
+        _Row(
+          m.text,
+          () => field.write(query.start, query.end, m.text, link: m.uri),
+          detail: m.detail,
+          icon: m.icon,
+        ),
     ];
     _chosen = 0;
     _searching = false;
@@ -245,23 +243,18 @@ class Commands extends ChangeNotifier {
     _steps = const [];
     _rows = const [];
     _note = null;
-    _answer =
-        command.answer!(
-          query.text,
-          before: around.before + typing.text.substring(0, query.start),
-          after: typing.text.substring(query.end) + around.after,
-        ).listen(
-          (said) {
-            if (said.done) {
-              _answered(said.text);
-            } else {
-              _steps = [..._steps, said.text];
-              notifyListeners();
-            }
-          },
-          onError: (Object _) => _stop(note: strings().answerFailed),
-          onDone: () => _stop(note: strings().answerFailed),
-        );
+    _answer = command.answer!(query.text, before: around.before + typing.text.substring(0, query.start), after: typing.text.substring(query.end) + around.after).listen(
+      (said) {
+        if (said.done) {
+          _answered(said.text);
+        } else {
+          _steps = [..._steps, said.text];
+          notifyListeners();
+        }
+      },
+      onError: (Object _) => _stop(note: strings().answerFailed),
+      onDone: () => _stop(note: strings().answerFailed),
+    );
     notifyListeners();
   }
 
@@ -410,8 +403,7 @@ class _CommandsMenuState extends State<CommandsMenu> {
   }
 
   @override
-  Widget build(BuildContext context) =>
-      OverlayPortal(controller: _portal, overlayChildBuilder: _menu, child: widget.child);
+  Widget build(BuildContext context) => OverlayPortal(controller: _portal, overlayChildBuilder: _menu, child: widget.child);
 
   Widget _menu(BuildContext context) {
     final c = _commands;
@@ -456,12 +448,7 @@ class _CommandsMenuState extends State<CommandsMenu> {
                           for (final (i, step) in c._steps.indexed)
                             Padding(
                               padding: const EdgeInsets.only(bottom: 4),
-                              child: Text(
-                                step,
-                                maxLines: 3,
-                                overflow: TextOverflow.ellipsis,
-                                style: i == c._steps.length - 1 ? theme.textTheme.bodySmall : muted,
-                              ),
+                              child: Text(step, maxLines: 3, overflow: TextOverflow.ellipsis, style: i == c._steps.length - 1 ? theme.textTheme.bodySmall : muted),
                             ),
                         ],
                       ),
@@ -485,18 +472,14 @@ class _CommandsMenuState extends State<CommandsMenu> {
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           child: Row(
                             children: [
-                              if (row.icon != null) ...[
-                                Icon(row.icon, size: 20, color: colors.onSurfaceVariant),
-                                const SizedBox(width: 10),
-                              ],
+                              if (row.icon != null) ...[Icon(row.icon, size: 20, color: colors.onSurfaceVariant), const SizedBox(width: 10)],
                               Flexible(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Text(row.text, maxLines: 1, overflow: TextOverflow.ellipsis),
-                                    if (row.detail case final detail?)
-                                      Text(detail, maxLines: 1, overflow: TextOverflow.ellipsis, style: muted),
+                                    if (row.detail case final detail?) Text(detail, maxLines: 1, overflow: TextOverflow.ellipsis, style: muted),
                                   ],
                                 ),
                               ),
@@ -505,7 +488,10 @@ class _CommandsMenuState extends State<CommandsMenu> {
                         ),
                       ),
                     if (failure == null && c._rows.isEmpty && hint != null)
-                      Padding(padding: const EdgeInsets.all(12), child: Text(hint, style: muted)),
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Text(hint, style: muted),
+                      ),
                   ],
                 ],
               ),
@@ -522,7 +508,9 @@ class _CommandsMenuState extends State<CommandsMenu> {
     final empty = command.answer == null ? strings.searchIn(command.keyword) : strings.questionFor(command.keyword);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: colors.outlineVariant))),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: colors.outlineVariant)),
+      ),
       child: Row(
         children: [
           Icon(command.icon ?? Icons.alternate_email, size: 18, color: colors.primary),

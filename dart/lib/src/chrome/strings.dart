@@ -281,8 +281,7 @@ class LofficeStrings {
   String get previousChange => 'Précédent';
   String get nextChange => 'Suivant';
   String settleRevision(bool accept, bool deleted) => '${accept ? 'Accepter' : 'Refuser'} ${deleted ? 'la suppression' : 'l’insertion'}';
-  String revision(bool deleted, String author, DateTime? date) =>
-      '${deleted ? 'Supprimé' : 'Inséré'} : $author${date == null ? '' : ', ${commentDate(date.toLocal())}'}';
+  String revision(bool deleted, String author, DateTime? date) => '${deleted ? 'Supprimé' : 'Inséré'} : $author${date == null ? '' : ', ${commentDate(date.toLocal())}'}';
   String commentDate(DateTime d) {
     const months = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
     final now = DateTime.now();
@@ -290,12 +289,8 @@ class LofficeStrings {
     if (d.year == now.year && d.month == now.month && d.day == now.day) return 'Aujourd’hui, $time';
     return '${d.day} ${months[d.month - 1]} ${d.year}, $time';
   }
-  List<(String, int, int)> get paperSizes => const [
-    ('A4', 11906, 16838),
-    ('A5', 8391, 11906),
-    ('Lettre US', 12240, 15840),
-    ('Légal US', 12240, 20160),
-  ];
+
+  List<(String, int, int)> get paperSizes => const [('A4', 11906, 16838), ('A5', 8391, 11906), ('Lettre US', 12240, 15840), ('Légal US', 12240, 20160)];
 
   /// The name Word shows for a style, those it defines in French.
   String styleName(String name) => _styleNames[name.toLowerCase()] ?? _heading(name) ?? name;
@@ -415,6 +410,7 @@ class LofficeStrings {
     if (accent == 0) return name;
     return family == 'Dark Style 2' ? '$name - Accentuation $accent/Accentuation ${accent + 1}' : '$name - Accentuation $accent';
   }
+
   String get shading => 'Trame de fond';
   String get drawBorders => 'Dessiner des bordures';
   String get penWeight => 'Épaisseur du stylo';

@@ -39,19 +39,13 @@ void main() {
     hub = FakeHub.tree(Edit.fromJson(jsonDecode(File('../testdata/pptx/$fixture.json').readAsStringSync()))!);
     session = DocSession(hub.connect)..start();
     addTearDown(session.dispose);
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: PresentationEditor(
-          session: session,
-          media: (_) async => Uint8List(0),
-          title: '$fixture.pptx',
-          hosted: hosted,
-          commands: commands,
-          onOpenLink: onOpenLink,
-          linkCard: linkCard,
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: PresentationEditor(session: session, media: (_) async => Uint8List(0), title: '$fixture.pptx', hosted: hosted, commands: commands, onOpenLink: onOpenLink, linkCard: linkCard),
         ),
       ),
-    ));
+    );
     await settle(tester);
   }
 
@@ -60,16 +54,21 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
   }
 
-  List<Node> slides() => [for (final n in hub.doc.children('deck')) if (n.type == 'slide') n];
+  List<Node> slides() => [
+    for (final n in hub.doc.children('deck'))
+      if (n.type == 'slide') n,
+  ];
 
   /// Types at the caret, as the keyboard of the platform does.
   Future<void> type(WidgetTester tester, String text) async {
     final value = TextEditingValue.fromJSON(tester.testTextInput.editingState!);
     final at = value.selection.extentOffset;
-    tester.testTextInput.updateEditingValue(TextEditingValue(
-      text: value.text.replaceRange(at, at, text),
-      selection: TextSelection.collapsed(offset: at + text.length),
-    ));
+    tester.testTextInput.updateEditingValue(
+      TextEditingValue(
+        text: value.text.replaceRange(at, at, text),
+        selection: TextSelection.collapsed(offset: at + text.length),
+      ),
+    );
     await settle(tester);
   }
 
@@ -130,7 +129,9 @@ void main() {
     final fresh = slides()[1];
     expect(fresh.attributes['layout'], 'L5');
     final placeholders = [for (final n in hub.doc.children(fresh.id)) n.attributes['ph']];
-    expect(placeholders, [{'idx': '10', 'sz': 'quarter', 'type': 'tbl'}]);
+    expect(placeholders, [
+      {'idx': '10', 'sz': 'quarter', 'type': 'tbl'},
+    ]);
     await finish(tester);
   });
 
@@ -405,7 +406,10 @@ void main() {
 
   testWidgets('comments written, answered and deleted on a slide', (tester) async {
     await open(tester, 'shp-shapes');
-    List<Node> comments() => [for (final n in hub.doc.children(slides().first.id)) if (n.type == 'comment') n];
+    List<Node> comments() => [
+      for (final n in hub.doc.children(slides().first.id))
+        if (n.type == 'comment') n,
+    ];
     await tester.tap(find.text('Révision'));
     await tester.pump();
     await tester.tap(find.text('Nouveau commentaire'));

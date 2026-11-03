@@ -126,7 +126,15 @@ class NumberFormat {
     final cached = _cache[code];
     if (cached != null) return cached;
     final sections = [for (final s in _split(code).take(4)) _parse(s)];
-    final f = NumberFormat._(sections.isEmpty ? [_Section()..general = true..tokens.add(_Token(_Kind.general))] : sections);
+    final f = NumberFormat._(
+      sections.isEmpty
+          ? [
+              _Section()
+                ..general = true
+                ..tokens.add(_Token(_Kind.general)),
+            ]
+          : sections,
+    );
     if (_cache.length > 512) _cache.clear();
     return _cache[code] = f;
   }

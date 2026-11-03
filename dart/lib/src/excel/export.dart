@@ -12,14 +12,7 @@ class NothingToPrint implements Exception {
 
 /// The sheets of a workbook as a PDF, on the pages they print on.
 /// [missing] is told the characters no font of the export has.
-Future<Uint8List> workbookPdf(
-  Workbook book, {
-  NumberLocale locale = NumberLocale.fr,
-  String? fonts,
-  String title = '',
-  DateTime? now,
-  void Function(Set<String>)? missing,
-}) async {
+Future<Uint8List> workbookPdf(Workbook book, {NumberLocale locale = NumberLocale.fr, String? fonts, String title = '', DateTime? now, void Function(Set<String>)? missing}) async {
   final pages = workbookPages(book, locale: locale, fonts: fonts, title: title, now: now);
   if (pages.isEmpty) throw const NothingToPrint();
   final export = PdfExport();

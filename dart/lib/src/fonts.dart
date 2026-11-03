@@ -5,13 +5,7 @@ import 'package:flutter/services.dart';
 /// than with the app, and kept for the documents exported with them.
 abstract final class OfficeFonts {
   /// The families, with the names of their files.
-  static const families = {
-    'Carlito': 'Carlito',
-    'Caladea': 'Caladea',
-    'Liberation Sans': 'LiberationSans',
-    'Liberation Serif': 'LiberationSerif',
-    'Liberation Mono': 'LiberationMono',
-  };
+  static const families = {'Carlito': 'Carlito', 'Caladea': 'Caladea', 'Liberation Sans': 'LiberationSans', 'Liberation Serif': 'LiberationSerif', 'Liberation Mono': 'LiberationMono'};
 
   static const _styles = ['Regular', 'Bold', 'Italic', 'BoldItalic'];
 

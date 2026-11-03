@@ -27,18 +27,21 @@ Edit newTable(Deck deck, Node slide, int rows, int columns, Rect bounds, {requir
   final width = (bounds.width * emuPerPoint / columns).round();
   final id = randomId();
   final changes = <Change>[
-    Change.create(Node(id: id, type: 'frame', parent: slide.id, key: key, attributes: {
-      'frame': 'table',
-      'name': name,
-      'xfrm': {
-        'x': (bounds.left * emuPerPoint).round(),
-        'y': (bounds.top * emuPerPoint).round(),
-        'w': width * columns,
-        'h': _rowHeight * rows,
-      },
-      'tbl': {'style': style, 'firstRow': true, 'bandRow': true},
-      'grid': List.filled(columns, width),
-    })),
+    Change.create(
+      Node(
+        id: id,
+        type: 'frame',
+        parent: slide.id,
+        key: key,
+        attributes: {
+          'frame': 'table',
+          'name': name,
+          'xfrm': {'x': (bounds.left * emuPerPoint).round(), 'y': (bounds.top * emuPerPoint).round(), 'w': width * columns, 'h': _rowHeight * rows},
+          'tbl': {'style': style, 'firstRow': true, 'bandRow': true},
+          'grid': List.filled(columns, width),
+        },
+      ),
+    ),
   ];
   var rowKey = '';
   for (var r = 0; r < rows; r++) {
@@ -64,7 +67,10 @@ class TableEdits {
   final Node frame;
   final TableLayout layout;
 
-  List<Node> get _rows => [for (final n in tree.children(frame.id)) if (n.type == 'tr') n];
+  List<Node> get _rows => [
+    for (final n in tree.children(frame.id))
+      if (n.type == 'tr') n,
+  ];
 
   int get _columns => layout.slots.isEmpty ? 0 : layout.slots.first.length;
 
@@ -78,13 +84,9 @@ class TableEdits {
     final like = at > 0 ? at - 1 : 0;
     final id = randomId();
     final changes = <Change>[
-      Change.create(Node(
-        id: id,
-        type: 'tr',
-        parent: frame.id,
-        key: keyBetween(at > 0 ? rows[at - 1].key : '', at < rows.length ? rows[at].key : ''),
-        attributes: {'h': rows[like].attributes['h'] ?? _rowHeight},
-      )),
+      Change.create(
+        Node(id: id, type: 'tr', parent: frame.id, key: keyBetween(at > 0 ? rows[at - 1].key : '', at < rows.length ? rows[at].key : ''), attributes: {'h': rows[like].attributes['h'] ?? _rowHeight}),
+      ),
     ];
     final grown = <String>{};
     var key = '';
@@ -93,11 +95,18 @@ class TableEdits {
       final over = at > 0 && at < rows.length ? layout.cellOver(at - 1, c) : null;
       if (over != null && over.row + over.rowSpan > at) {
         if (grown.add(over.node.id)) changes.addAll(_rowSpan(over, over.rowSpan + 1));
-        changes.add(Change.create(Node(id: randomId(), type: 'tc', parent: id, key: key, attributes: {
-          'vMerge': true,
-          if (c > over.col) 'hMerge': true,
-          if (c == over.col && over.colSpan > 1) 'gridSpan': over.colSpan,
-        }, text: Delta([const Op.insert('\n')]))));
+        changes.add(
+          Change.create(
+            Node(
+              id: randomId(),
+              type: 'tc',
+              parent: id,
+              key: key,
+              attributes: {'vMerge': true, if (c > over.col) 'hMerge': true, if (c == over.col && over.colSpan > 1) 'gridSpan': over.colSpan},
+              text: Delta([const Op.insert('\n')]),
+            ),
+          ),
+        );
       } else {
         changes.add(_emptyLike(layout.slots[like][c], id, key));
       }
@@ -114,7 +123,9 @@ class TableEdits {
     final grid = _grid;
     final width = like < grid.length && grid[like] is num ? grid[like]! as num : 914400;
     grid.insert(at.clamp(0, grid.length), width);
-    final changes = <Change>[Change.set(frame.id, attributes: {'grid': grid, 'xfrm': _wider(width)})];
+    final changes = <Change>[
+      Change.set(frame.id, attributes: {'grid': grid, 'xfrm': _wider(width)}),
+    ];
     final rows = _rows;
     for (var r = 0; r < rows.length; r++) {
       final slot = layout.slots[r];
@@ -126,11 +137,18 @@ class TableEdits {
       if (origin != null && _start(slot, origin) < at && at < _start(slot, origin) + _span(origin)) {
         final rowSpan = layout.cells[origin.id]?.rowSpan ?? 1;
         changes.add(Change.set(origin.id, attributes: {'gridSpan': _span(origin) + 1}));
-        changes.add(Change.create(Node(id: randomId(), type: 'tc', parent: rows[r].id, key: key, attributes: {
-          'hMerge': true,
-          if (origin.attributes['vMerge'] == true) 'vMerge': true,
-          if (rowSpan > 1) 'rowSpan': rowSpan,
-        }, text: Delta([const Op.insert('\n')]))));
+        changes.add(
+          Change.create(
+            Node(
+              id: randomId(),
+              type: 'tc',
+              parent: rows[r].id,
+              key: key,
+              attributes: {'hMerge': true, if (origin.attributes['vMerge'] == true) 'vMerge': true, if (rowSpan > 1) 'rowSpan': rowSpan},
+              text: Delta([const Op.insert('\n')]),
+            ),
+          ),
+        );
       } else {
         changes.add(_emptyLike(slot[like], rows[r].id, key));
       }
@@ -157,14 +175,18 @@ class TableEdits {
       if (heir == null) continue;
       changes
         ..add(Change.delete(heir.id))
-        ..add(Change.create(Node(
-          id: randomId(),
-          type: 'tc',
-          parent: heir.parent,
-          key: heir.key,
-          attributes: {...cell.node.attributes, 'rowSpan': span > 1 ? span : null}..removeWhere((_, v) => v == null),
-          text: cell.node.text,
-        )));
+        ..add(
+          Change.create(
+            Node(
+              id: randomId(),
+              type: 'tc',
+              parent: heir.parent,
+              key: heir.key,
+              attributes: {...cell.node.attributes, 'rowSpan': span > 1 ? span : null}..removeWhere((_, v) => v == null),
+              text: cell.node.text,
+            ),
+          ),
+        );
       for (var c = cell.col + 1; c < cell.col + cell.colSpan; c++) {
         final covered = below[c];
         if (covered != null) changes.add(Change.set(covered.id, attributes: {'vMerge': null, 'rowSpan': span > 1 ? span : null}));
@@ -180,7 +202,9 @@ class TableEdits {
     final grid = _grid;
     final width = at < grid.length && grid[at] is num ? grid[at]! as num : 0;
     if (at < grid.length) grid.removeAt(at);
-    final changes = <Change>[Change.set(frame.id, attributes: {'grid': grid, 'xfrm': _wider(-width)})];
+    final changes = <Change>[
+      Change.set(frame.id, attributes: {'grid': grid, 'xfrm': _wider(-width)}),
+    ];
     for (final slot in layout.slots) {
       final origin = _origin(slot, at);
       if (origin == null) continue;
@@ -213,26 +237,24 @@ class TableEdits {
     final rows = cells.map((c) => c.row + c.rowSpan).reduce(math.max) - top;
     final cols = cells.map((c) => c.col + c.colSpan).reduce(math.max) - left;
     final changes = <Change>[];
-    final texts = [for (final c in cells.skip(1)) if (c.node.text case final t? when t.length > 1) t];
+    final texts = [
+      for (final c in cells.skip(1))
+        if (c.node.text case final t? when t.length > 1) t,
+    ];
     if (texts.isNotEmpty) changes.add(Change.text(first.node.id, _appended(first.node.text ?? Delta([const Op.insert('\n')]), texts)));
-    changes.add(Change.set(first.node.id, attributes: {
-      'gridSpan': cols > 1 ? cols : null,
-      'rowSpan': rows > 1 ? rows : null,
-      'hMerge': null,
-      'vMerge': null,
-    }));
+    changes.add(Change.set(first.node.id, attributes: {'gridSpan': cols > 1 ? cols : null, 'rowSpan': rows > 1 ? rows : null, 'hMerge': null, 'vMerge': null}));
     for (var r = top; r < top + rows; r++) {
       for (var c = left; c < left + cols; c++) {
         final n = layout.slots[r][c];
         if (n == null || n.id == first.node.id) continue;
         final length = n.text?.length ?? 1;
         if (length > 1) changes.add(Change.text(n.id, Delta([Op.delete(length - 1)])));
-        changes.add(Change.set(n.id, attributes: {
-          'hMerge': c > left ? true : null,
-          'vMerge': r > top ? true : null,
-          'gridSpan': c == left && r > top && cols > 1 ? cols : null,
-          'rowSpan': r == top && rows > 1 ? rows : null,
-        }));
+        changes.add(
+          Change.set(
+            n.id,
+            attributes: {'hMerge': c > left ? true : null, 'vMerge': r > top ? true : null, 'gridSpan': c == left && r > top && cols > 1 ? cols : null, 'rowSpan': r == top && rows > 1 ? rows : null},
+          ),
+        );
       }
     }
     return Edit(changes);
@@ -297,11 +319,18 @@ class TableEdits {
           continue;
         }
         final rowSpan = owner.attributes['rowSpan'];
-        changes.add(Change.create(Node(id: randomId(), type: 'tc', parent: trs[i].id, key: key, attributes: {
-          'hMerge': true,
-          if (owner.attributes['vMerge'] == true) 'vMerge': true,
-          'rowSpan': ?rowSpan,
-        }, text: Delta([const Op.insert('\n')]))));
+        changes.add(
+          Change.create(
+            Node(
+              id: randomId(),
+              type: 'tc',
+              parent: trs[i].id,
+              key: key,
+              attributes: {'hMerge': true, if (owner.attributes['vMerge'] == true) 'vMerge': true, 'rowSpan': ?rowSpan},
+              text: Delta([const Op.insert('\n')]),
+            ),
+          ),
+        );
       }
     }
     if (rows > 1) {
@@ -326,11 +355,18 @@ class TableEdits {
           if (over == null) continue;
           if (grown.add(over.node.id)) changes.addAll(_rowSpan(over, over.rowSpan + rows - 1));
           key = keyBetween(key, '');
-          changes.add(Change.create(Node(id: randomId(), type: 'tc', parent: id, key: key, attributes: {
-            'vMerge': true,
-            if (col > over.col) 'hMerge': true,
-            if (col == over.col && over.colSpan > 1) 'gridSpan': over.colSpan,
-          }, text: Delta([const Op.insert('\n')]))));
+          changes.add(
+            Change.create(
+              Node(
+                id: randomId(),
+                type: 'tc',
+                parent: id,
+                key: key,
+                attributes: {'vMerge': true, if (col > over.col) 'hMerge': true, if (col == over.col && over.colSpan > 1) 'gridSpan': over.colSpan},
+                text: Delta([const Op.insert('\n')]),
+              ),
+            ),
+          );
         }
       }
     }
@@ -351,7 +387,9 @@ class TableEdits {
     if (d == 0) return Edit();
     widths[edge - 1] += d;
     if (!last) widths[edge] -= d;
-    return Edit([Change.set(frame.id, attributes: {'grid': widths, if (last) 'xfrm': _wider(d)})]);
+    return Edit([
+      Change.set(frame.id, attributes: {'grid': widths, if (last) 'xfrm': _wider(d)}),
+    ]);
   }
 
   /// Moves the edge under row [edge] - 1 by [by] points, the row no lower
@@ -380,12 +418,15 @@ class TableEdits {
     final top = cells.map((c) => c.row).reduce(math.min), left = cells.map((c) => c.col).reduce(math.min);
     final bottom = cells.map((c) => c.row + c.rowSpan).reduce(math.max), right = cells.map((c) => c.col + c.colSpan).reduce(math.max);
     final none = which == 'none';
-    final value = none ? const {'fill': {'none': true}} : line;
+    final value = none
+        ? const {
+            'fill': {'none': true},
+          }
+        : line;
     final set = <String, Map<String, Object?>>{};
     void draw(CellLayout? c, String key) => (set[c?.node.id ?? ''] ??= {})[key] = value;
-    bool on(String edge) => none || which == edge || which == 'all' ||
-        which == 'outside' && const {'top', 'bottom', 'left', 'right'}.contains(edge) ||
-        which == 'inside' && (edge == 'insideH' || edge == 'insideV');
+    bool on(String edge) =>
+        none || which == edge || which == 'all' || which == 'outside' && const {'top', 'bottom', 'left', 'right'}.contains(edge) || which == 'inside' && (edge == 'insideH' || edge == 'insideV');
     for (final c in cells) {
       final (atTop, atBottom) = (c.row == top, c.row + c.rowSpan == bottom);
       final (atLeft, atRight) = (c.col == left, c.col + c.colSpan == right);
@@ -421,7 +462,9 @@ class TableEdits {
   /// Gives the table a style, by id.
   Edit restyle(String style) {
     final tbl = {...?(frame.attributes['tbl'] as Map<String, Object?>?), 'style': style};
-    return Edit([Change.set(frame.id, attributes: {'tbl': tbl})]);
+    return Edit([
+      Change.set(frame.id, attributes: {'tbl': tbl}),
+    ]);
   }
 
   /// Turns an option of the table style on or off: "firstRow", "bandRow"…
@@ -432,7 +475,9 @@ class TableEdits {
     } else {
       tbl[option] = true;
     }
-    return Edit([Change.set(frame.id, attributes: {'tbl': tbl})]);
+    return Edit([
+      Change.set(frame.id, attributes: {'tbl': tbl}),
+    ]);
   }
 
   /// Sets how many rows a merged cell spans, on it and on the cells its
@@ -470,17 +515,19 @@ class TableEdits {
   /// An empty cell formatted as [like], without its merges.
   Change _emptyLike(Node? like, String row, String key) {
     final mark = like?.text?.ops.last.attributes;
-    return Change.create(Node(
-      id: randomId(),
-      type: 'tc',
-      parent: row,
-      key: key,
-      attributes: {
-        for (final e in (like?.attributes ?? const <String, Object?>{}).entries)
-          if (!_placing.contains(e.key)) e.key: e.value,
-      },
-      text: Delta([Op.insert('\n', mark)]),
-    ));
+    return Change.create(
+      Node(
+        id: randomId(),
+        type: 'tc',
+        parent: row,
+        key: key,
+        attributes: {
+          for (final e in (like?.attributes ?? const <String, Object?>{}).entries)
+            if (!_placing.contains(e.key)) e.key: e.value,
+        },
+        text: Delta([Op.insert('\n', mark)]),
+      ),
+    );
   }
 
   /// The cell of a row each column belongs to: the one there, or the one
