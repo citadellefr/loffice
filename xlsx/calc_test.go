@@ -3,7 +3,9 @@ package xlsx
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -191,5 +193,70 @@ func BenchmarkFollow(b *testing.B) {
 		if out := c.Follow(e, nil); len(out) != 1 || len(out[0].Cells) != 10000 {
 			b.Fatal("not all calculated")
 		}
+	}
+}
+
+// The formulas of a circle hold 0 and the book tells their cells; with
+// iteration set they settle, and once the circle ends they read their
+// values again.
+func TestCalcCircles(t *testing.T) {
+	tree, err := ot.NewTree(ot.Edit{
+		{Op: ot.OpNew, ID: "book", Type: "book", Key: "V"},
+		{Op: ot.OpNew, ID: "S1", Type: "sheet", Parent: "book", Key: "K", Attrs: ot.Values{"name": json.RawMessage(`"Feuil1"`)}, Cells: []ot.Cell{
+			cell(1, 1, `{"v":1000}`),
+			cell(1, 2, `{"f":"A1+C1","v":1052.63157894737}`),
+			cell(1, 3, `{"f":"B1*5%","v":52.6315789473684}`),
+			cell(1, 4, `{"f":"C1*2","v":105.263157894737}`),
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := NewCalc(tree, formula.Options{})
+	if got := string(tree.Node("book").Attrs["circular"]); got != `{"S1":["B1","C1"]}` {
+		t.Fatalf("circular %s", got)
+	}
+	got := edit(t, tree, c, ot.Edit{{Op: ot.OpCel, ID: "S1", Cells: []ot.Cell{cell(1, 1, `{"v":2000}`)}}})
+	if want := `[{"o":"cel","id":"S1","c":[[1,2,{"v":0}],[1,3,{"v":0}],[1,4,{"v":0}]]}]`; got != want {
+		t.Fatalf("got %s", got)
+	}
+	edit(t, tree, c, ot.Edit{{Op: ot.OpSet, ID: "book", Attrs: ot.Values{"iterate": json.RawMessage(`{"count":100,"delta":0.000001}`)}}})
+	if got := fieldsAt(tree, "S1", 1, 3); got[:21] != `{"f":"B1*5%","v":105.` {
+		t.Fatalf("C1 = %s", got)
+	}
+	got = edit(t, tree, c, ot.Edit{{Op: ot.OpCel, ID: "S1", Cells: []ot.Cell{cell(1, 3, `{"f":null,"v":10}`)}}})
+	want := `[{"o":"cel","id":"S1","c":[[1,2,{"v":2010}],[1,4,{"v":20}]]},{"o":"set","id":"book","a":{"circular":null}}]`
+	if got != want {
+		t.Fatalf("got %s\nwant %s", got, want)
+	}
+}
+
+// Iteration is read from calcPr and written back there.
+func TestCalcPr(t *testing.T) {
+	blank, err := os.ReadFile("../testdata/xlsx/blank.xlsx")
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, tree, err := Open(blank)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, iterate := range []string{`{"count":50,"delta":0.0001}`, `null`} {
+		e := ot.Edit{{Op: ot.OpSet, ID: "book", Attrs: ot.Values{"iterate": json.RawMessage(iterate)}}}
+		apply(t, d, tree, e)
+		data, err := d.Save(tree)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if d, tree, err = Open(data); err != nil {
+			t.Fatal(err)
+		}
+		if got := string(tree.Node("book").Attrs["iterate"]); got != strings.TrimSuffix(iterate, "null") {
+			t.Fatalf("iterate %s, want %s", got, iterate)
+		}
+	}
+	bad := ot.Edit{{Op: ot.OpSet, ID: "book", Attrs: ot.Values{"iterate": json.RawMessage(`{"count":0,"delta":0.001}`)}}}
+	if err := d.Check(tree, bad); err == nil {
+		t.Fatal("no iteration taken")
 	}
 }

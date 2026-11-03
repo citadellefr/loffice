@@ -2,6 +2,7 @@ package formula
 
 import (
 	"fmt"
+	"math"
 	"testing"
 	"time"
 )
@@ -46,6 +47,10 @@ func (s *sheetSource) set(e *Engine, cell string, v any) []Result {
 		}
 	case int:
 		s.cells[[3]int{0, r, c}] = Num(float64(v))
+	}
+	if _, ok := v.(string); !ok || v.(string)[0] != '=' {
+		delete(s.formulas, p)
+		e.Set(p, "", nil)
 	}
 	out := e.Recalc([]Pos{p})
 	for _, x := range out {
@@ -212,5 +217,133 @@ func BenchmarkRecalc(b *testing.B) {
 		if len(e.Recalc([]Pos{{0, 1, 1}})) != 10000 {
 			b.Fatal("not all calculated")
 		}
+	}
+}
+
+func (s *sheetSource) show(cell string) string {
+	r, c, _ := ParseCell(cell)
+	return s.Value(Pos{0, r, c}).show()
+}
+
+func circular(e *Engine) string {
+	var b []string
+	for _, p := range e.Circular() {
+		b = append(b, CellName(p.Row, p.Col))
+	}
+	return fmt.Sprint(b)
+}
+
+// The formulas of a circle hold 0, as in Excel, whatever the order they
+// are calculated in; those reading them read 0.
+func TestEngineCircle(t *testing.T) {
+	for _, order := range [][]string{{"A1", "B1", "C1"}, {"C1", "B1", "A1"}, {"B1", "C1", "A1"}} {
+		s, e := newSource()
+		s.set(e, "D1", 5)
+		formulas := map[string]string{"A1": "=B1+D1", "B1": "=C1*2", "C1": "=A1+1"}
+		for _, cell := range order {
+			s.set(e, cell, formulas[cell])
+		}
+		s.set(e, "E1", "=A1+B1+C1+D1")
+		if got := s.show("A1") + " " + s.show("B1") + " " + s.show("C1") + " " + s.show("E1"); got != "0 0 0 5" {
+			t.Fatalf("%v: %s", order, got)
+		}
+		if got := results(s.set(e, "D1", 7)); got != "[E1=7]" {
+			t.Fatalf("%v: %s", order, got)
+		}
+		if got := circular(e); got != "[A1 B1 C1]" {
+			t.Fatalf("%v: %s", order, got)
+		}
+	}
+}
+
+func TestEngineCircleThrough(t *testing.T) {
+	s, e := newSource()
+	s.mapBook.names["Total"] = "Feuil1!$C$1"
+	for cell, v := range map[string]any{"A1": "=SUM(A2:A4)", "A2": 1, "A3": "=A1*2", "B1": "=B1+1",
+		"C1": "=Total+1", "D1": "=ROW(D1)+COLUMN(D1:D3)", "E1": `=INDIRECT("E2")+1`, "E2": "=E1"} {
+		s.set(e, cell, v)
+	}
+	for cell, want := range map[string]string{"A1": "0", "A3": "0", "B1": "0", "C1": "0", "D1": "5", "E1": "0", "E2": "0"} {
+		if got := s.show(cell); got != want {
+			t.Errorf("%s = %s, want %s", cell, got, want)
+		}
+	}
+	if got := circular(e); got != "[A1 B1 C1 E1 E2 A3]" {
+		t.Fatal(got)
+	}
+	// the references alone tell the circles of formulas not calculated
+	fresh := NewEngine(s, Options{})
+	for p, f := range s.formulas {
+		fresh.Set(p, f, nil)
+	}
+	if got := circular(fresh); got != "[A1 B1 C1 A3]" {
+		t.Fatal(got)
+	}
+}
+
+// An edit that ends a circle gives its formulas their values back.
+func TestEngineCircleBroken(t *testing.T) {
+	s, e := newSource()
+	s.set(e, "A1", 1)
+	s.set(e, "B1", "=A1+1")
+	s.set(e, "C1", "=B1*10")
+	if got := results(s.set(e, "A1", "=C1")); got != "[A1=0 B1=0 C1=0]" {
+		t.Fatal(got)
+	}
+	if got := circular(e); got != "[A1 B1 C1]" {
+		t.Fatal(got)
+	}
+	if got := results(s.set(e, "A1", 3)); got != "[B1=4 C1=40]" {
+		t.Fatal(got)
+	}
+	if got := circular(e); got != "[]" {
+		t.Fatal(got)
+	}
+	// one read through INDIRECT ends as the text it reads changes
+	s.set(e, "D1", "B1")
+	s.set(e, "B1", `=INDIRECT(D1)+1`)
+	if got := s.show("B1") + " " + circular(e); got != "0 [B1]" {
+		t.Fatal(got)
+	}
+	s.set(e, "D1", "A1")
+	if got := s.show("B1") + " " + s.show("C1") + " " + circular(e); got != "4 40 []" {
+		t.Fatal(got)
+	}
+}
+
+// With iteration a circle is calculated again until it settles, or as
+// many times as the workbook allows: here interest on a loan that pays
+// for it.
+func TestEngineIteration(t *testing.T) {
+	for _, c := range []struct {
+		it       Iteration
+		interest float64
+	}{
+		{Iteration{Count: 100, Delta: 0.001}, 1000 * 0.05 / 0.95},
+		{Iteration{Count: 1, Delta: 0.001}, 50},
+		{Iteration{Count: 2, Delta: 0.001}, 52.5},
+		{Iteration{Count: 100, Delta: 100}, 52.5},
+	} {
+		s := &sheetSource{mapBook: book(nil), formulas: map[Pos]string{}, hidden: map[int]bool{}}
+		e := NewEngine(s, Options{Iteration: &c.it})
+		s.set(e, "A1", 1000)
+		s.set(e, "B1", "=A1+C1")
+		s.set(e, "C1", "=B1*5%")
+		s.set(e, "D1", "=C1*2")
+		interest := s.Value(Pos{0, 1, 3}).Num
+		if math.Abs(interest-c.interest) > c.it.Delta || s.Value(Pos{0, 1, 4}).Num != 2*interest {
+			t.Errorf("%+v: interest %v, D1 %s", c.it, interest, s.show("D1"))
+		}
+		if got := circular(e); got != "[B1 C1]" {
+			t.Fatal(got)
+		}
+	}
+	// through INDIRECT, known once calculated
+	s := &sheetSource{mapBook: book(nil), formulas: map[Pos]string{}, hidden: map[int]bool{}}
+	e := NewEngine(s, Options{Iteration: &Iteration{Count: 100, Delta: 1e-9}})
+	s.set(e, "A1", `=INDIRECT("B1")/2+1`)
+	s.set(e, "B1", "=A1")
+	if a := s.Value(Pos{0, 1, 1}).Num; math.Abs(a-2) > 1e-6 {
+		t.Fatalf("A1 = %v", a)
 	}
 }

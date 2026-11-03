@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/citadellefr/loffice/formula"
 	"github.com/citadellefr/loffice/internal/xmldom"
 	"github.com/citadellefr/trame/ot"
 )
@@ -72,6 +73,18 @@ func (w *writer) workbook(sheets []sheet, rewritten bool) error {
 	_ = json.Unmarshal(book.Attrs["date1904"], &date1904)
 	if date1904 != w.d.date1904 {
 		setAttr(child(root, "workbookPr", workbookOrder), "date1904", boolAttr(date1904))
+	}
+	var iterate *formula.Iteration
+	_ = json.Unmarshal(book.Attrs["iterate"], &iterate)
+	if (iterate == nil) != (w.d.iterate == nil) || iterate != nil && *iterate != *w.d.iterate {
+		count, delta := "", ""
+		if iterate != nil {
+			count, delta = strconv.Itoa(iterate.Count), formatFloat(iterate.Delta)
+		}
+		pr := child(root, "calcPr", workbookOrder)
+		setAttr(pr, "iterate", boolAttr(iterate != nil))
+		setAttr(pr, "iterateCount", count)
+		setAttr(pr, "iterateDelta", delta)
 	}
 	w.definedNames(root, book, index)
 	if rewritten {
