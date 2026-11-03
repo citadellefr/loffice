@@ -56,6 +56,10 @@ go test ./...
 go test ./opc -run '^$' -fuzz FuzzOpen
 go test ./legacy -run '^$' -fuzz FuzzWorkbook
 go test ./internal/xmltok -run '^$' -fuzz FuzzSameAsEncodingXML
+go test ./xlsx -run '^$' -fuzz '^FuzzOpen$'    # a workbook: open, save, calculate
+go test ./xlsx -run '^$' -fuzz '^FuzzParts$'   # the sheet, styles and strings of a valid workbook
+go test ./chart -run '^$' -fuzz FuzzRead
+go test ./formula -run '^$' -fuzz FuzzFormula  # parse, calculate, write again
 ```
 
 The corpus is downloaded from pinned commits and never committed.

@@ -3,6 +3,7 @@ package formula
 import (
 	"regexp"
 	"strings"
+	"unicode/utf8"
 )
 
 // function is a function formulas may call.
@@ -212,13 +213,15 @@ func wildcard(s string) *regexp.Regexp {
 }
 
 func wildcardPattern(s string) string {
+	s = strings.ToValidUTF8(s, "\uFFFD")
 	var b strings.Builder
 	for i := 0; i < len(s); i++ {
 		switch s[i] {
 		case '~':
 			if i+1 < len(s) {
-				i++
-				b.WriteString(regexp.QuoteMeta(s[i : i+1]))
+				_, n := utf8.DecodeRuneInString(s[i+1:])
+				b.WriteString(regexp.QuoteMeta(s[i+1 : i+1+n]))
+				i += n
 			} else {
 				b.WriteString("~")
 			}

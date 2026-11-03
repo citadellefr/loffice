@@ -96,7 +96,7 @@ func next(f string, i int) (Token, error) {
 		}
 	case c == '#':
 		for _, e := range errorCodes {
-			if strings.HasPrefix(strings.ToUpper(f[i:]), e) {
+			if hasPrefixFold(f[i:], e) {
 				if ref, n, ok := readRef(f, i); ok {
 					return Token{Kind: Reference, Text: f[i : i+n], Pos: i, Ref: ref}, nil
 				}
@@ -163,6 +163,11 @@ func next(f string, i int) (Token, error) {
 		return tok(Bool, n)
 	}
 	return tok(Name, n)
+}
+
+// hasPrefixFold tells whether s starts with prefix, whatever the case.
+func hasPrefixFold(s, prefix string) bool {
+	return len(s) >= len(prefix) && strings.EqualFold(s[:len(prefix)], prefix)
 }
 
 func numberLen(s string) int {

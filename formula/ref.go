@@ -47,7 +47,7 @@ func readRef(f string, i int) (*Ref, int, bool) {
 		n = p
 	}
 	rest := f[i+n:]
-	if strings.HasPrefix(strings.ToUpper(rest), "#REF!") {
+	if hasPrefixFold(rest, "#REF!") {
 		r.Invalid = true
 		return r, n + 5, true
 	}

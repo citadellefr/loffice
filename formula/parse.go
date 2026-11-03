@@ -1,6 +1,7 @@
 package formula
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 )
@@ -71,7 +72,26 @@ type token struct {
 type parser struct {
 	tokens []token
 	i      int
+	depth  int
 }
+
+// MaxDepth is how deep a formula may nest functions, parentheses and
+// unary operators: the 64 levels of functions Excel accepts.
+const MaxDepth = 64
+
+// ErrDepth is the error of a formula nested deeper than MaxDepth.
+var ErrDepth = errors.New("formula: nested too deeply")
+
+// enter goes one level deeper, and leave comes back.
+func (p *parser) enter() error {
+	if p.depth == MaxDepth {
+		return ErrDepth
+	}
+	p.depth++
+	return nil
+}
+
+func (p *parser) leave() { p.depth-- }
 
 // Parse reads a formula, written without its "=".
 func Parse(f string) (Expr, error) {
@@ -164,6 +184,10 @@ func (p *parser) percent() (Expr, error) {
 func (p *parser) unary() (Expr, error) {
 	if op, ok := p.op("-", "+", "@"); ok {
 		p.i++
+		if err := p.enter(); err != nil {
+			return nil, err
+		}
+		defer p.leave()
 		x, err := p.unary()
 		if err != nil {
 			return nil, err
@@ -255,8 +279,16 @@ func (p *parser) primary() (Expr, error) {
 		}
 		return nameExpr{sheet, name}, nil
 	case Function:
+		if err := p.enter(); err != nil {
+			return nil, err
+		}
+		defer p.leave()
 		return p.call(t.Text[:len(t.Text)-1])
 	case Open:
+		if err := p.enter(); err != nil {
+			return nil, err
+		}
+		defer p.leave()
 		x, err := p.expr(0)
 		if err != nil {
 			return nil, err
