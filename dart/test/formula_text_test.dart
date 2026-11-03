@@ -15,6 +15,12 @@ void main() {
       ('SUM(1:3)+.5', 'SOMME(1:3)+,5'),
       ('Taux*2+Table1[Montant]', 'Taux*2+Table1[Montant]'),
       ('NOSUCH(1,2)', 'NOSUCH(1;2)'),
+      ('_xlfn.NORM.DIST(A1,0,1,TRUE)', 'LOI.NORMALE.N(A1;0;1;VRAI)'),
+      ('NORMDIST(A1,0,1,TRUE)', 'LOI.NORMALE(A1;0;1;VRAI)'),
+      ('_xlfn.T.TEST(A:A,B:B,2,1)', 'T.TEST(A:A;B:B;2;1)'),
+      ('TTEST(A:A,B:B,2,1)', 'TEST.STUDENT(A:A;B:B;2;1)'),
+      ('LINEST(A:A,B:B,TRUE,TRUE)', 'DROITEREG(A:A;B:B;VRAI;VRAI)'),
+      ('_xlfn.MUNIT(3)', 'MATRICE.UNITAIRE(3)'),
     ]) {
       expect(formulaToFrench(file), shown, reason: file);
     }
@@ -29,13 +35,22 @@ void main() {
       ('SI.NON.DISP(A1;0)', '_xlfn.IFNA(A1,0)'),
       ('SI(A1=#VALEUR!;VRAI;"a;b")', 'IF(A1=#VALUE!,TRUE,"a;b")'),
       (r'Feuil1!$A$1*2,5', r'Feuil1!$A$1*2.5'),
+      ('loi.normale.n(1;0;1;VRAI)', '_xlfn.NORM.DIST(1,0,1,TRUE)'),
+      ('PRODUITMAT(A1:B2;D1:E2)', 'MMULT(A1:B2,D1:E2)'),
+      ('KURTOSIS(A1:A9)', 'KURT(A1:A9)'),
     ]) {
       expect(formulaFromFrench(typed), file, reason: typed);
     }
   });
 
   test('round trip', () {
-    for (final f in ['SUMIFS(C:C,A:A,">5",B:B,"x")', '_xlfn.IFS(A1>1,"a",TRUE,"b")', 'VLOOKUP(A2,Data!A:D,4,FALSE)']) {
+    for (final f in [
+      'SUMIFS(C:C,A:A,">5",B:B,"x")',
+      '_xlfn.IFS(A1>1,"a",TRUE,"b")',
+      'VLOOKUP(A2,Data!A:D,4,FALSE)',
+      '_xlfn.T.INV.2T(A1,5)',
+      '_xlfn.CHISQ.TEST(A1:B2,D1:E2)',
+    ]) {
       expect(formulaFromFrench(formulaToFrench(f)), f);
     }
   });
