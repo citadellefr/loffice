@@ -263,7 +263,7 @@ func init() {
 					return *err
 				}
 				if !a1 {
-					return ErrUnsupported
+					return c.indirectL1C1(strings.TrimSpace(s))
 				}
 			}
 			tokens, e := Tokens(strings.TrimSpace(s))
@@ -521,4 +521,19 @@ func xfind(keys []Value, x Value, mode, search int) int {
 		}
 	}
 	return best
+}
+
+// indirectL1C1 is INDIRECT of a reference written as R1C1.
+func (c *Context) indirectL1C1(s string) Value {
+	r := &Ref{}
+	if i := strings.LastIndexByte(s, '!'); i >= 0 {
+		r.Book, r.Sheet, r.LastSheet = splitPrefix(s[:i])
+		s = s[i+1:]
+	}
+	a, ok := readL1C1(s, c.Row, c.Col)
+	if !ok {
+		return ErrRef
+	}
+	r.Area = a
+	return c.ref(r)
 }

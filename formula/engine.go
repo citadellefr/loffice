@@ -112,6 +112,7 @@ const cachedCells = 1 << 18
 
 type cellFormula struct {
 	pos   Pos
+	text  string
 	expr  Expr
 	array *Area // the cells an array formula fills, from its anchor
 	reads []Area3
@@ -173,7 +174,7 @@ func (e *Engine) Set(p Pos, f string, array *Area) {
 	if err != nil {
 		return
 	}
-	cf := &cellFormula{pos: p, expr: e.bind(x, p.Sheet), array: array}
+	cf := &cellFormula{pos: p, text: f, expr: e.bind(x, p.Sheet), array: array}
 	e.reads(x, p.Sheet, 0, func(a Area3) { cf.reads = append(cf.reads, a) }, func(name string) {
 		if f := functions[name]; f != nil && f.volatile {
 			e.volatile[p] = true
@@ -997,4 +998,13 @@ func (b *engineBook) Subtotal(sheet, row, col int) bool {
 func (b *engineBook) HasFormula(sheet, row, col int) bool {
 	_, ok := b.formulas[Pos{sheet, row, col}]
 	return ok
+}
+
+// FormulaText is the formula of a cell as written, for FORMULATEXT.
+func (b *engineBook) FormulaText(sheet, row, col int) (string, bool) {
+	cf, ok := b.formulas[Pos{sheet, row, col}]
+	if !ok {
+		return "", false
+	}
+	return "=" + cf.text, true
 }
