@@ -59,6 +59,10 @@ go test ./internal/xmltok -run '^$' -fuzz FuzzSameAsEncodingXML
 go test ./docx -run '^$' -fuzz FuzzOpen        # a part of a document, opened, rewritten and edited
 go test ./pptx -run '^$' -fuzz FuzzOpen        # the same for a presentation
 go test ./drawingml -run '^$' -fuzz FuzzReadWrite
+go test ./xlsx -run '^$' -fuzz '^FuzzOpen$'    # a workbook: open, save, calculate
+go test ./xlsx -run '^$' -fuzz '^FuzzParts$'   # the sheet, styles and strings of a valid workbook
+go test ./chart -run '^$' -fuzz FuzzRead
+go test ./formula -run '^$' -fuzz FuzzFormula  # parse, calculate, write again
 ```
 
 The corpus is downloaded from pinned commits and never committed. The inputs that

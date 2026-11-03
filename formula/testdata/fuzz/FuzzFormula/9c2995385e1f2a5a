@@ -1,0 +1,2 @@
+go test fuzz v1
+string("C:$A:A1&0")

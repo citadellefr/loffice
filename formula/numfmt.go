@@ -668,7 +668,8 @@ func fraction(n float64, s *fmtSection) (float64, int64, int64) {
 			digits++
 		}
 	}
-	limit := int64(math.Pow(10, float64(max(digits, 1)))) - 1
+	// Excel reads denominators of 5 digits at most
+	limit := int64(math.Pow(10, float64(min(max(digits, 1), 5)))) - 1
 	bestN, bestD, bestErr := int64(0), int64(1), math.Inf(1)
 	for d := int64(1); d <= limit; d++ {
 		num := int64(math.Round(n * float64(d)))

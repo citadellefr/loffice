@@ -47,7 +47,7 @@ func readRef(f string, i int) (*Ref, int, bool) {
 		n = p
 	}
 	rest := f[i+n:]
-	if strings.HasPrefix(strings.ToUpper(rest), "#REF!") {
+	if hasPrefixFold(rest, "#REF!") {
 		r.Invalid = true
 		return r, n + 5, true
 	}
@@ -74,6 +74,9 @@ func splitPrefix(p string) (book, sheet, last string) {
 		}
 	}
 	sheet, last, _ = strings.Cut(p, ":")
+	if sheet == "" || last == "" {
+		return book, p, ""
+	}
 	return book, sheet, last
 }
 
@@ -174,7 +177,7 @@ func (r *Ref) String() string {
 // Prefix is the sheet prefix of the reference, "!" included, "" when it
 // has none.
 func (r *Ref) Prefix() string {
-	if r.Sheet == "" && r.Book == "" {
+	if r.Sheet == "" && r.LastSheet == "" && r.Book == "" {
 		return ""
 	}
 	name := r.Sheet
