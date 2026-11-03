@@ -154,6 +154,40 @@ func (c *Calc) Follow(e ot.Edit, since []ot.Edit) ot.Edit {
 	return f.out
 }
 
+// Refresh calculates every formula again, from the tree, and returns the
+// changes: the engine started over, and the formula cells as they now are
+// so that whoever missed a change of a Follow that failed has them.
+func (c *Calc) Refresh() ot.Edit {
+	c.rebuild()
+	var all ot.Edit
+	for _, id := range c.sheets {
+		n := c.tree.Node(id)
+		if n.Grid == nil {
+			continue
+		}
+		var cells []ot.Cell
+		n.Grid.Each(1, formula.MaxRows, func(row, col int, raw json.RawMessage) bool {
+			if col > 0 && bytes.Contains(raw, []byte(`"f":`)) {
+				cells = append(cells, ot.Cell{Row: row, Col: col})
+			}
+			return true
+		})
+		if cells != nil {
+			all = append(all, ot.Change{Op: ot.OpCel, ID: id, Cells: cells})
+		}
+	}
+	out := c.Follow(all, nil)
+	var resync ot.Edit
+	for _, ch := range all {
+		cells := make([]ot.Cell, len(ch.Cells))
+		for i, cell := range ch.Cells {
+			cells[i] = ot.Cell{Row: cell.Row, Col: cell.Col, Fields: bytes.Clone(c.tree.Node(ch.ID).Grid.Cell(cell.Row, cell.Col))}
+		}
+		resync = append(resync, ot.Change{Op: ot.OpCel, ID: ch.ID, Cells: cells})
+	}
+	return append(out, resync...)
+}
+
 // follow is what the server does after an edit.
 type follow struct {
 	c     *Calc

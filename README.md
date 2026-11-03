@@ -24,7 +24,7 @@ license.
 
 | Package | Role |
 |---|---|
-| [`loffice`](.) | The hub, [trame](https://github.com/citadellefr/trame)'s: one room per open document, edits rebased and relayed to everyone connected, saves after a pause. Serves Word documents (`.docx`, `.docm`, `.dotx`), presentations (`.pptx`, `.pptm`, `.ppsx`), workbooks (`.xlsx`, `.xlsm`, `.xltx`) and CSV files (`.csv`), whose formulas it calculates, plain text files (`.txt`), and the pictures of documents. |
+| [`loffice`](.) | The hub, [trame](https://github.com/citadellefr/trame)'s: one room per open document, edits rebased and relayed to everyone connected, saves after a pause. Serves Word documents (`.docx`, `.docm`, `.dotx`, `.dotm`), presentations (`.pptx`, `.pptm`, `.ppsx`, `.potx`, `.potm`), workbooks (`.xlsx`, `.xlsm`, `.xltx`, `.xltm`) and CSV files (`.csv`), whose formulas it calculates, plain text files (`.txt`), and the pictures of documents. |
 | [`dart`](dart) | The Flutter package: the editors of Word, Excel and PowerPoint documents, Word's with its own page layout; the free fonts with the metrics of Office's; and the export of documents and presentations as PDF files of vectors and text, written by the package itself. |
 | [`drawingml`](drawingml) | The DrawingML of all three formats: colors, fills, lines, geometries, positions and text bodies, read as JSON and text flows, written back as patches of the XML they came from. |
 | [`pptx`](pptx) | Presentations as trees: masters, layouts, slides, shapes, tables of rows and cells, and notes; table styles, Office's built-in ones included. Only what changed is written back; a copied shape keeps its pictures and links. |
