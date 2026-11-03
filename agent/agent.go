@@ -10,8 +10,9 @@
 // first. In Word every change of text is a revision signed by the agent's
 // name, which people accept or reject as their own; each batch records the
 // user the agent acts for, and UndoMine takes back what it did for one of
-// them. A batch prepared on a version whose blocks changed since fails
-// without writing anything.
+// them. A batch prepared on a version whose blocks changed since, as far as
+// the agent knows when it sends it, fails without writing anything; what
+// others send meanwhile is rebased as for anyone.
 //
 // Word documents are edited so far; PowerPoint and Excel will take the
 // same batches, edited directly rather than as revisions.
@@ -19,6 +20,7 @@ package agent
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -43,8 +45,7 @@ var (
 	// ErrConflict is a block changed since the version a batch was
 	// prepared on.
 	ErrConflict = errors.New("agent: changed since the version given")
-	// ErrStale is a version of another stay of the document in memory,
-	// or a malformed one.
+	// ErrStale is a version another agent gave, or a malformed one.
 	ErrStale = errors.New("agent: unknown version, read the document again")
 	// ErrNotFound is text a block does not hold.
 	ErrNotFound = errors.New("agent: text not found")
@@ -74,20 +75,20 @@ type Options struct {
 
 // Agent is a participant of a room, until Leave.
 type Agent struct {
-	peer  trame.Peer
-	kind  string
-	opt   Options
-	conn  *pipe
-	ready chan struct{}
-	done  chan struct{}
+	peer    trame.Peer
+	kind    string
+	opt     Options
+	conn    *pipe
+	session string
+	ready   chan struct{}
+	done    chan struct{}
+	cancel  context.CancelFunc
 
 	// sending lets one batch at a time travel.
 	sending sync.Mutex
 
 	mu      sync.Mutex
 	s       *state
-	epoch   string
-	sid     uint32
 	n       uint64
 	flight  *flight
 	err     error
@@ -111,6 +112,9 @@ type flight struct {
 // the agent's revisions and comments, and returns once it has the
 // document.
 func Join(ctx context.Context, hub Server, key string, peer trame.Peer, opt Options) (*Agent, error) {
+	if strings.TrimSpace(peer.Name) == "" {
+		return nil, fmt.Errorf("%w: the agent needs a name", ErrInvalid)
+	}
 	if opt.Now == nil {
 		opt.Now = time.Now
 	}
@@ -118,13 +122,16 @@ func Join(ctx context.Context, hub Server, key string, peer trame.Peer, opt Opti
 		peer:    peer,
 		kind:    strings.ToLower(path.Ext(key)),
 		opt:     opt,
+		session: rand.Text()[:10],
 		ready:   make(chan struct{}),
 		done:    make(chan struct{}),
 		journal: append([]Record(nil), opt.Journal...),
 	}
 	a.conn = newPipe(a.receive)
+	serve, cancel := context.WithCancel(context.Background())
+	a.cancel = cancel
 	go func() {
-		a.end(hub.Serve(context.Background(), a.conn, key, peer))
+		a.end(hub.Serve(serve, a.conn, key, peer))
 	}()
 	_ = a.conn.send([]byte(`{"t":"sync"}`))
 	select {
@@ -140,6 +147,7 @@ func Join(ctx context.Context, hub Server, key string, peer trame.Peer, opt Opti
 
 // Leave disconnects the agent.
 func (a *Agent) Leave() {
+	a.cancel()
 	a.conn.Close()
 	<-a.done
 }
@@ -157,7 +165,8 @@ func (a *Agent) Err() error {
 }
 
 // Version is the version of the document the agent has: given to Apply, it
-// makes the batch fail if a block it touches changed since.
+// makes the batch fail if a block it touches changed since. It holds for
+// this agent only, whose block ids it goes with.
 func (a *Agent) Version() string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -165,17 +174,21 @@ func (a *Agent) Version() string {
 }
 
 func (a *Agent) version() string {
-	return a.epoch + "-" + strconv.FormatUint(a.s.version, 10)
+	return a.versionOf(a.s.version)
 }
 
-// since reads a version back, 0 for none.
+func (a *Agent) versionOf(v uint64) string {
+	return a.session + "-" + strconv.FormatUint(v, 10)
+}
+
+// since reads a version back, the current one when empty.
 func (a *Agent) since(version string) (uint64, error) {
 	if version == "" {
 		return a.s.version, nil
 	}
-	epoch, v, ok := strings.Cut(version, "-")
+	session, v, ok := strings.Cut(version, "-")
 	n, err := strconv.ParseUint(v, 10, 64)
-	if !ok || err != nil || epoch != a.epoch || n > a.s.version {
+	if !ok || err != nil || session != a.session || n > a.s.version {
 		return 0, fmt.Errorf("%w: %q", ErrStale, version)
 	}
 	return n, nil
@@ -212,10 +225,9 @@ func (a *Agent) fail(err error) {
 
 type frame struct {
 	T     string          `json:"t"`
-	SID   uint32          `json:"sid"`
 	N     uint64          `json:"n"`
 	V     uint64          `json:"v"`
-	Epoch string          `json:"epoch"`
+	Ack   uint64          `json:"ack"`
 	Error string          `json:"error"`
 	D     json.RawMessage `json:"d"`
 }
@@ -232,8 +244,6 @@ func (a *Agent) receive(data []byte) {
 		return
 	}
 	switch f.T {
-	case "hello":
-		a.sid, a.epoch = f.SID, f.Epoch
 	case "doc":
 		var nodes ot.Edit
 		err := json.Unmarshal(f.D, &nodes)
@@ -245,7 +255,7 @@ func (a *Agent) receive(data []byte) {
 			a.fail(err)
 			return
 		}
-		a.s = newState(tree, f.V)
+		a.s, a.n = newState(tree, f.V), f.Ack
 		close(a.ready)
 	case "op":
 		var e ot.Edit

@@ -381,3 +381,59 @@ func TestDirectEdits(t *testing.T) {
 		t.Fatalf("revisions %+v", revs)
 	}
 }
+
+func TestLastParagraphOfFlow(t *testing.T) {
+	a := newRoom(t, loffice.Options{}).join("Héraut", Options{})
+	if _, err := a.Apply(t.Context(), Batch{OnBehalfOf: "u1", Direct: true, Edits: []Edit{{Op: "delete", Block: "p5"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.Apply(t.Context(), Batch{OnBehalfOf: "u1", Edits: []Edit{{Op: "insert", Block: "p4", Text: "Ajout."}}}); err != nil {
+		t.Fatal(err)
+	}
+	_, revs, _ := a.Revisions()
+	if _, err := a.Apply(t.Context(), Batch{OnBehalfOf: "u1", Edits: []Edit{{Op: "reject", Revision: revs[len(revs)-1].ID}}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := read(t, a, Markdown); !strings.Contains(got, "[p4] Le fournisseur va livrer en retard.\n[t6]") {
+		t.Fatalf("ids moved:\n%s", got)
+	}
+}
+
+func TestSessions(t *testing.T) {
+	r := newRoom(t, loffice.Options{})
+	alice := r.human("Alice")
+	if _, err := Join(t.Context(), r.hub, key, trame.Peer{ID: "x"}, Options{}); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("an agent without a name: %v", err)
+	}
+	peer := trame.Peer{ID: "heraut", Name: "Héraut", Client: "c1"}
+	first, err := Join(t.Context(), r.hub, key, peer, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := Batch{OnBehalfOf: "u1", Edits: []Edit{{Op: "replace", Block: "p2", Find: "en avance", Text: "à l'heure"}}}
+	if _, err := first.Apply(t.Context(), b); err != nil {
+		t.Fatal(err)
+	}
+	v := first.Version()
+	first.Leave()
+	alice.next("op")
+	second, err := Join(t.Context(), r.hub, key, peer, Options{Journal: first.Journal()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer second.Leave()
+	b.Edits[0] = Edit{Op: "replace", Block: "p4", Find: "retard", Text: "avance"}
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	if _, err := second.Apply(ctx, b); err != nil {
+		t.Fatal(err)
+	}
+	b.Version = v
+	if _, err := second.Apply(ctx, b); !errors.Is(err, ErrStale) {
+		t.Fatalf("a version of another agent: %v", err)
+	}
+	_, revs, _ := second.Revisions()
+	if revs[0].Author != "Héraut" || revs[0].OnBehalfOf != "u1" {
+		t.Fatalf("the journal of the first session: %+v", revs[0])
+	}
+}

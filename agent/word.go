@@ -2,6 +2,7 @@ package agent
 
 import (
 	"encoding/json"
+	"fmt"
 	"regexp"
 	"slices"
 	"strconv"
@@ -85,7 +86,7 @@ func (a *Agent) Search(query string, regex bool) (version string, matches []Matc
 	}
 	re, err := regexp.Compile(query)
 	if err != nil {
-		return "", nil, ErrInvalid
+		return "", nil, fmt.Errorf("%w: %w", ErrInvalid, err)
 	}
 	err = a.word(func(s *state) error {
 		version = a.version()

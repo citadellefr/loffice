@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -67,7 +66,8 @@ type Record struct {
 }
 
 // Preview is what a batch would change, the blocks it touches in
-// CriticMarkup, on the document at Version.
+// CriticMarkup, on the document at Version. The ids of the blocks it adds
+// are only those they would likely get.
 type Preview struct {
 	Version string `json:"version"`
 	Markup  string `json:"markup"`
@@ -127,7 +127,7 @@ func (a *Agent) Apply(ctx context.Context, b Batch) (Record, error) {
 		return Record{}, err
 	}
 	a.mu.Lock()
-	rec := Record{a.epoch + "-" + strconv.FormatUint(f.version, 10), b.OnBehalfOf, date, slices.Clone(b.Edits)}
+	rec := Record{a.versionOf(f.version), b.OnBehalfOf, date, slices.Clone(b.Edits)}
 	a.journal = append(a.journal, rec)
 	a.mu.Unlock()
 	if c, ok := cursorAfter(f.applied); ok {
@@ -609,24 +609,27 @@ func (p *planner) revision(e Edit) (ot.Edit, error) {
 var unrevised = ot.Attrs{"ins": "", "insd": "", "del": "", "deld": ""}
 
 // removeRange deletes text of a flow, keeping it ended by a mark: the last
-// mark goes only with the flow, which goes only when blocks follow it.
+// mark goes only with the flow, which goes only when another flow ends what
+// holds it.
 func (s *state) removeRange(n *ot.Node, from, to int) ot.Edit {
 	flow := n.Text.Delta()
 	size := flowLen(flow)
 	kids := s.tree.Children(n.Parent)
+	before, prev := charAt(flow, from-1)
 	var b builder
 	switch {
 	case to < size:
 		b.to(from)
 		b.remove(to - from)
-	case from == 0 && kids[len(kids)-1] != n:
+	case from == 0 && kids[len(kids)-1] != n && kids[len(kids)-1].Text != nil:
 		return ot.Edit{{Op: ot.OpDel, ID: n.ID}}
-	case from > 0 && at(flow, from-1) == '\n':
+	case before == '\n':
+		_, last := charAt(flow, size-1)
 		become := ot.Attrs{}
-		for k := range attrsAt(flow, size-1) {
+		for k := range last {
 			become[k] = ""
 		}
-		for k, v := range attrsAt(flow, from-1) {
+		for k, v := range prev {
 			become[k] = v
 		}
 		b.to(from - 1)
@@ -640,16 +643,9 @@ func (s *state) removeRange(n *ot.Node, from, to int) ot.Edit {
 	return b.edit(n.ID)
 }
 
-func at(flow ot.Delta, pos int) rune {
-	var out rune
-	each(flow, pos, pos+1, func(r rune, _ ot.Attrs) { out = r })
-	return out
-}
-
-func attrsAt(flow ot.Delta, pos int) ot.Attrs {
-	var out ot.Attrs
-	each(flow, pos, pos+1, func(_ rune, a ot.Attrs) { out = a })
-	return out
+func charAt(flow ot.Delta, pos int) (r rune, attrs ot.Attrs) {
+	each(flow, pos, pos+1, func(c rune, a ot.Attrs) { r, attrs = c, a })
+	return r, attrs
 }
 
 // each calls f with the characters of a flow from offset from to to.

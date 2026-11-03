@@ -13,8 +13,8 @@ import (
 //
 // A paragraph is known by its mark: it keeps its id while its mark stays,
 // whatever is typed in it or around it. Splitting one gives the first half
-// a new id; joining two keeps the id of the second. Tables keep theirs
-// until they are deleted.
+// a new id; joining two keeps the id of the second, unless all of its text
+// went too. Tables keep theirs until they are deleted.
 type state struct {
 	tree    *ot.Tree
 	version uint64
@@ -128,8 +128,10 @@ func (s *state) change(c ot.Change, v uint64) error {
 		if err := s.tree.Apply(ot.Edit{c}); err != nil {
 			return err
 		}
-		s.added(s.tree.Node(c.ID), v)
-		s.touch(c.ID, v)
+		if n := s.tree.Node(c.ID); n != nil {
+			s.added(n, v)
+			s.touch(c.ID, v)
+		}
 	case ot.OpDel:
 		n := s.tree.Node(c.ID)
 		if n == nil {
@@ -179,8 +181,9 @@ func (s *state) subtree(id string, out []string) []string {
 func (s *state) follow(id string, old []ot.Delta, d ot.Delta, v uint64) bool {
 	now := s.tree.Node(id).Text.Paragraphs()
 	before := s.paras[id]
-	moved := marks(old)
-	for i, m := range moved {
+	was := marks(old)
+	moved := make([]int, len(was))
+	for i, m := range was {
 		moved[i] = follows(d, m)
 	}
 	list := make([]para, len(now))
@@ -195,6 +198,11 @@ func (s *state) follow(id string, old []ot.Delta, d ot.Delta, v uint64) bool {
 		}
 		if i < len(moved) && moved[i] == at-1 {
 			list[j] = before[i]
+			if i > 0 && moved[i-1] < 0 && emptied(d, was[i-1]+1, was[i]) {
+				delete(s.where, before[i].id)
+				list[j] = before[i-1]
+				s.where[list[j].id] = id
+			}
 			if !same(old[i], p) {
 				list[j].mod, changed = v, true
 			}
@@ -210,6 +218,16 @@ func (s *state) follow(id string, old []ot.Delta, d ot.Delta, v uint64) bool {
 	}
 	s.paras[id] = list
 	return changed
+}
+
+// emptied tells whether d deleted all from offset from to to.
+func emptied(d ot.Delta, from, to int) bool {
+	for pos := from; pos < to; pos++ {
+		if follows(d, pos) >= 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // marks are the offsets of the marks of paragraphs.
