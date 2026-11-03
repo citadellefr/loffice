@@ -1,0 +1,2 @@
+go test fuzz v1
+string("SUMIF(A1:A7,\"*000000\xcb0\")")

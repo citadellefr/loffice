@@ -102,10 +102,7 @@ class WordLevel {
 class WordNumbering {
   WordNumbering.fromJson(Map<String, Object?> j)
     : abstract = j['abstract'] as String? ?? '',
-      levels = [
-        for (final l in (j['levels'] as List<Object?>? ?? const []))
-          WordLevel.fromJson(l is Map<String, Object?> ? l : const {}),
-      ];
+      levels = [for (final l in (j['levels'] as List<Object?>? ?? const [])) WordLevel.fromJson(l is Map<String, Object?> ? l : const {})];
 
   final String abstract;
   final List<WordLevel> levels;
@@ -209,8 +206,7 @@ class WordDocument {
     themeColors = _strings(a['colors']);
     settings = WordSettings.fromJson(_map(a['settings']));
     lastSection = a['sect'] is Map<String, Object?> ? WordSection.fromJson(a['sect'] as Map<String, Object?>) : WordSection.fallback;
-    String? byDefault(String type) =>
-        styles.entries.where((e) => e.value.type == type && e.value.isDefault).map((e) => e.key).firstOrNull;
+    String? byDefault(String type) => styles.entries.where((e) => e.value.type == type && e.value.isDefault).map((e) => e.key).firstOrNull;
     paragraphStyle = byDefault('paragraph');
     tableStyle = byDefault('table');
   }
@@ -252,19 +248,18 @@ class WordDocument {
   /// styles it is based on under them.
   Props styleProps(String? id, String part) {
     if (id == null || !styles.containsKey(id)) return const {};
-    return _chains[(id, part)] ??= {
-      for (final s in _chain(id).reversed) ...(part == 'p' ? s.p : s.r),
-    };
+    return _chains[(id, part)] ??= {for (final s in _chain(id).reversed) ...(part == 'p' ? s.p : s.r)};
   }
 
   /// The table formatting of a style, those it is based on under it: its
   /// "tbl", "tr" or "tc".
   Map<String, Object?> tableProps(String? id, String part) => {
-    for (final s in _chain(id).reversed) ...switch (part) {
-      'tbl' => s.tbl,
-      'tr' => s.tr,
-      _ => s.tc,
-    },
+    for (final s in _chain(id).reversed)
+      ...switch (part) {
+        'tbl' => s.tbl,
+        'tr' => s.tr,
+        _ => s.tc,
+      },
   };
 
   /// The paragraph style a mark names, or the default one.
@@ -303,12 +298,7 @@ class WordDocument {
     };
     final layers = [defaultParagraph, for (final s in under) s.p, table, for (final s in over) s.p, ?level?.p, direct];
     final tabs = mergeTabs([for (final l in layers) l['tabs']]);
-    return {
-      for (final l in layers) ...l,
-      'num': ?num,
-      'lvl': ?lvl,
-      'tabs': ?tabs,
-    };
+    return {for (final l in layers) ...l, 'num': ?num, 'lvl': ?lvl, 'tabs': ?tabs};
   }
 
   /// The run formatting a paragraph's runs start from: the defaults, the
@@ -316,12 +306,7 @@ class WordDocument {
   /// style.
   Props paragraphRun(Props mark, {Props table = const {}}) => _runs[_Pair(mark, table)] ??= () {
     final (under, over) = _layers(styleOf(mark));
-    return {
-      ...defaultRun,
-      for (final s in under) ...s.r,
-      ...table,
-      for (final s in over) ...s.r,
-    };
+    return {...defaultRun, for (final s in under) ...s.r, ...table, for (final s in over) ...s.r};
   }();
 
   /// The run formatting in effect for the attributes of a run, from [base]

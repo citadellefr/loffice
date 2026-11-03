@@ -15,15 +15,38 @@ void main() {
     final tree = Tree.fromEdit(Edit.fromJson(jsonDecode(File('../testdata/pptx/shp-shapes.json').readAsStringSync()))!)!;
     final deck = Deck(tree);
     for (final (i, t) in transitions.indexed) {
-      expect(tree.apply(Edit([Change.set(deck.slides[i].id, attributes: {'transition': t})])), isNotNull);
+      expect(
+        tree.apply(
+          Edit([
+            Change.set(deck.slides[i].id, attributes: {'transition': t}),
+          ]),
+        ),
+        isNotNull,
+      );
     }
     if (presenter) {
-      final notes = tree.children(deck.slides[0].id).firstWhere((n) => n.type == 'notes', orElse: () => const Node(id: '', type: '', key: ''));
+      final notes = tree
+          .children(deck.slides[0].id)
+          .firstWhere(
+            (n) => n.type == 'notes',
+            orElse: () => const Node(id: '', type: '', key: ''),
+          );
       if (notes.id.isEmpty) {
-        expect(tree.apply(Edit([Change.create(Node(id: 'notes', type: 'notes', parent: deck.slides[0].id, key: 'V', text: Delta([const Op.insert('Saluer la salle\n')])))])), isNotNull);
+        expect(
+          tree.apply(
+            Edit([
+              Change.create(Node(id: 'notes', type: 'notes', parent: deck.slides[0].id, key: 'V', text: Delta([const Op.insert('Saluer la salle\n')]))),
+            ]),
+          ),
+          isNotNull,
+        );
       }
     }
-    await tester.pumpWidget(MaterialApp(home: Slideshow(deck: deck, painter: SlidePainter(deck), presenter: presenter)));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Slideshow(deck: deck, painter: SlidePainter(deck), presenter: presenter),
+      ),
+    );
   }
 
   const end = 'Fin du diaporama, cliquez pour quitter.';

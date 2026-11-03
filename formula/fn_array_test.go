@@ -6,9 +6,9 @@ import (
 	"time"
 )
 
-// evalArray calculates a formula and writes its result as a table: cells
+// evalTable calculates a formula and writes its result as a table: cells
 // separated by "," and rows by ";", a scalar shown alone.
-func evalArray(t *testing.T, b Book, f string, rand func() float64) string {
+func evalTable(t *testing.T, b Book, f string, rand func() float64) string {
 	t.Helper()
 	e, err := Parse(f)
 	if err != nil {
@@ -168,7 +168,7 @@ func TestArrays(t *testing.T) {
 		`_xlfn._xlws.FILTER(J1:J4,D1:D4)`:                    `"b";"c"`,
 		`FILTER(J1:J4,D1:D4,"x","y")`:                        "#VALUE!",
 	} {
-		if got := evalArray(t, b, f, func() float64 { return 0.5 }); got != want {
+		if got := evalTable(t, b, f, func() float64 { return 0.5 }); got != want {
 			t.Errorf("%s = %s, want %s", f, got, want)
 		}
 	}
@@ -188,7 +188,7 @@ func TestRandArrayRand(t *testing.T) {
 		`RANDARRAY(1,3,0,3,TRUE)`:  "0,3,1",
 		`RANDARRAY(1,3,-2,2,TRUE)`: "-2,2,-1",
 	} {
-		if got := evalArray(t, b, f, next()); got != want {
+		if got := evalTable(t, b, f, next()); got != want {
 			t.Errorf("%s = %s, want %s", f, got, want)
 		}
 	}

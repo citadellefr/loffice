@@ -40,7 +40,8 @@ func (d *Document) save(tree *ot.Tree, force bool) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	w := &writer{d: d, pkg: pkg, tree: tree, force: force, rels: slices.Clone(d.bookRels), stringRefs: map[*sheetPart]int{}, moves: d.movesOf(tree)}
+	w := &writer{d: d, pkg: pkg, tree: tree, force: force, rels: slices.Clone(d.bookRels), stringRefs: map[*sheetPart]int{}, moves: d.movesOf(tree), dates: map[string]bool{}}
+	_ = json.Unmarshal(tree.Node("book").Attrs["date1904"], &w.date1904)
 	if err := w.save(); err != nil {
 		return nil, err
 	}
@@ -65,6 +66,10 @@ type writer struct {
 	moves []move
 	// dynamic tells whether a cell rewritten holds a dynamic array.
 	dynamic bool
+	// dates tells, by xf node, whether cells of that style show dates, of
+	// the 1904 date system or not.
+	dates    map[string]bool
+	date1904 bool
 }
 
 // sheet is a sheet of the workbook as written.
@@ -106,7 +111,7 @@ func (w *writer) save() error {
 		sheets = append(sheets, sheet{n, p})
 	}
 	if len(sheets) == 0 {
-		return fmt.Errorf("xlsx: a workbook needs a sheet")
+		return ErrNoSheet
 	}
 	if len(w.moves) > 0 {
 		if err := w.moveParts(sheets); err != nil {

@@ -1,6 +1,7 @@
 package xmltok
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/xml"
 	"errors"
@@ -11,8 +12,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-
-	"github.com/citadellefr/loffice/opc"
 )
 
 func tokens(t *testing.T, doc string) []string {
@@ -327,16 +326,22 @@ func TestCorpusSameAsEncodingXML(t *testing.T) {
 		t.Run(filepath.Base(path), func(t *testing.T) {
 			t.Parallel()
 			data, _ := os.ReadFile(path)
-			p, err := opc.Open(data, opc.Limits{})
+			z, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 			if err != nil {
 				return
 			}
-			for _, name := range p.Names() {
-				if !strings.HasSuffix(name, ".xml") && !strings.HasSuffix(name, ".rels") {
+			for _, f := range z.File {
+				if !strings.HasSuffix(f.Name, ".xml") && !strings.HasSuffix(f.Name, ".rels") {
 					continue
 				}
-				if part, err := p.Read(name); err == nil {
-					compare(t, name, part)
+				r, err := f.Open()
+				if err != nil {
+					continue
+				}
+				part, err := io.ReadAll(r)
+				r.Close()
+				if err == nil {
+					compare(t, f.Name, part)
 				}
 			}
 		})

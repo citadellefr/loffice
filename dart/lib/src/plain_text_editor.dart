@@ -182,13 +182,8 @@ class _PlainTextEditorState extends State<PlainTextEditor> implements CommandFie
     }
 
     final value = _controller.value;
-    final selection = value.selection.copyWith(
-      baseOffset: move(value.selection.baseOffset),
-      extentOffset: move(value.selection.extentOffset),
-    );
-    final composing = value.composing.isValid
-        ? TextRange(start: move(value.composing.start), end: move(value.composing.end))
-        : TextRange.empty;
+    final selection = value.selection.copyWith(baseOffset: move(value.selection.baseOffset), extentOffset: move(value.selection.extentOffset));
+    final composing = value.composing.isValid ? TextRange(start: move(value.composing.start), end: move(value.composing.end)) : TextRange.empty;
     _set(TextEditingValue(text: text, selection: selection, composing: composing));
     _commands.follow();
   }
@@ -245,9 +240,7 @@ class _PlainTextEditorState extends State<PlainTextEditor> implements CommandFie
   if (before.isValid && after.isValid) prefix = math.min(prefix, math.min(before.start, after.start));
   if (prefix > 0 && _isHigh(old.codeUnitAt(prefix - 1))) prefix--;
   var suffix = 0;
-  while (suffix < old.length - prefix &&
-      suffix < now.length - prefix &&
-      old.codeUnitAt(old.length - 1 - suffix) == now.codeUnitAt(now.length - 1 - suffix)) {
+  while (suffix < old.length - prefix && suffix < now.length - prefix && old.codeUnitAt(old.length - 1 - suffix) == now.codeUnitAt(now.length - 1 - suffix)) {
     suffix++;
   }
   if (suffix > 0 && suffix < old.length && _isHigh(old.codeUnitAt(old.length - 1 - suffix))) suffix--;
@@ -294,16 +287,16 @@ class _PresenceController extends TextEditingController {
       return super.buildTextSpan(context: context, style: style, withComposing: withComposing);
     }
     final marked = TextStyle(backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2));
-    final cuts = {0, text.length, for (final m in marks) ...[m.$1, m.$2]}.toList()..sort();
+    final cuts = {
+      0,
+      text.length,
+      for (final m in marks) ...[m.$1, m.$2],
+    }.toList()..sort();
     return TextSpan(
       style: style,
       children: [
         for (var i = 0; i + 1 < cuts.length; i++)
-          if (cuts[i] < cuts[i + 1])
-            TextSpan(
-              text: text.substring(cuts[i], cuts[i + 1]),
-              style: marks.any((m) => m.$1 <= cuts[i] && cuts[i + 1] <= m.$2) ? marked : null,
-            ),
+          if (cuts[i] < cuts[i + 1]) TextSpan(text: text.substring(cuts[i], cuts[i + 1]), style: marks.any((m) => m.$1 <= cuts[i] && cuts[i + 1] <= m.$2) ? marked : null),
       ],
     );
   }

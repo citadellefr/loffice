@@ -88,7 +88,11 @@ void main() {
     final corner = painter.transformOf(frame).apply(Offset.zero);
     expect(painter.transformOf(cell).apply(Offset.zero), corner + Offset(0, table.rows[1]));
 
-    deck.tree.apply(Edit([Change.text(cell.id, Delta([Op.insert('Encore '), Op.retain(cell.text!.length)]))]));
+    deck.tree.apply(
+      Edit([
+        Change.text(cell.id, Delta([Op.insert('Encore '), Op.retain(cell.text!.length)])),
+      ]),
+    );
     final again = painter.tableOf(frame)!;
     expect(again, isNot(same(table)));
     expect(again.cells[cell.id]!.text.length, cell.text!.length + 7);
@@ -96,13 +100,7 @@ void main() {
 
   test('vertical text runs down the box, its lines from right to left', () {
     final flow = Delta([const Op.insert('Un texte assez long pour tenir sur plusieurs lignes\n')]);
-    TextFrame layout(String vert) => TextFrame.layout(
-      flow,
-      box: const Rect.fromLTWH(0, 0, 60, 200),
-      body: {'vert': vert},
-      levels: (_) => const {'sz': '1200'},
-      colors: const ColorContext(),
-    );
+    TextFrame layout(String vert) => TextFrame.layout(flow, box: const Rect.fromLTWH(0, 0, 60, 200), body: {'vert': vert}, levels: (_) => const {'sz': '1200'}, colors: const ColorContext());
     final down = layout('vert'), up = layout('vert270');
     // across the 200 points of the box: few lines, which stack leftward
     expect(down.box.width, closeTo(200 - 7.2, 1e-9));
@@ -128,7 +126,11 @@ void main() {
     final frame = deck.tree['s257-2']!;
     final before = painter.tableOf(frame)!;
     final cell = deck.tree['s257-2-r2-c1']!;
-    deck.tree.apply(Edit([Change.set(cell.id, attributes: {'vert': 'vert270'})]));
+    deck.tree.apply(
+      Edit([
+        Change.set(cell.id, attributes: {'vert': 'vert270'}),
+      ]),
+    );
     final after = painter.tableOf(frame)!;
     final text = after.cells[cell.id]!.text;
     expect(after.rows[2] - after.rows[1], greaterThan(before.rows[2] - before.rows[1]));

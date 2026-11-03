@@ -19,8 +19,11 @@ class TextCache {
     final hit = _cache[key];
     if (hit != null) return hit;
     if (_cache.length > 4000) _cache.clear();
-    final p = TextPainter(text: TextSpan(text: text, style: style), textDirection: TextDirection.ltr, maxLines: wrap ? null : 1)
-      ..layout(maxWidth: wrap ? math.max(width, 1) : double.infinity);
+    final p = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+      maxLines: wrap ? null : 1,
+    )..layout(maxWidth: wrap ? math.max(width, 1) : double.infinity);
     return _cache[key] = p;
   }
 }
@@ -72,19 +75,17 @@ class CellPainter {
     return looks.style(book.style(id), id, c.row, c.col);
   }
 
-  Rect _rect(int r1, int c1, int r2, int c2) => Rect.fromLTRB(
-    x(c1),
-    y(r1),
-    x(c2) + width(c2) * zoom,
-    y(r2) + height(r2) * zoom,
-  );
+  Rect _rect(int r1, int c1, int r2, int c2) => Rect.fromLTRB(x(c1), y(r1), x(c2) + width(c2) * zoom, y(r2) + height(r2) * zoom);
 
   /// Paints the cells of [area], those merged from before it included.
   void paint(Canvas canvas, CellArea area) {
     final grid = sheet.grid ?? const Grid.empty();
     final l = layout;
     // cells whose merged area starts before the pane still show
-    final merges = [for (final m in l.merges) if (m.intersects(area)) m];
+    final merges = [
+      for (final m in l.merges)
+        if (m.intersects(area)) m,
+    ];
     final covered = <(int, int)>{};
     for (final m in merges) {
       for (var r = m.top; r <= m.bottom; r++) {
@@ -184,7 +185,10 @@ class CellPainter {
     }
 
     // texts
-    final occupied = <(int, int)>{for (final c in cells) if (_shows(c.fields)) (c.row, c.col)};
+    final occupied = <(int, int)>{
+      for (final c in cells)
+        if (_shows(c.fields)) (c.row, c.col),
+    };
     for (final c in cells) {
       if (covered.contains((c.row, c.col)) || !_shows(c.fields) || looks.hidesValue(c.row, c.col)) continue;
       _text(canvas, c, occupied, area, icon: icons.contains((c.row, c.col)));
@@ -247,10 +251,7 @@ class CellPainter {
       fontSize: f.size * 4 / 3 * zoom,
       fontWeight: f.bold ? FontWeight.bold : FontWeight.normal,
       fontStyle: f.italic ? FontStyle.italic : FontStyle.normal,
-      decoration: TextDecoration.combine([
-        if (f.underline) TextDecoration.underline,
-        if (f.strike) TextDecoration.lineThrough,
-      ]),
+      decoration: TextDecoration.combine([if (f.underline) TextDecoration.underline, if (f.strike) TextDecoration.lineThrough]),
       color: shown.color ?? f.color ?? Colors.black,
       height: 1.2,
     );

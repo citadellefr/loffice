@@ -63,14 +63,7 @@ Edit addComment(Tree tree, String slide, String text, CommentAuthor by, {String?
     type: 'comment',
     parent: slide,
     key: keyBetween(kids.isEmpty ? 'zzz' : kids.last.key, ''),
-    attributes: {
-      'author': by.name,
-      'initials': initialsOf(by.name),
-      'date': _date(by.date),
-      'x': unit(from?.attributes['x'], step),
-      'y': unit(from?.attributes['y'], step),
-      'parent': ?parent,
-    },
+    attributes: {'author': by.name, 'initials': initialsOf(by.name), 'date': _date(by.date), 'x': unit(from?.attributes['x'], step), 'y': unit(from?.attributes['y'], step), 'parent': ?parent},
     text: Delta()..insert('${text.trim()}\n'),
   );
   return Edit([Change.create(node)]);
@@ -85,5 +78,6 @@ Edit editComment(DocComment comment, String text) {
 }
 
 /// Deletes a comment, or the whole thread when [comment] starts it.
-Edit deleteComment(CommentThread thread, DocComment comment) =>
-    Edit([for (final c in comment.id == thread.id ? thread.all : [comment]) Change.delete(c.id)]);
+Edit deleteComment(CommentThread thread, DocComment comment) => Edit([
+  for (final c in comment.id == thread.id ? thread.all : [comment]) Change.delete(c.id),
+]);

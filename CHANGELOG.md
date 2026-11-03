@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- `formula` calculates FREQUENCY, TREND, GROWTH, LINEST, LOGEST, RSQ, MMULT,
+  MDETERM, MINVERSE, MUNIT, the normal, lognormal, Student, chi-squared, F,
+  binomial, Poisson, exponential, gamma and beta distributions with their
+  inverses and tests (NORM.DIST, T.TEST, CHISQ.TEST… and their compatibility
+  names NORMDIST, TTEST…), CONFIDENCE.NORM, CONFIDENCE.T, SKEW, KURT,
+  TRIMMEAN and PERCENTRANK.INC. The Dart editor knows their French names.
+- The hub no longer goes down with a file: a panic of a format opening,
+  checking or writing a file, or of the calculation following an edit, is
+  an error returned, its stack logged. A calculation that failed starts
+  over from the sheets and sends the formula cells as they are.
+- The hub serves `.dotm`, `.xltm`, `.potx` and `.potm`.
+
 ## 0.11.1 — 2026-10-15
 
 - trame 0.5.0: the hub beats with every ping, and the Dart session takes a

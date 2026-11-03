@@ -13,8 +13,7 @@ class ListRule {
     if (all is! List<Object?>) return const [];
     return [
       for (final l in all)
-        if (l is Map<String, Object?> && l['ref'] is String && l['src'] is String)
-          ListRule._([for (final a in (l['ref']! as String).split(' ')) ?parseArea(a)], l['src']! as String, l),
+        if (l is Map<String, Object?> && l['ref'] is String && l['src'] is String) ListRule._([for (final a in (l['ref']! as String).split(' ')) ?parseArea(a)], l['src']! as String, l),
     ];
   }
 

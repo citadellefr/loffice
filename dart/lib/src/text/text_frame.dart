@@ -20,7 +20,9 @@ String? linkOf(Props run) {
 }
 
 /// What makes text a link to [uri].
-Props linkProps(Uri uri) => {'link': jsonEncode({'url': '$uri'})};
+Props linkProps(Uri uri) => {
+  'link': jsonEncode({'url': '$uri'}),
+};
 
 /// Where fonts come from: the typefaces a document names, and the free
 /// fonts with the same metrics that stand in for those that cannot be
@@ -96,12 +98,7 @@ class TextFrame {
     Color? defaultColor,
   }) {
     double emu(String key, double fallback) => (double.tryParse(body[key] ?? '') ?? fallback) / 12700;
-    final inset = Rect.fromLTRB(
-      box.left + emu('lIns', 91440),
-      box.top + emu('tIns', 45720),
-      box.right - emu('rIns', 91440),
-      box.bottom - emu('bIns', 45720),
-    );
+    final inset = Rect.fromLTRB(box.left + emu('lIns', 91440), box.top + emu('tIns', 45720), box.right - emu('rIns', 91440), box.bottom - emu('bIns', 45720));
     final turn = turns(body['vert']);
     final across = turn == 0 ? inset : Rect.fromLTWH(0, 0, inset.height, inset.width);
     final wrap = body['wrap'] != 'none';
@@ -117,8 +114,15 @@ class TextFrame {
     for (final (ops, mark) in _paragraphs(flow)) {
       final lvl = int.tryParse(mark['lvl'] ?? '') ?? 0;
       final base = levels(lvl.clamp(0, 8));
-      final para = {...base, for (final e in mark.entries) if (paraKeys.contains(e.key)) e.key: e.value};
-      final runBase = {for (final e in base.entries) if (!paraKeys.contains(e.key)) e.key: e.value};
+      final para = {
+        ...base,
+        for (final e in mark.entries)
+          if (paraKeys.contains(e.key)) e.key: e.value,
+      };
+      final runBase = {
+        for (final e in base.entries)
+          if (!paraKeys.contains(e.key)) e.key: e.value,
+      };
       numbers.removeWhere((l, _) => l > lvl);
       final bullet = para['bu'] ?? '';
       int? number;
@@ -129,18 +133,7 @@ class TextFrame {
       } else {
         numbers.remove(lvl);
       }
-      final p = ParagraphLayout._build(
-        offset,
-        ops,
-        mark,
-        para,
-        runBase,
-        ctx,
-        width: across.width,
-        wrap: wrap,
-        number: number,
-        first: paragraphs.isEmpty,
-      );
+      final p = ParagraphLayout._build(offset, ops, mark, para, runBase, ctx, width: across.width, wrap: wrap, number: number, first: paragraphs.isEmpty);
       p.top = y + p.spaceBefore;
       y = p.top + p.height + p.spaceAfter;
       paragraphs.add(p);
@@ -323,10 +316,7 @@ class _Context {
     // a link is drawn in the color the theme gives links, underlined,
     // whatever its run says
     final link = linkOf(run) != null;
-    final decorations = [
-      if (link || run['u'] != null && run['u'] != 'none') TextDecoration.underline,
-      if (run['strike'] != null && run['strike'] != 'noStrike') TextDecoration.lineThrough,
-    ];
+    final decorations = [if (link || run['u'] != null && run['u'] != 'none') TextDecoration.underline, if (run['strike'] != null && run['strike'] != 'noStrike') TextDecoration.lineThrough];
     Color? color;
     final fill = run['fill'];
     if (fill != null) color = painter.color(_json(fill));
@@ -344,11 +334,7 @@ class _Context {
       letterSpacing: (double.tryParse(run['spc'] ?? '') ?? 0) / 100,
       height: lineFactor * lineHeight(fonts.typeface(run['font'] ?? '+mn-lt')) * (baseline != 0 ? 1.5 : 1),
       leadingDistribution: TextLeadingDistribution.proportional,
-      fontFeatures: [
-        if (run['cap'] == 'small') const FontFeature.enable('smcp'),
-        if (baseline > 0) const FontFeature.superscripts(),
-        if (baseline < 0) const FontFeature.subscripts(),
-      ],
+      fontFeatures: [if (run['cap'] == 'small') const FontFeature.enable('smcp'), if (baseline > 0) const FontFeature.superscripts(), if (baseline < 0) const FontFeature.subscripts()],
       background: hl == null ? null : (Paint()..color = colors.resolve(_json(hl)) ?? const Color(0x00000000)),
     );
   }
@@ -365,18 +351,7 @@ Map<String, Object?>? _json(String s) {
 
 /// A paragraph laid out: its lines, its bullet, the space around it.
 class ParagraphLayout {
-  ParagraphLayout._(
-    this.start,
-    this.length,
-    this._painter,
-    this._bullet,
-    this._x,
-    this._bulletX,
-    this.height,
-    this.width,
-    this.spaceBefore,
-    this.spaceAfter,
-  );
+  ParagraphLayout._(this.start, this.length, this._painter, this._bullet, this._x, this._bulletX, this.height, this.width, this.spaceBefore, this.spaceAfter);
 
   factory ParagraphLayout._build(
     int start,
@@ -393,9 +368,7 @@ class ParagraphLayout {
     double emu(String key) => (double.tryParse(para[key] ?? '') ?? 0) / 12700;
     final lnSpc = para['lnSpc'] ?? '';
     final exact = lnSpc.startsWith('t') ? (double.tryParse(lnSpc.substring(1)) ?? 0) / 100 * ctx.scale : 0.0;
-    final lineFactor = lnSpc.startsWith('p')
-        ? math.max((double.tryParse(lnSpc.substring(1)) ?? 100000) / 100000 - ctx.reduction, 0.1)
-        : 1 - ctx.reduction;
+    final lineFactor = lnSpc.startsWith('p') ? math.max((double.tryParse(lnSpc.substring(1)) ?? 100000) / 100000 - ctx.reduction, 0.1) : 1 - ctx.reduction;
     final spans = <InlineSpan>[];
     var length = 0;
     Props? firstRun;
@@ -411,7 +384,11 @@ class ParagraphLayout {
       }
       spans.add(TextSpan(text: text, style: ctx.style(run, lineFactor)));
     }
-    final markRun = {...runBase, for (final e in mark.entries) if (!paraKeys.contains(e.key)) e.key: e.value};
+    final markRun = {
+      ...runBase,
+      for (final e in mark.entries)
+        if (!paraKeys.contains(e.key)) e.key: e.value,
+    };
     final empty = length == 0;
     if (empty) spans.add(TextSpan(text: '​', style: ctx.style(markRun, lineFactor)));
     final align = switch (para['algn']) {
@@ -438,14 +415,16 @@ class ParagraphLayout {
           : buSz.startsWith('t')
           ? (double.tryParse(buSz.substring(1)) ?? 1800) / 100 * ctx.scale
           : size;
-      final style = ctx.style({
-        ...lead,
-        if (font != null && font != 'tx' && !symbolFonts.contains(ctx.fonts.typeface(font))) 'font': font,
-      }, lineFactor).copyWith(fontSize: bulletSize, decoration: TextDecoration.none);
+      final style = ctx
+          .style({...lead, if (font != null && font != 'tx' && !symbolFonts.contains(ctx.fonts.typeface(font))) 'font': font}, lineFactor)
+          .copyWith(fontSize: bulletSize, decoration: TextDecoration.none);
       final buClr = para['buClr'];
       final color = buClr == null || buClr == 'tx' ? null : ctx.colors.resolve(_json(buClr));
       bullet = TextPainter(
-        text: TextSpan(text: symbol, style: color == null ? style : style.copyWith(color: color)),
+        text: TextSpan(
+          text: symbol,
+          style: color == null ? style : style.copyWith(color: color),
+        ),
         textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
       )..layout();
     }
@@ -479,18 +458,7 @@ class ParagraphLayout {
       return v[0] == 'p' ? line * n / 100000 : n / 100;
     }
 
-    return ParagraphLayout._(
-      start,
-      length,
-      painter,
-      bullet,
-      textX,
-      bulletX,
-      painter.height,
-      extent,
-      first ? 0 : space('spcBef'),
-      space('spcAft'),
-    );
+    return ParagraphLayout._(start, length, painter, bullet, textX, bulletX, painter.height, extent, first ? 0 : space('spcBef'), space('spcAft'));
   }
 
   /// Where the paragraph starts in the flow, and how long it is without its
@@ -543,10 +511,7 @@ class ParagraphLayout {
   }
 
   List<Rect> selection(int from, int to) {
-    final out = [
-      for (final b in _painter.getBoxesForSelection(TextSelection(baseOffset: from, extentOffset: math.min(to, length))))
-        b.toRect().shift(Offset(_x, 0)),
-    ];
+    final out = [for (final b in _painter.getBoxesForSelection(TextSelection(baseOffset: from, extentOffset: math.min(to, length)))) b.toRect().shift(Offset(_x, 0))];
     if (to > length) {
       // the mark: a space's width at the end of the last line
       final end = caretAt(length);

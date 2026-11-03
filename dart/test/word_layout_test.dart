@@ -8,16 +8,28 @@ import 'package:trame/trame.dart';
 /// A document of A4 pages with 72 pt margins, holding [body], a list of
 /// nodes under "body" built from their type and text.
 WordDocument document(List<Node> body, {Map<String, Object?> doc = const {}}) {
-  final tree = Tree.fromEdit(Edit([
-    Change.create(Node(id: 'doc', type: 'doc', key: 'a', attributes: {
-      'sect': {'w': 11906, 'h': 16838, 'top': 1440, 'bottom': 1440, 'left': 1440, 'right': 1440, 'header': 720, 'footer': 720},
-      'settings': {'tab': 720},
-      'defaults': {'p': <String, String>{}, 'r': {'sz': '20'}},
-      ...doc,
-    })),
-    Change.create(const Node(id: 'body', type: 'body', parent: 'doc', key: 'b')),
-    for (final n in body) Change.create(n),
-  ]))!;
+  final tree = Tree.fromEdit(
+    Edit([
+      Change.create(
+        Node(
+          id: 'doc',
+          type: 'doc',
+          key: 'a',
+          attributes: {
+            'sect': {'w': 11906, 'h': 16838, 'top': 1440, 'bottom': 1440, 'left': 1440, 'right': 1440, 'header': 720, 'footer': 720},
+            'settings': {'tab': 720},
+            'defaults': {
+              'p': <String, String>{},
+              'r': {'sz': '20'},
+            },
+            ...doc,
+          },
+        ),
+      ),
+      Change.create(const Node(id: 'body', type: 'body', parent: 'doc', key: 'b')),
+      for (final n in body) Change.create(n),
+    ]),
+  )!;
   return WordDocument(tree);
 }
 
@@ -36,7 +48,9 @@ WordLayout lay(WordDocument doc) => WordLayout(doc, WordContext(doc), ParaCache(
 
 void main() {
   test('places paragraphs in the text area, the space between them added', () {
-    final doc = document([text('t', 'V', plain('Un\nDeux', {'sp.after': '200', 'sp.before': '100'}))]);
+    final doc = document([
+      text('t', 'V', plain('Un\nDeux', {'sp.after': '200', 'sp.before': '100'})),
+    ]);
     final layout = lay(doc);
     expect(layout.pages, hasLength(1));
     final page = layout.pages.single;
@@ -87,7 +101,9 @@ void main() {
     final source = ParaSource(
       flow: 't',
       start: 0,
-      ops: [const Op.insert('1', {'field': 'PAGE'})],
+      ops: [
+        const Op.insert('1', {'field': 'PAGE'}),
+      ],
       mark: const {},
       para: const {},
       runBase: const {'sz': '20'},
@@ -106,7 +122,14 @@ void main() {
     final doc = document([
       text('t', 'V', flow),
       const Node(id: 'fn1', type: 'note', parent: 'doc', key: 'z', attributes: {'kind': 'footnote'}),
-      text('n', 'V', Delta()..insert('￼', {'o': '<w:footnoteRef/>', 'note': 'ref'})..insert(' Source.\n'), parent: 'fn1'),
+      text(
+        'n',
+        'V',
+        Delta()
+          ..insert('￼', {'o': '<w:footnoteRef/>', 'note': 'ref'})
+          ..insert(' Source.\n'),
+        parent: 'fn1',
+      ),
     ]);
     final layout = lay(doc);
     final page = layout.pages.single;
@@ -118,7 +141,11 @@ void main() {
 
   test('text flows onto the next pages, lines kept whole', () {
     final long = List.filled(200, 'Ligne').join('\n');
-    final layout = lay(document([text('t', 'V', plain(long, {'widowControl': '1'}))]));
+    final layout = lay(
+      document([
+        text('t', 'V', plain(long, {'widowControl': '1'})),
+      ]),
+    );
     expect(layout.pages.length, greaterThan(1));
     for (final page in layout.pages) {
       for (final l in page.lines) {
@@ -147,10 +174,18 @@ void main() {
   test('lays out a table: its cells side by side, their text in them', () {
     final doc = document([
       text('a', 'F', plain('Avant')),
-      Node(id: 'tbl', type: 'tbl', parent: 'body', key: 'V', attributes: {
-        'grid': [2000, 3000],
-        'borders': {'top': {'val': 'single', 'sz': 4}},
-      }),
+      Node(
+        id: 'tbl',
+        type: 'tbl',
+        parent: 'body',
+        key: 'V',
+        attributes: {
+          'grid': [2000, 3000],
+          'borders': {
+            'top': {'val': 'single', 'sz': 4},
+          },
+        },
+      ),
       const Node(id: 'r1', type: 'tr', parent: 'tbl', key: 'V'),
       const Node(id: 'c1', type: 'tc', parent: 'r1', key: 'F'),
       const Node(id: 'c2', type: 'tc', parent: 'r1', key: 'V'),
@@ -171,13 +206,20 @@ void main() {
 
   test('numbers the paragraphs of a list', () {
     final doc = document(
-      [text('t', 'V', plain('Un\nDeux\nTrois', {'num': '1', 'lvl': '0'}))],
+      [
+        text('t', 'V', plain('Un\nDeux\nTrois', {'num': '1', 'lvl': '0'})),
+      ],
       doc: {
         'numbering': {
           '1': {
             'abstract': '0',
             'levels': [
-              {'start': 1, 'fmt': 'decimal', 'text': '%1.', 'p': {'ind.left': '1440', 'ind.first': '-720'}},
+              {
+                'start': 1,
+                'fmt': 'decimal',
+                'text': '%1.',
+                'p': {'ind.left': '1440', 'ind.first': '-720'},
+              },
             ],
           },
         },

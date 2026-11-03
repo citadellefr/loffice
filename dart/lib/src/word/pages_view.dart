@@ -243,14 +243,8 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
     if (at == null || at.$1 >= tops.length) return null;
     final (page, rect) = at;
     final width = math.max(box.size.width, _width);
-    final origin = Offset(
-      (width - _layout.pages[page].size.width * _scale) / 2 - (_horizontal.hasClients ? _horizontal.offset : 0),
-      tops[page] - _vertical.offset,
-    );
-    return Rect.fromPoints(
-      box.localToGlobal(origin + rect.topLeft * _scale),
-      box.localToGlobal(origin + rect.bottomRight * _scale),
-    );
+    final origin = Offset((width - _layout.pages[page].size.width * _scale) / 2 - (_horizontal.hasClients ? _horizontal.offset : 0), tops[page] - _vertical.offset);
+    return Rect.fromPoints(box.localToGlobal(origin + rect.topLeft * _scale), box.localToGlobal(origin + rect.bottomRight * _scale));
   }
 
   @override
@@ -276,8 +270,7 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
   }
 
   /// The link under a click that opens it, if any.
-  Uri? _linkAt(String flow, int offset) =>
-      widget.onOpenLink == null || !(_ctrl || _session.readOnly) ? null : _linkOf(flow, offset);
+  Uri? _linkAt(String flow, int offset) => widget.onOpenLink == null || !(_ctrl || _session.readOnly) ? null : _linkOf(flow, offset);
 
   Uri? _linkOf(String flow, int offset) {
     final node = _session.document[flow];
@@ -602,9 +595,7 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
         s.extendTo(flows.last.id, flows.last.text!.length - 1);
       case LogicalKeyboardKey.keyC || LogicalKeyboardKey.keyX when s.spans:
         _copied = null;
-        final text = [
-          for (final (f, a, b) in s.ranges(_session.document, _flows)) wordEditing(f).text.substring(a, b),
-        ].join('\n');
+        final text = [for (final (f, a, b) in s.ranges(_session.document, _flows)) wordEditing(f).text.substring(a, b)].join('\n');
         unawaited(Clipboard.setData(ClipboardData(text: text.replaceAll('\v', '\n').replaceAll('￼', ''))));
         if (key == LogicalKeyboardKey.keyX && !_session.readOnly) _deleteSpan();
       case LogicalKeyboardKey.keyC || LogicalKeyboardKey.keyX:
@@ -614,10 +605,12 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
           if (key == LogicalKeyboardKey.keyX) replace(flow, s.start, s.end, '');
         }
       case LogicalKeyboardKey.keyV:
-        unawaited(Clipboard.getData(Clipboard.kTextPlain).then((data) {
-          final text = data?.text;
-          if (text != null) _pasteText(text);
-        }));
+        unawaited(
+          Clipboard.getData(Clipboard.kTextPlain).then((data) {
+            final text = data?.text;
+            if (text != null) _pasteText(text);
+          }),
+        );
     }
     return true;
   }
@@ -649,7 +642,12 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
       // the anchors of comments stay with their comment
       final anchor = op.attributes?.keys.any(const {'cs', 'ce', 'comment'}.contains) ?? false;
       if (b > a && !anchor) {
-        final attrs = op.attributes == null ? null : {for (final e in op.attributes!.entries) if (e.key != 'sect' && e.key != 'sx') e.key: e.value};
+        final attrs = op.attributes == null
+            ? null
+            : {
+                for (final e in op.attributes!.entries)
+                  if (e.key != 'sect' && e.key != 'sx') e.key: e.value,
+              };
         out.insert(s.substring(a, b), attrs == null || attrs.isEmpty ? null : attrs);
       }
       at += s.length;
@@ -751,18 +749,13 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
       _input!.setEditingState(currentTextEditingValue);
       return;
     }
-    _input = TextInput.attach(
-      this,
-      const TextInputConfiguration(
-        inputType: TextInputType.multiline,
-        inputAction: TextInputAction.newline,
-        enableDeltaModel: true,
-        autocorrect: false,
-        enableSuggestions: false,
-      ),
-    )
-      ..setEditingState(currentTextEditingValue)
-      ..show();
+    _input =
+        TextInput.attach(
+            this,
+            const TextInputConfiguration(inputType: TextInputType.multiline, inputAction: TextInputAction.newline, enableDeltaModel: true, autocorrect: false, enableSuggestions: false),
+          )
+          ..setEditingState(currentTextEditingValue)
+          ..show();
   }
 
   @override
@@ -824,9 +817,7 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
         prefix++;
       }
       var suffix = 0;
-      while (suffix < old.length - prefix &&
-          suffix < now.length - prefix &&
-          old.codeUnitAt(old.length - 1 - suffix) == now.codeUnitAt(now.length - 1 - suffix)) {
+      while (suffix < old.length - prefix && suffix < now.length - prefix && old.codeUnitAt(old.length - 1 - suffix) == now.codeUnitAt(now.length - 1 - suffix)) {
         suffix++;
       }
       replace(node, prefix, old.length - suffix, now.substring(prefix, now.length - suffix));
@@ -888,56 +879,60 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final pages = _layout.pages;
-    return LayoutBuilder(builder: (context, box) {
-      _viewport = box.biggest;
-      final width = math.max(box.maxWidth, _width);
-      final pagesView = Focus(
-        focusNode: widget.focusNode,
-        onKeyEvent: _key,
-        child: MouseRegion(
-          cursor: SystemMouseCursors.text,
-          onExit: (_) => _cards.hide(),
-          child: Scrollbar(
-            controller: _horizontal,
-            child: SingleChildScrollView(
+    return LayoutBuilder(
+      builder: (context, box) {
+        _viewport = box.biggest;
+        final width = math.max(box.maxWidth, _width);
+        final pagesView = Focus(
+          focusNode: widget.focusNode,
+          onKeyEvent: _key,
+          child: MouseRegion(
+            cursor: SystemMouseCursors.text,
+            onExit: (_) => _cards.hide(),
+            child: Scrollbar(
               controller: _horizontal,
-              scrollDirection: Axis.horizontal,
-              child: SizedBox(
-                width: width,
-                height: box.maxHeight,
-                child: Scrollbar(
-                  controller: _vertical,
-                  child: ListView.builder(
+              child: SingleChildScrollView(
+                controller: _horizontal,
+                scrollDirection: Axis.horizontal,
+                child: SizedBox(
+                  width: width,
+                  height: box.maxHeight,
+                  child: Scrollbar(
                     controller: _vertical,
-                    padding: const EdgeInsets.only(top: _gap),
-                    itemCount: pages.length,
-                    itemExtentBuilder: (i, _) => i < pages.length ? pages[i].size.height * _scale + _gap : 0,
-                    itemBuilder: (context, i) {
-                      final page = pages[i];
-                      final size = page.size * _scale;
-                      return Align(
-                        alignment: Alignment.topCenter,
-                        child: Listener(
-                          onPointerDown: (e) => _down(i, e, e.localPosition),
-                          onPointerHover: (e) => _hover(i, e),
-                          onPointerMove: (e) => _move(i, e.localPosition),
-                          onPointerUp: (_) => _dragging = false,
-                          child: Container(
-                            decoration: BoxDecoration(boxShadow: [BoxShadow(color: theme.shadowColor.withValues(alpha: 0.25), blurRadius: 4, offset: const Offset(0, 1))]),
-                            child: CustomPaint(size: size, painter: _PagePainter(this, i, theme.colorScheme)),
+                    child: ListView.builder(
+                      controller: _vertical,
+                      padding: const EdgeInsets.only(top: _gap),
+                      itemCount: pages.length,
+                      itemExtentBuilder: (i, _) => i < pages.length ? pages[i].size.height * _scale + _gap : 0,
+                      itemBuilder: (context, i) {
+                        final page = pages[i];
+                        final size = page.size * _scale;
+                        return Align(
+                          alignment: Alignment.topCenter,
+                          child: Listener(
+                            onPointerDown: (e) => _down(i, e, e.localPosition),
+                            onPointerHover: (e) => _hover(i, e),
+                            onPointerMove: (e) => _move(i, e.localPosition),
+                            onPointerUp: (_) => _dragging = false,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                boxShadow: [BoxShadow(color: theme.shadowColor.withValues(alpha: 0.25), blurRadius: 4, offset: const Offset(0, 1))],
+                              ),
+                              child: CustomPaint(size: size, painter: _PagePainter(this, i, theme.colorScheme)),
+                            ),
                           ),
-                        ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
-      );
-      return CommandsMenu(commands: _commands, child: pagesView);
-    });
+        );
+        return CommandsMenu(commands: _commands, child: pagesView);
+      },
+    );
   }
 }
 

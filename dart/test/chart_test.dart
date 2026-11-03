@@ -61,17 +61,25 @@ void main() {
             {
               'index': 0,
               'order': 0,
-              'val': {'ref': 'Feuil1!\$B\$2:\$B\$3', 'count': 2, 'num': [1, 2]},
+              'val': {
+                'ref': 'Feuil1!\$B\$2:\$B\$3',
+                'count': 2,
+                'num': [1, 2],
+              },
             },
           ],
         },
       ],
     })!;
     final asked = <String>[];
-    final painter = ChartPainter(chart, colors: const ColorContext(), live: (d) {
-      asked.add(d.ref);
-      return DataSpec(ref: d.ref, numbers: [5, 6, 7], count: 3);
-    });
+    final painter = ChartPainter(
+      chart,
+      colors: const ColorContext(),
+      live: (d) {
+        asked.add(d.ref);
+        return DataSpec(ref: d.ref, numbers: [5, 6, 7], count: 3);
+      },
+    );
     final recorder = ui.PictureRecorder();
     painter.paint(Canvas(recorder), const Size(200, 100));
     recorder.endRecording().dispose();

@@ -15,10 +15,13 @@ void main() {
   test('strikes what is typed over and inserts after it, as Word shows it', () {
     final flow = Delta()..insert('abcdef\n');
     final t = track(flow, wordEditing(Node(id: 't', type: 'text', parent: 'body', key: 'V', text: flow)).replace(2, 4, 'XY', const {}), 'Moi', date);
-    expect(t.delta, Delta()
-      ..retain(2)
-      ..retain(2, struck)
-      ..insert('XY', typed));
+    expect(
+      t.delta,
+      Delta()
+        ..retain(2)
+        ..retain(2, struck)
+        ..insert('XY', typed),
+    );
     expect(flow.compose(t.delta).text, 'abcdXYef\n');
     expect(t.offset(4), 6);
     expect(t.offset(2, after: false), 2);
@@ -29,13 +32,21 @@ void main() {
       ..insert('ab')
       ..insert('XY', typed)
       ..insert('cd\n');
-    final t = track(flow, Delta()
-      ..retain(3)
-      ..delete(2), 'Moi', date);
-    expect(t.delta, Delta()
-      ..retain(3)
-      ..delete(1)
-      ..retain(1, struck));
+    final t = track(
+      flow,
+      Delta()
+        ..retain(3)
+        ..delete(2),
+      'Moi',
+      date,
+    );
+    expect(
+      t.delta,
+      Delta()
+        ..retain(3)
+        ..delete(1)
+        ..retain(1, struck),
+    );
     expect(t.offset(3, after: false), 3);
     expect(t.offset(3), 4);
   });
@@ -48,10 +59,13 @@ void main() {
       ..insert('d\n');
     final node = Node(id: 't', type: 'text', parent: 'body', key: 'V', text: flow);
     final t = track(flow, wordEditing(node).delete(0, 5), 'Moi', date);
-    expect(t.delta, Delta()
-      ..retain(1, struck)
-      ..retain(1)
-      ..retain(3, struck));
+    expect(
+      t.delta,
+      Delta()
+        ..retain(1, struck)
+        ..retain(1)
+        ..retain(3, struck),
+    );
   });
 
   group('settles', () {

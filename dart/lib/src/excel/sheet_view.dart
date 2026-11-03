@@ -237,12 +237,7 @@ class SheetViewState extends State<SheetView> {
     var area = a;
     if (a.single) area = _layout.mergeAt(a.top, a.left) ?? a;
     final l = _layout;
-    return Rect.fromLTRB(
-      screenX(area.left),
-      screenY(area.top),
-      screenX(area.right) + l.width(area.right) * _z,
-      screenY(area.bottom) + l.height(area.bottom) * _z,
-    );
+    return Rect.fromLTRB(screenX(area.left), screenY(area.top), screenX(area.right) + l.width(area.right) * _z, screenY(area.bottom) + l.height(area.bottom) * _z);
   }
 
   /// The rectangle of the active cell, where its editor goes.
@@ -509,65 +504,67 @@ class SheetViewState extends State<SheetView> {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, box) {
-      _size = box.biggest;
-      final d = _drag;
-      return MouseRegion(
-        cursor: _cursor,
-        onHover: _hover,
-        child: Listener(
-          onPointerSignal: _signal,
-          onPointerDown: _down,
-          onPointerMove: _move,
-          onPointerUp: _up,
-          onPointerCancel: _lift,
-          child: GestureDetector(
-            onDoubleTap: widget.onEdit,
-            onLongPressStart: (e) {
-              final (row, col) = cellAt(e.localPosition);
-              widget.selection.select(row, col);
-              widget.onMenu?.call(e.globalPosition);
-            },
-            child: Stack(children: [
-              Positioned.fill(
-                child: CustomPaint(
-                  painter: _SheetPainter(
-                    view: this,
-                    book: widget.book,
-                    sheet: widget.sheet,
-                    layout: _layout,
-                    selection: widget.selection.area,
-                    active: widget.selection.active,
-                    peers: widget.peers,
-                    locale: widget.locale,
-                    fonts: widget.fonts,
-                    texts: _texts,
-                    fillTarget: d?.kind == _DragKind.fill ? d!.target : null,
-                    resizing: d?.kind == _DragKind.resize ? (d!.dim, d.index, d.size) : null,
-                    editing: widget.editing,
-                    scheme: Theme.of(context).colorScheme,
+    return LayoutBuilder(
+      builder: (context, box) {
+        _size = box.biggest;
+        final d = _drag;
+        return MouseRegion(
+          cursor: _cursor,
+          onHover: _hover,
+          child: Listener(
+            onPointerSignal: _signal,
+            onPointerDown: _down,
+            onPointerMove: _move,
+            onPointerUp: _up,
+            onPointerCancel: _lift,
+            child: GestureDetector(
+              onDoubleTap: widget.onEdit,
+              onLongPressStart: (e) {
+                final (row, col) = cellAt(e.localPosition);
+                widget.selection.select(row, col);
+                widget.onMenu?.call(e.globalPosition);
+              },
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: CustomPaint(
+                      painter: _SheetPainter(
+                        view: this,
+                        book: widget.book,
+                        sheet: widget.sheet,
+                        layout: _layout,
+                        selection: widget.selection.area,
+                        active: widget.selection.active,
+                        peers: widget.peers,
+                        locale: widget.locale,
+                        fonts: widget.fonts,
+                        texts: _texts,
+                        fillTarget: d?.kind == _DragKind.fill ? d!.target : null,
+                        resizing: d?.kind == _DragKind.resize ? (d!.dim, d.index, d.size) : null,
+                        editing: widget.editing,
+                        scheme: Theme.of(context).colorScheme,
+                      ),
+                    ),
                   ),
-                ),
+                  if (widget.editing && widget.editor != null) Positioned.fromRect(rect: activeRect.inflate(1), child: widget.editor!),
+                  if (_arrowRect case final arrow?)
+                    Positioned.fromRect(
+                      rect: arrow,
+                      child: _Arrow(icon: Icons.arrow_drop_down, onDown: () => widget.onList!(activeScreenRect)),
+                    ),
+                  for (final (col, r) in _filterArrows)
+                    Positioned.fromRect(
+                      rect: r,
+                      child: _Arrow(icon: widget.filter!.filters(col) ? Icons.filter_alt : Icons.arrow_drop_down, onDown: widget.onFilter == null ? null : () => widget.onFilter!(col, _onScreen(r))),
+                    ),
+                  if (widget.prompt != null) Positioned(left: activeRect.left + 12, top: activeRect.bottom + 6, child: widget.prompt!),
+                ],
               ),
-              if (widget.editing && widget.editor != null)
-                Positioned.fromRect(rect: activeRect.inflate(1), child: widget.editor!),
-              if (_arrowRect case final arrow?)
-                Positioned.fromRect(rect: arrow, child: _Arrow(icon: Icons.arrow_drop_down, onDown: () => widget.onList!(activeScreenRect))),
-              for (final (col, r) in _filterArrows)
-                Positioned.fromRect(
-                  rect: r,
-                  child: _Arrow(
-                    icon: widget.filter!.filters(col) ? Icons.filter_alt : Icons.arrow_drop_down,
-                    onDown: widget.onFilter == null ? null : () => widget.onFilter!(col, _onScreen(r)),
-                  ),
-                ),
-              if (widget.prompt != null)
-                Positioned(left: activeRect.left + 12, top: activeRect.bottom + 6, child: widget.prompt!),
-            ]),
+            ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
   }
 }
 
@@ -631,7 +628,6 @@ class _Drag {
   CellArea? area;
   CellArea? target;
 }
-
 
 class _SheetPainter extends CustomPainter {
   _SheetPainter({
@@ -728,10 +724,13 @@ class _SheetPainter extends CustomPainter {
     }
     for (final p in peers) {
       final r = view.areaRect(p.area);
-      canvas.drawRect(r.deflate(1), Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..color = p.color);
+      canvas.drawRect(
+        r.deflate(1),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..color = p.color,
+      );
       final tag = texts.get(p.name, TextStyle(fontFamily: substituteFont(book.minorFont), package: fonts, fontSize: 10, color: Colors.white), 0, false);
       final box = Rect.fromLTWH(r.right - tag.width - 6, r.top - tag.height - 2, tag.width + 6, tag.height + 2);
       canvas.drawRect(box, Paint()..color = p.color);
@@ -744,10 +743,13 @@ class _SheetPainter extends CustomPainter {
     canvas.drawRect(sel.deflate(1), border);
     final fill = fillTarget;
     if (fill != null) {
-      canvas.drawRect(view.areaRect(fill).deflate(1), Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..color = const Color(0xFF7F7F7F));
+      canvas.drawRect(
+        view.areaRect(fill).deflate(1),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1
+          ..color = const Color(0xFF7F7F7F),
+      );
     }
     if (!editing) {
       canvas.drawRect(Rect.fromCenter(center: sel.bottomRight - const Offset(1, 1), width: 6, height: 6), Paint()..color = _selectColor);

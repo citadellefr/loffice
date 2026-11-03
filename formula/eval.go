@@ -230,7 +230,7 @@ func (c *Context) table(a Area3) *Table {
 }
 
 // maxCells bounds the arrays a formula makes, against memory exhaustion.
-const maxCells = 1 << 24
+const maxCells = 1 << 20
 
 // scalar is the single value a formula takes where it expects one: a
 // range crossed with the formula's row or column, the first value of an

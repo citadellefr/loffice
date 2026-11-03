@@ -74,14 +74,9 @@ class DrawingPainter {
         var center = box.center;
         if (focus is List<Object?> && focus.length == 4 && focus.every((x) => x is num)) {
           final f = focus.cast<num>();
-          center = Offset(
-            box.left + box.width * (f[0] / 100000 + (1 - f[0] / 100000 - f[2] / 100000) / 2),
-            box.top + box.height * (f[1] / 100000 + (1 - f[1] / 100000 - f[3] / 100000) / 2),
-          );
+          center = Offset(box.left + box.width * (f[0] / 100000 + (1 - f[0] / 100000 - f[2] / 100000) / 2), box.top + box.height * (f[1] / 100000 + (1 - f[1] / 100000 - f[3] / 100000) / 2));
         }
-        final radius = [box.topLeft, box.topRight, box.bottomLeft, box.bottomRight]
-            .map((p) => (p - center).distance)
-            .reduce(math.max);
+        final radius = [box.topLeft, box.topRight, box.bottomLeft, box.bottomRight].map((p) => (p - center).distance).reduce(math.max);
         return Paint()..shader = gradient(GradientSpec.radial(center, radius, list, positions));
       }
       var angle = (grad['lin'] is num ? (grad['lin']! as num) / 60000 : 0) * math.pi / 180;
@@ -119,12 +114,7 @@ class DrawingPainter {
     final crop = blip['rect'];
     if (crop is List<Object?> && crop.length == 4 && crop.every((x) => x is num)) {
       final c = crop.cast<num>().map((v) => v / 100000).toList();
-      src = Rect.fromLTRB(
-        src.width * c[0],
-        src.height * c[1],
-        src.width * (1 - c[2]),
-        src.height * (1 - c[3]),
-      );
+      src = Rect.fromLTRB(src.width * c[0], src.height * c[1], src.width * (1 - c[2]), src.height * (1 - c[3]));
     }
     final paint = Paint()..filterQuality = FilterQuality.medium;
     final alpha = blip['alpha'];
@@ -190,15 +180,44 @@ class DrawingPainter {
     final fill = Paint()..color = stroke.color;
     switch (end['type']) {
       case 'triangle':
-        canvas.drawPath(Path()..moveTo(0, 0)..lineTo(-l, -w / 2)..lineTo(-l, w / 2)..close(), fill);
+        canvas.drawPath(
+          Path()
+            ..moveTo(0, 0)
+            ..lineTo(-l, -w / 2)
+            ..lineTo(-l, w / 2)
+            ..close(),
+          fill,
+        );
       case 'stealth':
-        canvas.drawPath(Path()..moveTo(0, 0)..lineTo(-l, -w / 2)..lineTo(-l * 0.6, 0)..lineTo(-l, w / 2)..close(), fill);
+        canvas.drawPath(
+          Path()
+            ..moveTo(0, 0)
+            ..lineTo(-l, -w / 2)
+            ..lineTo(-l * 0.6, 0)
+            ..lineTo(-l, w / 2)
+            ..close(),
+          fill,
+        );
       case 'diamond':
-        canvas.drawPath(Path()..moveTo(l / 2, 0)..lineTo(0, -w / 2)..lineTo(-l / 2, 0)..lineTo(0, w / 2)..close(), fill);
+        canvas.drawPath(
+          Path()
+            ..moveTo(l / 2, 0)
+            ..lineTo(0, -w / 2)
+            ..lineTo(-l / 2, 0)
+            ..lineTo(0, w / 2)
+            ..close(),
+          fill,
+        );
       case 'oval':
         canvas.drawOval(Rect.fromCenter(center: Offset.zero, width: l, height: w), fill);
       case 'arrow':
-        canvas.drawPath(Path()..moveTo(-l, -w / 2)..lineTo(0, 0)..lineTo(-l, w / 2), stroke);
+        canvas.drawPath(
+          Path()
+            ..moveTo(-l, -w / 2)
+            ..lineTo(0, 0)
+            ..lineTo(-l, w / 2),
+          stroke,
+        );
     }
     canvas.restore();
   }
@@ -237,22 +256,21 @@ Path _dashed(Path path, List<double> pattern) {
 final _patterns = <String, Shader>{};
 
 /// A shader of a pattern fill, eight pixels a side as Office draws them.
-Shader _pattern(String preset, Color fg, Color bg) =>
-    _patterns.putIfAbsent('$preset ${fg.toARGB32()} ${bg.toARGB32()}', () {
-      final bits = _patternBits[preset] ?? _patternBits['pct50']!;
-      final recorder = ui.PictureRecorder();
-      final canvas = Canvas(recorder);
-      canvas.drawRect(const Rect.fromLTWH(0, 0, 8, 8), Paint()..color = bg);
-      final paint = Paint()..color = fg;
-      for (var y = 0; y < 8; y++) {
-        for (var x = 0; x < 8; x++) {
-          if (bits[y] & (0x80 >> x) != 0) canvas.drawRect(Rect.fromLTWH(x.toDouble(), y.toDouble(), 1, 1), paint);
-        }
-      }
-      final image = recorder.endRecording().toImageSync(8, 8);
-      // a pixel of the pattern is a point of the slide at 100 %
-      return ImageShader(image, TileMode.repeated, TileMode.repeated, Float64List.fromList([0.75, 0, 0, 0, 0, 0.75, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]));
-    });
+Shader _pattern(String preset, Color fg, Color bg) => _patterns.putIfAbsent('$preset ${fg.toARGB32()} ${bg.toARGB32()}', () {
+  final bits = _patternBits[preset] ?? _patternBits['pct50']!;
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(recorder);
+  canvas.drawRect(const Rect.fromLTWH(0, 0, 8, 8), Paint()..color = bg);
+  final paint = Paint()..color = fg;
+  for (var y = 0; y < 8; y++) {
+    for (var x = 0; x < 8; x++) {
+      if (bits[y] & (0x80 >> x) != 0) canvas.drawRect(Rect.fromLTWH(x.toDouble(), y.toDouble(), 1, 1), paint);
+    }
+  }
+  final image = recorder.endRecording().toImageSync(8, 8);
+  // a pixel of the pattern is a point of the slide at 100 %
+  return ImageShader(image, TileMode.repeated, TileMode.repeated, Float64List.fromList([0.75, 0, 0, 0, 0, 0.75, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]));
+});
 
 /// The patterns, row by row.
 const _patternBits = <String, List<int>>{

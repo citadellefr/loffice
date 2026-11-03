@@ -20,7 +20,11 @@ void main() {
     expect(e.typingAttributes(0), {'b': '1'});
     expect(e.typingAttributes(8), <String, String>{});
     expect(_apply(e.replace(2, 2, '!', e.typingAttributes(2))).text, 'Un! deux\ntrois 😀\n');
-    final empty = FlowEditing(Delta([const Op.insert('\n', {'algn': 'r', 'sz': '4000', 'p': '<a:pPr/>'})]));
+    final empty = FlowEditing(
+      Delta([
+        const Op.insert('\n', {'algn': 'r', 'sz': '4000', 'p': '<a:pPr/>'}),
+      ]),
+    );
     expect(empty.typingAttributes(0), {'sz': '4000'});
   });
 

@@ -11,13 +11,7 @@ import 'table.dart';
 /// table: those the presentation holds, then Office's light, medium and
 /// dark ones.
 class TableStyleGallery extends StatelessWidget {
-  const TableStyleGallery({
-    super.key,
-    required this.deck,
-    required this.table,
-    required this.strings,
-    required this.onSelected,
-  });
+  const TableStyleGallery({super.key, required this.deck, required this.table, required this.strings, required this.onSelected});
 
   final Deck deck;
 
@@ -38,16 +32,22 @@ class TableStyleGallery extends StatelessWidget {
     final colors = page == null ? const ColorContext() : deck.colorsOf(page);
     final theme = page == null ? DeckTheme(null) : deck.themeOf(page);
     final options = table.attributes['tbl'] as Map<String, Object?>? ?? const {};
-    final custom = [for (final id in deck.tableStyleIds) if (!builtinTableStyles.containsKey(id)) (id, strings.customStyle)];
+    final custom = [
+      for (final id in deck.tableStyleIds)
+        if (!builtinTableStyles.containsKey(id)) (id, strings.customStyle),
+    ];
     final sections = <(String, List<(String, String)>)>[
       if (custom.isNotEmpty) (strings.customStyles, custom),
       for (final kind in ['Light', 'Medium', 'Dark'])
-        (strings.tableStyleSection(kind), [
-          for (final (family, ids) in builtinTableStyleFamilies)
-            if (family.startsWith(kind) || (kind == 'Light' && family.startsWith('Themed')))
-              for (final (accent, id) in ids.indexed)
-                if (id.isNotEmpty) (id, strings.tableStyleName(family, accent)),
-        ]),
+        (
+          strings.tableStyleSection(kind),
+          [
+            for (final (family, ids) in builtinTableStyleFamilies)
+              if (family.startsWith(kind) || (kind == 'Light' && family.startsWith('Themed')))
+                for (final (accent, id) in ids.indexed)
+                  if (id.isNotEmpty) (id, strings.tableStyleName(family, accent)),
+          ],
+        ),
     ];
     return SizedBox(
       width: width,

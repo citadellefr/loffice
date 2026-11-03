@@ -48,9 +48,18 @@ class SheetEdits {
       if (jsonEquals(other, style)) return c.id;
     }
     final id = 'f${randomId()}';
-    created.add(Change.create(Node(id: id, type: 'xf', key: 'V', attributes: {
-      'style': {'base': ?origin, ...style},
-    })));
+    created.add(
+      Change.create(
+        Node(
+          id: id,
+          type: 'xf',
+          key: 'V',
+          attributes: {
+            'style': {'base': ?origin, ...style},
+          },
+        ),
+      ),
+    );
     return id;
   }
 
@@ -136,8 +145,7 @@ class SheetEdits {
     final grid = sheet.grid ?? const Grid.empty();
     final cells = [
       for (final c in grid.rows(area.top, area.bottom))
-        if (c.row > 0 && c.col > 0 && area.contains(c.row, c.col) && (c.fields['v'] != null || c.fields['f'] != null || c.fields['e'] != null))
-          Cell(c.row, c.col, _cleared),
+        if (c.row > 0 && c.col > 0 && area.contains(c.row, c.col) && (c.fields['v'] != null || c.fields['f'] != null || c.fields['e'] != null)) Cell(c.row, c.col, _cleared),
     ];
     return cells.isEmpty ? Edit() : Edit([Change.cells(sheet.id, cells)]);
   }
@@ -157,8 +165,7 @@ class SheetEdits {
     if (dim == dimCols) {
       return Edit([
         Change.cells(sheet.id, [
-          for (final c in indexes)
-            Cell(0, c, pixels <= 0 ? {'hide': true} : {'w': double.parse((pixels / 7).toStringAsFixed(2)), 'cw': true, 'hide': null}),
+          for (final c in indexes) Cell(0, c, pixels <= 0 ? {'hide': true} : {'w': double.parse((pixels / 7).toStringAsFixed(2)), 'cw': true, 'hide': null}),
         ]),
       ]);
     }
@@ -173,14 +180,25 @@ class SheetEdits {
   /// are cleared, as Excel does.
   Edit merge(Node sheet, CellArea area, {bool center = true}) {
     final grid = sheet.grid ?? const Grid.empty();
-    final cells = <Cell>[Cell(area.top, area.left, {'m': [area.rows, area.cols]})];
+    final cells = <Cell>[
+      Cell(area.top, area.left, {
+        'm': [area.rows, area.cols],
+      }),
+    ];
     for (final c in grid.rows(area.top, area.bottom)) {
       if (c.col == 0 || !area.contains(c.row, c.col) || c.row == area.top && c.col == area.left) continue;
       cells.add(Cell(c.row, c.col, {..._cleared, 'm': null}));
     }
     final edit = Edit([Change.cells(sheet.id, cells)]);
     if (!center) return edit;
-    final aligned = format(sheet, CellArea.cell(area.top, area.left), (s, _, _) => {...s, 'align': {...?(s['align'] as Map<String, Object?>?), 'h': 'center'}});
+    final aligned = format(
+      sheet,
+      CellArea.cell(area.top, area.left),
+      (s, _, _) => {
+        ...s,
+        'align': {...?(s['align'] as Map<String, Object?>?), 'h': 'center'},
+      },
+    );
     return edit.compose(aligned);
   }
 
@@ -199,7 +217,9 @@ class SheetEdits {
   /// set to null left out.
   Edit printSetup(Node sheet, Map<String, Object?> changes) {
     final setup = PrintSetup.of(sheet).change(changes);
-    return Edit([Change.set(sheet.id, attributes: {'print': setup.isEmpty ? null : setup})]);
+    return Edit([
+      Change.set(sheet.id, attributes: {'print': setup.isEmpty ? null : setup}),
+    ]);
   }
 
   /// Sets what a sheet prints to an area, or to all it holds for null.
@@ -214,14 +234,21 @@ class SheetEdits {
       final ref = '$name!\$${columnName(area.left)}\$${area.top}:\$${columnName(area.right)}\$${area.bottom}';
       names.add({'name': printAreaName, 'ref': ref, 'sheet': sheet.id});
     }
-    return Edit([Change.set('book', attributes: {'names': names.isEmpty ? null : names})]);
+    return Edit([
+      Change.set('book', attributes: {'names': names.isEmpty ? null : names}),
+    ]);
   }
 
   /// Starts a page over the row and left of the column of a cell, or
   /// removes the breaks there when [remove].
   Edit pageBreak(Node sheet, int row, int col, {bool remove = false}) {
     final setup = PrintSetup.of(sheet);
-    List<int> changed(List<int> breaks, int at) => ({...breaks}..remove(at)..addAll([if (!remove && at > 1) at])).toList()..sort();
+    List<int> changed(List<int> breaks, int at) =>
+        ({...breaks}
+              ..remove(at)
+              ..addAll([if (!remove && at > 1) at]))
+            .toList()
+          ..sort();
     return printSetup(sheet, {'rows': changed(setup.rowBreaks, row), 'cols': changed(setup.colBreaks, col)});
   }
 
@@ -233,27 +260,23 @@ class SheetEdits {
     final i = after == null ? sheets.length - 1 : sheets.indexWhere((s) => s.id == after.id);
     final before = i >= 0 ? sheets[i].key : '';
     final next = i + 1 < sheets.length ? sheets[i + 1].key : '';
-    return Change.create(Node(
-      id: randomId(),
-      type: 'sheet',
-      parent: 'book',
-      key: keyBetween(before, next),
-      attributes: {'name': name},
-      grid: const Grid.empty(),
-    ));
+    return Change.create(Node(id: randomId(), type: 'sheet', parent: 'book', key: keyBetween(before, next), attributes: {'name': name}, grid: const Grid.empty()));
   }
 
   /// A name no sheet has: Feuil2, Feuil3…
   String freeName(String prefix) {
     final names = {for (final s in book.sheets) '${s.attributes['name']}'.toLowerCase()};
-    for (var n = book.sheets.length + 1;; n++) {
+    for (var n = book.sheets.length + 1; ; n++) {
       if (!names.contains('$prefix$n'.toLowerCase())) return '$prefix$n';
     }
   }
 
   /// Moves a sheet to [to] among the sheets.
   Change moveSheet(Node sheet, int to) {
-    final others = [for (final s in book.sheets) if (s.id != sheet.id) s];
+    final others = [
+      for (final s in book.sheets)
+        if (s.id != sheet.id) s,
+    ];
     to = to.clamp(0, others.length);
     final before = to > 0 ? others[to - 1].key : '';
     final after = to < others.length ? others[to].key : '';
@@ -274,18 +297,17 @@ class SheetEdits {
     final cells = <Cell>[];
     for (final line in vertical ? [for (var c = from.left; c <= from.right; c++) c] : [for (var r = from.top; r <= from.bottom; r++) r]) {
       (int, int) at(int i) => vertical ? (from.top + i, line) : (line, from.left + i);
-      final fields = [
-        for (var i = 0; i < k; i++) grid.cell(at(i).$1, at(i).$2) ?? const <String, Object?>{},
+      final fields = [for (var i = 0; i < k; i++) grid.cell(at(i).$1, at(i).$2) ?? const <String, Object?>{}];
+      final numbers = [
+        for (final f in fields)
+          if (f['v'] is num && f['f'] == null) (f['v']! as num).toDouble(),
       ];
-      final numbers = [for (final f in fields) if (f['v'] is num && f['f'] == null) (f['v']! as num).toDouble()];
       final series = numbers.length == k && k > 1;
       final step = series ? (numbers.last - numbers.first) / (k - 1) : 0.0;
       for (var j = 0; j < m; j++) {
         // the source cell this one repeats, and how far from it
         final i = forward ? j % k : k - 1 - j % k;
-        final (r, c) = forward
-            ? (vertical ? (from.bottom + 1 + j, line) : (line, from.right + 1 + j))
-            : (vertical ? (from.top - 1 - j, line) : (line, from.left - 1 - j));
+        final (r, c) = forward ? (vertical ? (from.bottom + 1 + j, line) : (line, from.right + 1 + j)) : (vertical ? (from.top - 1 - j, line) : (line, from.left - 1 - j));
         final (sr, sc) = at(i);
         final f = fields[i];
         final turns = j ~/ k + 1;
@@ -327,7 +349,13 @@ class SheetEdits {
     return Clip(area, [
       for (final c in grid.rows(area.top, area.bottom))
         if (c.row > 0 && c.col > 0 && area.contains(c.row, c.col))
-          Cell(c.row - area.top, c.col - area.left, {...c.fields}..remove('m')..remove('src')),
+          Cell(
+            c.row - area.top,
+            c.col - area.left,
+            {...c.fields}
+              ..remove('m')
+              ..remove('src'),
+          ),
     ]);
   }
 
@@ -356,8 +384,7 @@ class SheetEdits {
   Edit sort(Node sheet, CellArea area, int by, {bool descending = false}) {
     final grid = sheet.grid ?? const Grid.empty();
     final rows = [
-      for (var r = area.top; r <= area.bottom; r++)
-        (r, [for (var c = area.left; c <= area.right; c++) grid.cell(r, c) ?? const <String, Object?>{}]),
+      for (var r = area.top; r <= area.bottom; r++) (r, [for (var c = area.left; c <= area.right; c++) grid.cell(r, c) ?? const <String, Object?>{}]),
     ];
     int rank(Object? v) => v is num ? 0 : (v is String ? 1 : (v is bool ? 2 : 3));
     rows.sort((a, b) {

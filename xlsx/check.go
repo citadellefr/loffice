@@ -18,11 +18,13 @@ var ErrReadOnly = errors.New("xlsx: this part of the workbook cannot be edited")
 const (
 	maxText    = 32767
 	maxFormula = 8192
+	// maxIterations bounds the times a circle is calculated.
+	maxIterations = 32767
 )
 
 // editable are the attributes a change may set, by node type.
 var editable = map[string]map[string]bool{
-	"book":  {"names": true},
+	"book":  {"names": true, "iterate": true},
 	"sheet": {"name": true, "state": true, "frozen": true, "grid": true, "rtl": true, "zoom": true, "tab": true, "dw": true, "dh": true, "filter": true, "print": true},
 	"kept":  {"name": true, "state": true},
 }
@@ -136,6 +138,9 @@ func (d *Document) checkAttrs(typ string, attrs ot.Values) bool {
 			ok = json.Unmarshal(v, &h) == nil && h > 0 && h <= maxHeight
 		case "names":
 			ok = true
+		case "iterate":
+			var it formula.Iteration
+			ok = json.Unmarshal(v, &it) == nil && it.Count >= 1 && it.Count <= maxIterations && it.Delta >= 0
 		case filterKey:
 			ok = checkFilter(v)
 		case printKey:

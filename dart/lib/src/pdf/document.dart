@@ -96,16 +96,12 @@ class PdfDocument {
   }
 
   /// The graphics state that fills and strokes at an opacity.
-  String alpha(double fill, double stroke) => _alphas.putIfAbsent(
-    '<< /ca ${pdfNumber(fill)} /CA ${pdfNumber(stroke)} >>',
-    () => 'G${_alphas.length + 1}',
-  );
+  String alpha(double fill, double stroke) => _alphas.putIfAbsent('<< /ca ${pdfNumber(fill)} /CA ${pdfNumber(stroke)} >>', () => 'G${_alphas.length + 1}');
 
   /// A gradient through [colors] (RGB, 0 to 1) at [stops]: along the line
   /// of [coords] (x0 y0 x1 y1), or between the two circles of six numbers.
   String shading(List<double> coords, List<List<double>> colors, List<double> stops) {
-    String part(int i) =>
-        '<< /FunctionType 2 /Domain [0 1] /C0 [${colors[i].map(pdfNumber).join(' ')}] /C1 [${colors[i + 1].map(pdfNumber).join(' ')}] /N 1 >>';
+    String part(int i) => '<< /FunctionType 2 /Domain [0 1] /C0 [${colors[i].map(pdfNumber).join(' ')}] /C1 [${colors[i + 1].map(pdfNumber).join(' ')}] /N 1 >>';
     var function = part(0);
     if (colors.length > 2) {
       final bounds = [for (var i = 1; i < stops.length - 1; i++) pdfNumber(stops[i])].join(' ');
@@ -113,10 +109,12 @@ class PdfDocument {
       final encode = [for (var i = 0; i < colors.length - 1; i++) '0 1'].join(' ');
       function = '<< /FunctionType 3 /Domain [0 1] /Functions [$parts] /Bounds [$bounds] /Encode [$encode] >>';
     }
-    _shadings.add(_add(
-      '<< /ShadingType ${coords.length == 4 ? 2 : 3} /ColorSpace /DeviceRGB /Coords [${coords.map(pdfNumber).join(' ')}] '
-      '/Function $function /Extend [true true] >>',
-    ));
+    _shadings.add(
+      _add(
+        '<< /ShadingType ${coords.length == 4 ? 2 : 3} /ColorSpace /DeviceRGB /Coords [${coords.map(pdfNumber).join(' ')}] '
+        '/Function $function /Extend [true true] >>',
+      ),
+    );
     return 'Sh${_shadings.length}';
   }
 

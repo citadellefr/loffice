@@ -84,10 +84,7 @@ class WordSelection extends ChangeNotifier {
     if (ia < 0 || ib < 0) return [(b, extent, extent)];
     var (from, to) = (base, extent);
     if (ia > ib) (ia, ib, from, to) = (ib, ia, extent, base);
-    return [
-      for (var i = ia; i <= ib; i++)
-        (order[i], i == ia ? from : 0, i == ib ? to : order[i].text!.length - 1),
-    ];
+    return [for (var i = ia; i <= ib; i++) (order[i], i == ia ? from : 0, i == ib ? to : order[i].text!.length - 1)];
   }
 }
 
@@ -147,14 +144,19 @@ class WordEdits {
       final last = flow.length - 1;
       final own = editing.attributesAt(mark) ?? const <String, String>{};
       final old = editing.attributesAt(last) ?? const <String, String>{};
-      changes.add(Change.text(
-        text.id,
-        (Delta()
-              ..retain(mark)
-              ..delete(last - mark)
-              ..retain(1, {for (final k in {...own.keys, ...old.keys}) if (own[k] != old[k]) k: own[k] ?? ''}))
-            .chop(),
-      ));
+      changes.add(
+        Change.text(
+          text.id,
+          (Delta()
+                ..retain(mark)
+                ..delete(last - mark)
+                ..retain(1, {
+                  for (final k in {...own.keys, ...old.keys})
+                    if (own[k] != old[k]) k: own[k] ?? '',
+                }))
+              .chop(),
+        ),
+      );
     }
     final table = randomId();
     final col = (width * 20 / columns).floor();
@@ -162,22 +164,27 @@ class WordEdits {
     const line = {'val': 'single', 'sz': 4, 'space': 0, 'color': 'auto'};
     final parent = text.parent;
     final tableKey = keyAfter(parent, text);
-    changes.add(Change.create(Node(
-      id: table,
-      type: 'tbl',
-      parent: parent,
-      key: tableKey,
-      attributes: {
-        'style': ?style,
-        'w': {'w': 0, 'type': 'auto'},
-        'grid': List.filled(columns, col),
-        'look': {'firstRow': true, 'lastRow': false, 'firstColumn': true, 'lastColumn': false, 'noHBand': false, 'noVBand': true},
-        if (style == null) 'borders': {for (final side in ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']) side: line},
-      },
-    )));
-    final cellMark = {
-      if (doc.styles.containsKey(doc.paragraphStyle)) 'pstyle': ?doc.paragraphStyle,
-    };
+    changes.add(
+      Change.create(
+        Node(
+          id: table,
+          type: 'tbl',
+          parent: parent,
+          key: tableKey,
+          attributes: {
+            'style': ?style,
+            'w': {'w': 0, 'type': 'auto'},
+            'grid': List.filled(columns, col),
+            'look': {'firstRow': true, 'lastRow': false, 'firstColumn': true, 'lastColumn': false, 'noHBand': false, 'noVBand': true},
+            if (style == null)
+              'borders': {
+                for (final side in ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']) side: line,
+              },
+          },
+        ),
+      ),
+    );
+    final cellMark = {if (doc.styles.containsKey(doc.paragraphStyle)) 'pstyle': ?doc.paragraphStyle};
     var rowKey = '';
     for (var r = 0; r < rows; r++) {
       final row = randomId();
@@ -187,7 +194,19 @@ class WordEdits {
       for (var c = 0; c < columns; c++) {
         final cell = randomId();
         cellKey = keyBetween(cellKey, '');
-        changes.add(Change.create(Node(id: cell, type: 'tc', parent: row, key: cellKey, attributes: {'w': {'w': col, 'type': 'dxa'}})));
+        changes.add(
+          Change.create(
+            Node(
+              id: cell,
+              type: 'tc',
+              parent: row,
+              key: cellKey,
+              attributes: {
+                'w': {'w': col, 'type': 'dxa'},
+              },
+            ),
+          ),
+        );
         changes.add(Change.create(Node(id: randomId(), type: 'text', parent: cell, key: 'V', text: Delta()..insert('\n', cellMark.isEmpty ? null : cellMark))));
       }
     }
@@ -209,11 +228,11 @@ class WordEdits {
     final table = row.parent;
     final rows = tree.children(table);
     final i = rows.indexWhere((n) => n.id == row.id);
-    final key = below
-        ? keyBetween(row.key, i + 1 < rows.length ? rows[i + 1].key : '')
-        : keyBetween(i > 0 ? rows[i - 1].key : '', row.key);
+    final key = below ? keyBetween(row.key, i + 1 < rows.length ? rows[i + 1].key : '') : keyBetween(i > 0 ? rows[i - 1].key : '', row.key);
     final id = randomId();
-    final changes = <Change>[Change.create(Node(id: id, type: 'tr', parent: table, key: key, attributes: _without(row.attributes, const {'xml'})))];
+    final changes = <Change>[
+      Change.create(Node(id: id, type: 'tr', parent: table, key: key, attributes: _without(row.attributes, const {'xml'}))),
+    ];
     var cellKey = '';
     for (final cell in tree.children(row.id).where((c) => c.type == 'tc')) {
       cellKey = keyBetween(cellKey, '');
@@ -242,9 +261,7 @@ class WordEdits {
       if (target == null) continue;
       final kids = tree.children(r.id);
       final i = kids.indexWhere((n) => n.id == target!.id);
-      final key = right
-          ? keyBetween(target.key, i + 1 < kids.length ? kids[i + 1].key : '')
-          : keyBetween(i > 0 ? kids[i - 1].key : '', target.key);
+      final key = right ? keyBetween(target.key, i + 1 < kids.length ? kids[i + 1].key : '') : keyBetween(i > 0 ? kids[i - 1].key : '', target.key);
       changes.addAll(_emptyCell(target, r.id, key));
     }
     final grid = [...(table.attributes['grid'] as List<Object?>? ?? const [])];

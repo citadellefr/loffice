@@ -44,11 +44,11 @@ func (r *reader) commentAuthors(rels *partrel.Rels) {
 	if name == "" || !r.d.pkg.Has(name) {
 		return
 	}
+	r.d.authorsPart = name
 	root, _, _, err := r.part(name)
 	if err != nil {
 		return
 	}
-	r.d.authorsPart = name
 	for _, a := range elements(root, pNS, "cmAuthor") {
 		id, err := strconv.Atoi(a.Get("id"))
 		if err != nil {

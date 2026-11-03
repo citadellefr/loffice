@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/citadellefr/loffice/formula"
 	"github.com/citadellefr/loffice/internal/xmldom"
 	"github.com/citadellefr/trame/ot"
 )
@@ -19,11 +20,10 @@ func (w *writer) workbook(sheets []sheet, rewritten bool) error {
 	for _, e := range elements(list, "sheet") {
 		old[atoi(e.Get("sheetId"))] = e
 	}
-	rel := "r"
-	if p, ok := prefixFor(root, relNS); ok {
-		rel = p
-	} else {
-		root.Set("xmlns:r", relNS)
+	rel, ok := prefixFor(root, relNS)
+	if !ok {
+		rel = freePrefix(root, elements(list, "sheet"))
+		root.Set("xmlns:"+rel, relNS)
 	}
 	list.Content = nil
 	index := map[string]int{}
@@ -72,6 +72,18 @@ func (w *writer) workbook(sheets []sheet, rewritten bool) error {
 	_ = json.Unmarshal(book.Attrs["date1904"], &date1904)
 	if date1904 != w.d.date1904 {
 		setAttr(child(root, "workbookPr", workbookOrder), "date1904", boolAttr(date1904))
+	}
+	var iterate *formula.Iteration
+	_ = json.Unmarshal(book.Attrs["iterate"], &iterate)
+	if (iterate == nil) != (w.d.iterate == nil) || iterate != nil && *iterate != *w.d.iterate {
+		count, delta := "", ""
+		if iterate != nil {
+			count, delta = strconv.Itoa(iterate.Count), formatFloat(iterate.Delta)
+		}
+		pr := child(root, "calcPr", workbookOrder)
+		setAttr(pr, "iterate", boolAttr(iterate != nil))
+		setAttr(pr, "iterateCount", count)
+		setAttr(pr, "iterateDelta", delta)
 	}
 	w.definedNames(root, book, index)
 	if rewritten {
@@ -128,6 +140,28 @@ func (w *writer) definedNames(root *xmldom.Element, book *ot.Node, index map[str
 		e.Content = []xmldom.Node{xmldom.EscapeText(n.Ref)}
 		defs.Append(e)
 	}
+}
+
+// freePrefix is a prefix for the relationships namespace that neither root
+// declares nor the attributes of sheets use, so that declaring it gives no
+// meaning to an attribute that had none.
+func freePrefix(root *xmldom.Element, sheets []*xmldom.Element) string {
+	taken := map[string]bool{}
+	for p := range root.Spaces() {
+		taken[p] = true
+	}
+	for _, e := range sheets {
+		for _, a := range e.Attrs {
+			if p, _, ok := strings.Cut(a.Name, ":"); ok {
+				taken[p] = true
+			}
+		}
+	}
+	prefix := "r"
+	for n := 1; taken[prefix]; n++ {
+		prefix = "r" + strconv.Itoa(n)
+	}
+	return prefix
 }
 
 // prefixFor is the prefix a namespace is declared under.

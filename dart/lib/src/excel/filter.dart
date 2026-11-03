@@ -53,12 +53,7 @@ class SheetFilter {
     if (columns.isNotEmpty)
       'cols': [
         for (final e in (columns.entries.toList()..sort((a, b) => a.key.compareTo(b.key))))
-          {
-            'col': e.key,
-            if (e.value.kept > 0) 'kept': e.value.kept,
-            if (e.value.kept == 0) 'vals': e.value.values.toList(),
-            if (e.value.blank) 'blank': true,
-          },
+          {'col': e.key, if (e.value.kept > 0) 'kept': e.value.kept, if (e.value.kept == 0) 'vals': e.value.values.toList(), if (e.value.blank) 'blank': true},
       ],
   };
 }
@@ -157,7 +152,10 @@ Edit filterEdit(Workbook book, Node sheet, SheetFilter? f, NumberLocale locale) 
         show(r, true);
       }
     }
-    return Edit([Change.set(sheet.id, attributes: {'filter': null}), if (cells.isNotEmpty) Change.cells(sheet.id, cells)]);
+    return Edit([
+      Change.set(sheet.id, attributes: {'filter': null}),
+      if (cells.isNotEmpty) Change.cells(sheet.id, cells),
+    ]);
   }
   var bottom = f.area.bottom;
   bool filledRow(int r) => [for (var c = f.area.left; c <= f.area.right; c++) grid.cell(r, c)].any((x) => x != null && x['v'] != null);
@@ -175,5 +173,8 @@ Edit filterEdit(Workbook book, Node sheet, SheetFilter? f, NumberLocale locale) 
     }
     show(r, visible);
   }
-  return Edit([Change.set(sheet.id, attributes: {'filter': filter.toJson()}), if (cells.isNotEmpty) Change.cells(sheet.id, cells)]);
+  return Edit([
+    Change.set(sheet.id, attributes: {'filter': filter.toJson()}),
+    if (cells.isNotEmpty) Change.cells(sheet.id, cells),
+  ]);
 }

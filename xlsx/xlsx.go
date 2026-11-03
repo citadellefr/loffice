@@ -5,7 +5,9 @@
 // The tree has a "book" node, whose children are the sheets in order, and
 // one "xf" node per cell format at its root:
 //
-//	book "book"     theme, date1904, active, names
+//	book "book"     theme, date1904, active, names, iterate (the
+//	                formula.Iteration of circles), circular (the cells of
+//	                circles found, by sheet)
 //	  sheet "S1"    name, state, frozen, grid, zoom, tab, dw, dh, tail,
 //	                print (a Print); its cells in a grid (see below)
 //	  kept "S4"     a chart, macro or dialog sheet, kept: name, state, and
@@ -29,6 +31,8 @@ import (
 	"errors"
 	"fmt"
 	"hash/maphash"
+	"math"
+	"slices"
 	"strconv"
 	"sync"
 
@@ -61,12 +65,7 @@ const maxExpanded = 2048
 
 var (
 	ErrNotWorkbook = errors.New("xlsx: not a workbook")
-	ErrStrict      = errors.New("xlsx: Strict Open XML workbooks are not supported")
-)
-
-const (
-	strictNS             = "http://purl.oclc.org/ooxml/spreadsheetml/main"
-	strictOfficeDocument = "http://purl.oclc.org/ooxml/officeDocument/relationships/officeDocument"
+	ErrNoSheet     = errors.New("xlsx: a workbook needs a sheet")
 )
 
 // Limits of the packages Open accepts.
@@ -88,6 +87,7 @@ type Document struct {
 	styles   *styles
 	sst      *sharedStrings
 	date1904 bool
+	iterate  *formula.Iteration
 	sheets   map[string]*sheetPart // by node id
 	// order are the sheet node ids as the workbook lists them.
 	order  []string
@@ -135,9 +135,6 @@ func Open(data []byte) (*Document, *ot.Tree, error) {
 	}
 	d.bookName = target("", root, relOfficeDocument)
 	if d.bookName == "" {
-		if target("", root, strictOfficeDocument) != "" {
-			return nil, nil, ErrStrict
-		}
 		return nil, nil, ErrNotWorkbook
 	}
 	r := &reader{d: d, names: map[string]bool{}}
@@ -205,9 +202,6 @@ func (r *reader) workbook() error {
 	if err != nil {
 		return err
 	}
-	if book.Root.Space == strictNS {
-		return ErrStrict
-	}
 	if book.Root.Space != mainNS || book.Root.Local != "workbook" {
 		return ErrNotWorkbook
 	}
@@ -217,6 +211,15 @@ func (r *reader) workbook() error {
 	}
 	if pr := book.Root.Child(mainNS, "workbookPr"); pr != nil {
 		d.date1904 = truthy(pr.Get("date1904"))
+	}
+	if pr := book.Root.Child(mainNS, "calcPr"); pr != nil && truthy(pr.Get("iterate")) {
+		d.iterate = &formula.Iteration{Count: 100, Delta: 0.001}
+		if n, err := strconv.Atoi(pr.Get("iterateCount")); err == nil {
+			d.iterate.Count = min(max(n, 1), maxIterations)
+		}
+		if x, err := strconv.ParseFloat(pr.Get("iterateDelta"), 64); err == nil && x >= 0 && !math.IsInf(x, 0) {
+			d.iterate.Delta = x
+		}
 	}
 
 	if name := target(d.bookName, d.bookRels, relStyles); name != "" {
@@ -246,6 +249,9 @@ func (r *reader) workbook() error {
 	if d.date1904 {
 		attrs["date1904"] = mustJSON(true)
 	}
+	if d.iterate != nil {
+		attrs["iterate"] = mustJSON(d.iterate)
+	}
 	sheets := elements(book.Root.Child(mainNS, "sheets"), "sheet")
 	keys := ot.Keys(len(sheets))
 	var ids []string
@@ -259,6 +265,9 @@ func (r *reader) workbook() error {
 		ids = append(ids, id)
 	}
 	d.order = ids
+	if !slices.ContainsFunc(ids, func(id string) bool { return id != "" }) {
+		return ErrNoSheet
+	}
 
 	if views := elements(book.Root.Child(mainNS, "bookViews"), "workbookView"); len(views) > 0 {
 		if active := atoi(views[0].Get("activeTab")); active < len(ids) && ids[active] != "" {

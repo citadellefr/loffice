@@ -23,15 +23,7 @@ class RibbonGroup {
 /// the tab is chosen from a list and its commands are icons in one row
 /// that scrolls, which may be folded away.
 class Ribbon extends StatefulWidget {
-  const Ribbon({
-    super.key,
-    required this.fileLabel,
-    required this.tabs,
-    required this.onFile,
-    this.leading = const [],
-    this.trailing = const [],
-    this.initialTab = 0,
-  });
+  const Ribbon({super.key, required this.fileLabel, required this.tabs, required this.onFile, this.leading = const [], this.trailing = const [], this.initialTab = 0});
 
   final String fileLabel;
   final List<RibbonTab> tabs;
@@ -88,18 +80,20 @@ class _RibbonState extends State<Ribbon> {
                   ],
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Row(children: [
-                      Text(tab.label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: theme.colorScheme.primary)),
-                      Icon(Icons.arrow_drop_down, color: theme.colorScheme.primary),
-                    ]),
+                    child: Row(
+                      children: [
+                        Text(
+                          tab.label,
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: theme.colorScheme.primary),
+                        ),
+                        Icon(Icons.arrow_drop_down, color: theme.colorScheme.primary),
+                      ],
+                    ),
                   ),
                 ),
                 const Spacer(),
                 ...widget.trailing,
-                IconButton(
-                  icon: Icon(_open ? Icons.expand_less : Icons.expand_more),
-                  onPressed: () => setState(() => _open = !_open),
-                ),
+                IconButton(icon: Icon(_open ? Icons.expand_less : Icons.expand_more), onPressed: () => setState(() => _open = !_open)),
               ],
             ),
           ),
@@ -115,10 +109,7 @@ class _RibbonState extends State<Ribbon> {
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   children: [
-                    for (final (i, g) in tab.groups.indexed) ...[
-                      if (i > 0) const VerticalDivider(width: 9, indent: 8, endIndent: 8),
-                      for (final item in g.items) Center(child: item),
-                    ],
+                    for (final (i, g) in tab.groups.indexed) ...[if (i > 0) const VerticalDivider(width: 9, indent: 8, endIndent: 8), for (final item in g.items) Center(child: item)],
                   ],
                 ),
               ),
@@ -146,8 +137,7 @@ class _RibbonState extends State<Ribbon> {
                     scrollDirection: Axis.horizontal,
                     children: [
                       _TabButton(label: widget.fileLabel, selected: false, file: true, onTap: widget.onFile),
-                      for (var i = 0; i < widget.tabs.length; i++)
-                        _TabButton(label: widget.tabs[i].label, selected: i == _tab, onTap: () => setState(() => _tab = i)),
+                      for (var i = 0; i < widget.tabs.length; i++) _TabButton(label: widget.tabs[i].label, selected: i == _tab, onTap: () => setState(() => _tab = i)),
                     ],
                   ),
                 ),
@@ -164,9 +154,7 @@ class _RibbonState extends State<Ribbon> {
             child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 4),
-              children: [
-                for (final g in tab.groups) _Group(group: g),
-              ],
+              children: [for (final g in tab.groups) _Group(group: g)],
             ),
           ),
         ],
@@ -208,11 +196,7 @@ class _TabButton extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: TextStyle(
-            fontSize: 13,
-            color: file ? scheme.onPrimary : (selected ? scheme.primary : scheme.onSurface),
-            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-          ),
+          style: TextStyle(fontSize: 13, color: file ? scheme.onPrimary : (selected ? scheme.primary : scheme.onSurface), fontWeight: selected ? FontWeight.w600 : FontWeight.normal),
         ),
       ),
     );
@@ -229,16 +213,13 @@ class _Group extends StatelessWidget {
     final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.fromLTRB(6, 4, 6, 2),
-      decoration: BoxDecoration(border: Border(right: BorderSide(color: theme.dividerColor))),
+      decoration: BoxDecoration(
+        border: Border(right: BorderSide(color: theme.dividerColor)),
+      ),
       child: Column(
         children: [
           Expanded(
-            child: Wrap(
-              direction: Axis.vertical,
-              spacing: 2,
-              runSpacing: 2,
-              children: group.items,
-            ),
+            child: Wrap(direction: Axis.vertical, spacing: 2, runSpacing: 2, children: group.items),
           ),
           Text(group.label, style: theme.textTheme.labelSmall?.copyWith(color: theme.hintColor)),
         ],
@@ -250,15 +231,7 @@ class _Group extends StatelessWidget {
 /// A command of the ribbon: a small icon button, or a large one with its
 /// label below.
 class RibbonButton extends StatelessWidget {
-  const RibbonButton({
-    super.key,
-    required this.icon,
-    required this.label,
-    this.onPressed,
-    this.selected = false,
-    this.large = false,
-    this.shortcut,
-  });
+  const RibbonButton({super.key, required this.icon, required this.label, this.onPressed, this.selected = false, this.large = false, this.shortcut});
 
   final Widget icon;
   final String label;
@@ -275,7 +248,16 @@ class RibbonButton extends StatelessWidget {
     final tip = shortcut == null ? label : '$label ($shortcut)';
     final color = onPressed == null ? scheme.onSurface.withValues(alpha: 0.38) : scheme.onSurface;
     final content = _Compact.of(context)
-        ? SizedBox(width: 40, height: 40, child: Center(child: IconTheme(data: IconThemeData(size: 22, color: color), child: icon)))
+        ? SizedBox(
+            width: 40,
+            height: 40,
+            child: Center(
+              child: IconTheme(
+                data: IconThemeData(size: 22, color: color),
+                child: icon,
+              ),
+            ),
+          )
         : large
         ? SizedBox(
             width: 64,
@@ -283,13 +265,31 @@ class RibbonButton extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                IconTheme(data: IconThemeData(size: 28, color: color), child: icon),
+                IconTheme(
+                  data: IconThemeData(size: 28, color: color),
+                  child: icon,
+                ),
                 const SizedBox(height: 2),
-                Text(label, maxLines: 2, textAlign: TextAlign.center, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, color: color)),
+                Text(
+                  label,
+                  maxLines: 2,
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 11, color: color),
+                ),
               ],
             ),
           )
-        : SizedBox(width: 28, height: 22, child: Center(child: IconTheme(data: IconThemeData(size: 18, color: color), child: icon)));
+        : SizedBox(
+            width: 28,
+            height: 22,
+            child: Center(
+              child: IconTheme(
+                data: IconThemeData(size: 18, color: color),
+                child: icon,
+              ),
+            ),
+          );
     return Tooltip(
       message: tip,
       child: Material(
@@ -303,16 +303,7 @@ class RibbonButton extends StatelessWidget {
 
 /// A command that opens a menu of choices.
 class RibbonMenu<T> extends StatelessWidget {
-  const RibbonMenu({
-    super.key,
-    required this.icon,
-    required this.label,
-    required this.items,
-    required this.onSelected,
-    this.large = false,
-    this.enabled = true,
-    this.constraints,
-  });
+  const RibbonMenu({super.key, required this.icon, required this.label, required this.items, required this.onSelected, this.large = false, this.enabled = true, this.constraints});
 
   final Widget icon;
   final String label;
@@ -341,15 +332,7 @@ class RibbonMenu<T> extends StatelessWidget {
 
 /// A choice among values, as the font and size boxes of the ribbon.
 class RibbonDropdown extends StatelessWidget {
-  const RibbonDropdown({
-    super.key,
-    required this.label,
-    required this.value,
-    required this.values,
-    required this.onChanged,
-    this.width = 120,
-    this.display,
-  });
+  const RibbonDropdown({super.key, required this.label, required this.value, required this.values, required this.onChanged, this.width = 120, this.display});
 
   final String label;
   final String? value;
@@ -372,10 +355,15 @@ class RibbonDropdown extends StatelessWidget {
           itemBuilder: (_) => [for (final v in values) PopupMenuItem(value: v, height: 32, child: Text(show(v)))],
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 6),
-            decoration: BoxDecoration(border: Border.all(color: Theme.of(context).dividerColor), borderRadius: BorderRadius.circular(2)),
+            decoration: BoxDecoration(
+              border: Border.all(color: Theme.of(context).dividerColor),
+              borderRadius: BorderRadius.circular(2),
+            ),
             child: Row(
               children: [
-                Expanded(child: Text(value == null ? '' : show(value!), overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12))),
+                Expanded(
+                  child: Text(value == null ? '' : show(value!), overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
+                ),
                 const Icon(Icons.arrow_drop_down, size: 16),
               ],
             ),
@@ -391,15 +379,7 @@ class RibbonDropdown extends StatelessWidget {
 /// [scale] give: "s" and 1000 for milliseconds shown in seconds. The
 /// decimal is a comma.
 class RibbonMeasure extends StatefulWidget {
-  const RibbonMeasure({
-    super.key,
-    required this.label,
-    required this.icon,
-    required this.value,
-    this.onChanged,
-    this.unit = 'cm',
-    this.scale = 72 / 2.54,
-  });
+  const RibbonMeasure({super.key, required this.label, required this.icon, required this.value, this.onChanged, this.unit = 'cm', this.scale = 72 / 2.54});
 
   final String label;
   final IconData icon;
@@ -457,22 +437,25 @@ class _RibbonMeasureState extends State<RibbonMeasure> {
   Widget build(BuildContext context) {
     return Tooltip(
       message: widget.label,
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(widget.icon, size: 16),
-        const SizedBox(width: 4),
-        SizedBox(
-          width: 72,
-          height: 24,
-          child: TextField(
-            controller: _controller,
-            focusNode: _focus,
-            enabled: widget.onChanged != null,
-            style: const TextStyle(fontSize: 12),
-            decoration: const InputDecoration(isDense: true, border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 6)),
-            onSubmitted: (_) => _submit(),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(widget.icon, size: 16),
+          const SizedBox(width: 4),
+          SizedBox(
+            width: 72,
+            height: 24,
+            child: TextField(
+              controller: _controller,
+              focusNode: _focus,
+              enabled: widget.onChanged != null,
+              style: const TextStyle(fontSize: 12),
+              decoration: const InputDecoration(isDense: true, border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 6)),
+              onSubmitted: (_) => _submit(),
+            ),
           ),
-        ),
-      ]),
+        ],
+      ),
     );
   }
 }
@@ -481,14 +464,7 @@ class _RibbonMeasureState extends State<RibbonMeasure> {
 /// shades, and Office's standard ones. The value chosen is a color as the
 /// Go package writes it, null for none or automatic.
 class ColorPalette extends StatelessWidget {
-  const ColorPalette({
-    super.key,
-    required this.theme,
-    required this.onSelected,
-    required this.themeLabel,
-    required this.standardLabel,
-    this.noneLabel,
-  });
+  const ColorPalette({super.key, required this.theme, required this.onSelected, required this.themeLabel, required this.standardLabel, this.noneLabel});
 
   /// The colors of the theme, by the name of their scheme.
   final Map<String, Color> theme;
@@ -505,18 +481,66 @@ class ColorPalette extends StatelessWidget {
     final dark = scheme == 'dk1' || scheme == 'dk2';
     if (scheme == 'lt1') {
       return [
-        [['lumMod', 95000]], [['lumMod', 85000]], [['lumMod', 75000]], [['lumMod', 65000]], [['lumMod', 50000]],
+        [
+          ['lumMod', 95000],
+        ],
+        [
+          ['lumMod', 85000],
+        ],
+        [
+          ['lumMod', 75000],
+        ],
+        [
+          ['lumMod', 65000],
+        ],
+        [
+          ['lumMod', 50000],
+        ],
       ];
     }
     if (dark) {
       return [
-        [['lumMod', 50000], ['lumOff', 50000]], [['lumMod', 65000], ['lumOff', 35000]], [['lumMod', 75000], ['lumOff', 25000]],
-        [['lumMod', 85000], ['lumOff', 15000]], [['lumMod', 95000], ['lumOff', 5000]],
+        [
+          ['lumMod', 50000],
+          ['lumOff', 50000],
+        ],
+        [
+          ['lumMod', 65000],
+          ['lumOff', 35000],
+        ],
+        [
+          ['lumMod', 75000],
+          ['lumOff', 25000],
+        ],
+        [
+          ['lumMod', 85000],
+          ['lumOff', 15000],
+        ],
+        [
+          ['lumMod', 95000],
+          ['lumOff', 5000],
+        ],
       ];
     }
     return [
-      [['lumMod', 20000], ['lumOff', 80000]], [['lumMod', 40000], ['lumOff', 60000]], [['lumMod', 60000], ['lumOff', 40000]],
-      [['lumMod', 75000]], [['lumMod', 50000]],
+      [
+        ['lumMod', 20000],
+        ['lumOff', 80000],
+      ],
+      [
+        ['lumMod', 40000],
+        ['lumOff', 60000],
+      ],
+      [
+        ['lumMod', 60000],
+        ['lumOff', 40000],
+      ],
+      [
+        ['lumMod', 75000],
+      ],
+      [
+        ['lumMod', 50000],
+      ],
     ];
   }
 
@@ -548,7 +572,10 @@ class ColorPalette extends StatelessWidget {
         width: 18,
         height: 18,
         margin: const EdgeInsets.all(1),
-        decoration: BoxDecoration(color: color, border: Border.all(color: const Color(0x33000000))),
+        decoration: BoxDecoration(
+          color: color,
+          border: Border.all(color: const Color(0x33000000)),
+        ),
       ),
     );
     return Padding(
@@ -558,22 +585,26 @@ class ColorPalette extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(themeLabel, style: Theme.of(context).textTheme.labelMedium),
-          Row(children: [
-            for (final s in schemes) swatch(theme[s] ?? const Color(0xFF808080), {'scheme': s}),
-          ]),
+          Row(
+            children: [
+              for (final s in schemes) swatch(theme[s] ?? const Color(0xFF808080), {'scheme': s}),
+            ],
+          ),
           const SizedBox(height: 4),
           for (var row = 0; row < 5; row++)
-            Row(children: [
-              for (final s in schemes)
-                swatch(_shade(theme[s] ?? const Color(0xFF808080), shades(s)[row]), {'scheme': s, 'mods': shades(s)[row]}),
-            ]),
+            Row(
+              children: [
+                for (final s in schemes) swatch(_shade(theme[s] ?? const Color(0xFF808080), shades(s)[row]), {'scheme': s, 'mods': shades(s)[row]}),
+              ],
+            ),
           const SizedBox(height: 8),
           Text(standardLabel, style: Theme.of(context).textTheme.labelMedium),
-          Row(children: [
-            for (final rgb in standard) swatch(Color(0xFF000000 | int.parse(rgb, radix: 16)), {'rgb': rgb}),
-          ]),
-          if (noneLabel != null)
-            TextButton(onPressed: () => onSelected(null), child: Text(noneLabel!)),
+          Row(
+            children: [
+              for (final rgb in standard) swatch(Color(0xFF000000 | int.parse(rgb, radix: 16)), {'rgb': rgb}),
+            ],
+          ),
+          if (noneLabel != null) TextButton(onPressed: () => onSelected(null), child: Text(noneLabel!)),
         ],
       ),
     );
@@ -594,21 +625,24 @@ class RibbonCheck extends StatelessWidget {
     final color = onChanged == null ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.38) : null;
     return InkWell(
       onTap: onChanged == null ? null : () => onChanged!(!value),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        SizedBox(
-          width: 22,
-          height: 20,
-          child: Checkbox(
-            value: value,
-            onChanged: onChanged == null ? null : (v) => onChanged!(v ?? false),
-            visualDensity: VisualDensity.compact,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 22,
+            height: 20,
+            child: Checkbox(
+              value: value,
+              onChanged: onChanged == null ? null : (v) => onChanged!(v ?? false),
+              visualDensity: VisualDensity.compact,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
           ),
-        ),
-        const SizedBox(width: 4),
-        Text(label, style: TextStyle(fontSize: 12, color: color)),
-        const SizedBox(width: 6),
-      ]),
+          const SizedBox(width: 4),
+          Text(label, style: TextStyle(fontSize: 12, color: color)),
+          const SizedBox(width: 6),
+        ],
+      ),
     );
   }
 }
@@ -637,27 +671,30 @@ class _TableSizeGridState extends State<TableSizeGrid> {
         Text(widget.strings.tableSize(_columns, _rows), style: Theme.of(context).textTheme.labelMedium),
         const SizedBox(height: 6),
         for (var r = 1; r <= 8; r++)
-          Row(mainAxisSize: MainAxisSize.min, children: [
-            for (var c = 1; c <= 10; c++)
-              MouseRegion(
-                onEnter: (_) => setState(() {
-                  _columns = c;
-                  _rows = r;
-                }),
-                child: GestureDetector(
-                  onTap: () => widget.onSelected(c, r),
-                  child: Container(
-                    width: 18,
-                    height: 18,
-                    margin: const EdgeInsets.all(1),
-                    decoration: BoxDecoration(
-                      color: c <= _columns && r <= _rows ? scheme.primaryContainer : null,
-                      border: Border.all(color: c <= _columns && r <= _rows ? scheme.primary : scheme.outlineVariant),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var c = 1; c <= 10; c++)
+                MouseRegion(
+                  onEnter: (_) => setState(() {
+                    _columns = c;
+                    _rows = r;
+                  }),
+                  child: GestureDetector(
+                    onTap: () => widget.onSelected(c, r),
+                    child: Container(
+                      width: 18,
+                      height: 18,
+                      margin: const EdgeInsets.all(1),
+                      decoration: BoxDecoration(
+                        color: c <= _columns && r <= _rows ? scheme.primaryContainer : null,
+                        border: Border.all(color: c <= _columns && r <= _rows ? scheme.primary : scheme.outlineVariant),
+                      ),
                     ),
                   ),
                 ),
-              ),
-          ]),
+            ],
+          ),
       ],
     );
   }

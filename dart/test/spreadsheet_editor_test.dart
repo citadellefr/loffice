@@ -8,28 +8,40 @@ import 'package:trame/testing.dart';
 
 Edit workbook({bool csv = false}) => Edit([
   Change.create(Node(id: 'book', type: 'book', key: 'V', attributes: {if (csv) 'csv': true})),
-  Change.create(Node(
-    id: 'S1',
-    type: 'sheet',
-    parent: 'book',
-    key: 'K',
-    attributes: const {
-      'name': 'Feuil1',
-      'lists': [
-        {'ref': 'D1:D5', 'src': '"Oui,Non"', 'err': 'stop', 'prompt': 'Oui ou non'},
-        {'ref': 'E1', 'src': r'Feuil1!$A$1:$A$3', 'err': 'warning'},
-      ],
-    },
-    grid: Grid([
-      const Cell(1, 1, {'v': 2}),
-      const Cell(2, 1, {'v': 3}),
-      const Cell(3, 1, {'f': 'SUM(A1:A2)', 'v': 5}),
-      if (csv) const Cell(1, 2, {'src': '2,0', 'v': 2}),
-    ]),
-  )),
-  Change.create(const Node(id: 'x0', type: 'xf', key: 'V', attributes: {
-    'style': {'fmt': 'General', 'font': {'name': 'Calibri', 'sz': 11}},
-  })),
+  Change.create(
+    Node(
+      id: 'S1',
+      type: 'sheet',
+      parent: 'book',
+      key: 'K',
+      attributes: const {
+        'name': 'Feuil1',
+        'lists': [
+          {'ref': 'D1:D5', 'src': '"Oui,Non"', 'err': 'stop', 'prompt': 'Oui ou non'},
+          {'ref': 'E1', 'src': r'Feuil1!$A$1:$A$3', 'err': 'warning'},
+        ],
+      },
+      grid: Grid([
+        const Cell(1, 1, {'v': 2}),
+        const Cell(2, 1, {'v': 3}),
+        const Cell(3, 1, {'f': 'SUM(A1:A2)', 'v': 5}),
+        if (csv) const Cell(1, 2, {'src': '2,0', 'v': 2}),
+      ]),
+    ),
+  ),
+  Change.create(
+    const Node(
+      id: 'x0',
+      type: 'xf',
+      key: 'V',
+      attributes: {
+        'style': {
+          'fmt': 'General',
+          'font': {'name': 'Calibri', 'sz': 11},
+        },
+      },
+    ),
+  ),
 ]);
 
 void main() {
@@ -48,7 +60,13 @@ void main() {
     hub = FakeHub.tree(workbook(csv: csv));
     session = DocSession(hub.connect)..start();
     addTearDown(session.dispose);
-    await tester.pumpWidget(MaterialApp(home: Scaffold(body: SpreadsheetEditor(session: session, title: 'classeur.xlsx'))));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SpreadsheetEditor(session: session, title: 'classeur.xlsx'),
+        ),
+      ),
+    );
     await settle(tester);
   }
 
@@ -185,7 +203,10 @@ void main() {
     expect(hub.doc['S1']!.attributes['filter'], {
       'ref': 'A1:A3',
       'cols': [
-        {'col': 0, 'vals': ['3']},
+        {
+          'col': 0,
+          'vals': ['3'],
+        },
       ],
     });
     expect(hub.doc['S1']!.grid!.cell(3, 0), {'hide': true});
@@ -244,7 +265,11 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Imprimer le quadrillage'));
     await settle(tester);
-    expect(setup(), {'land': true, 'margins': {'l': 0.25, 'r': 0.25, 't': 0.75, 'b': 0.75, 'head': 0.3, 'foot': 0.3}, 'grid': true});
+    expect(setup(), {
+      'land': true,
+      'margins': {'l': 0.25, 'r': 0.25, 't': 0.75, 'b': 0.75, 'head': 0.3, 'foot': 0.3},
+      'grid': true,
+    });
 
     // a break over the third row, then the selection as what prints
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);

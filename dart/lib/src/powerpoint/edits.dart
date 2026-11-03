@@ -18,14 +18,8 @@ class DeckEdits {
   Map<String, Object?> xfrm(Node shape, Rect bounds, {double? rotation}) {
     final old = deck.styleOf(shape).xfrm ?? const {};
     int emu(double v) => (v * emuPerPoint).round();
-    return {
-      ...old,
-      'x': emu(bounds.left),
-      'y': emu(bounds.top),
-      'w': emu(bounds.width.abs()),
-      'h': emu(bounds.height.abs()),
-      if (rotation != null) 'rot': (rotation * 60000).round() % 21600000,
-    }..removeWhere((k, v) => k == 'rot' && v == 0);
+    return {...old, 'x': emu(bounds.left), 'y': emu(bounds.top), 'w': emu(bounds.width.abs()), 'h': emu(bounds.height.abs()), if (rotation != null) 'rot': (rotation * 60000).round() % 21600000}
+      ..removeWhere((k, v) => k == 'rot' && v == 0);
   }
 
   /// Places shapes; each rectangle is in points, in the coordinates of
@@ -37,7 +31,9 @@ class DeckEdits {
   Edit rotate(Node shape, double degrees) {
     final bounds = deck.styleOf(shape).bounds;
     if (bounds == null) return Edit();
-    return _fitted([Change.set(shape.id, attributes: {'xfrm': xfrm(shape, bounds, rotation: degrees)})]);
+    return _fitted([
+      Change.set(shape.id, attributes: {'xfrm': xfrm(shape, bounds, rotation: degrees)}),
+    ]);
   }
 
   /// [changes], then those that keep the groups whose shapes they place
@@ -154,33 +150,46 @@ class DeckEdits {
               ],
             },
           },
-          'fill': {'idx': '1', 'color': {'scheme': 'accent1'}},
-          'effect': {'idx': '0', 'color': {'scheme': 'accent1'}},
-          'font': {'idx': 'minor', 'color': {'scheme': 'lt1'}},
+          'fill': {
+            'idx': '1',
+            'color': {'scheme': 'accent1'},
+          },
+          'effect': {
+            'idx': '0',
+            'color': {'scheme': 'accent1'},
+          },
+          'font': {
+            'idx': 'minor',
+            'color': {'scheme': 'lt1'},
+          },
         },
         'body': {'anchor': 'ctr', 'rtlCol': '0'},
       },
-      text: Delta([const Op.insert('\n', {'algn': 'ctr'})]),
+      text: Delta([
+        const Op.insert('\n', {'algn': 'ctr'}),
+      ]),
     );
     return Edit([Change.create(node)]);
   }
 
   /// A new text box, growing with its text.
   Edit newTextBox(Node slide, Rect bounds, {required String name}) => Edit([
-    Change.create(Node(
-      id: randomId(),
-      type: 'sp',
-      parent: slide.id,
-      key: keyAfter(slide.id),
-      attributes: {
-        'name': name,
-        'geom': {'prst': 'rect'},
-        'xfrm': _xfrm(bounds),
-        'fill': {'none': true},
-        'body': {'wrap': 'square', 'fit': 'shape', 'rtlCol': '0'},
-      },
-      text: Delta([const Op.insert('\n')]),
-    )),
+    Change.create(
+      Node(
+        id: randomId(),
+        type: 'sp',
+        parent: slide.id,
+        key: keyAfter(slide.id),
+        attributes: {
+          'name': name,
+          'geom': {'prst': 'rect'},
+          'xfrm': _xfrm(bounds),
+          'fill': {'none': true},
+          'body': {'wrap': 'square', 'fit': 'shape', 'rtlCol': '0'},
+        },
+        text: Delta([const Op.insert('\n')]),
+      ),
+    ),
   ]);
 
   Map<String, Object?> _xfrm(Rect r) {
@@ -193,30 +202,31 @@ class DeckEdits {
   Edit newSlide(Node layout, {Node? after}) {
     final id = randomId();
     final changes = <Change>[
-      Change.create(Node(
-        id: id,
-        type: 'slide',
-        parent: 'deck',
-        key: after == null ? keyAfter('deck') : keyAfter('deck', after),
-        attributes: {'layout': layout.id},
-      )),
+      Change.create(Node(id: id, type: 'slide', parent: 'deck', key: after == null ? keyAfter('deck') : keyAfter('deck', after), attributes: {'layout': layout.id})),
     ];
     var key = '';
     for (final ph in tree.children(layout.id)) {
       final p = ph.attributes['ph'];
       if (p is! Map<String, Object?> || const {'dt', 'ftr', 'sldNum', 'hdr'}.contains(p['type'])) continue;
       key = keyBetween(key, '');
-      changes.add(Change.create(Node(
-        id: randomId(),
-        type: 'sp',
-        parent: id,
-        key: key,
-        attributes: {
-          'ph': {for (final e in p.entries) if (e.key == 'type' || e.key == 'idx' || e.key == 'orient' || e.key == 'sz') e.key: e.value},
-          if (ph.attributes['name'] case final String name) 'name': name,
-        },
-        text: Delta([const Op.insert('\n')]),
-      )));
+      changes.add(
+        Change.create(
+          Node(
+            id: randomId(),
+            type: 'sp',
+            parent: id,
+            key: key,
+            attributes: {
+              'ph': {
+                for (final e in p.entries)
+                  if (e.key == 'type' || e.key == 'idx' || e.key == 'orient' || e.key == 'sz') e.key: e.value,
+              },
+              if (ph.attributes['name'] case final String name) 'name': name,
+            },
+            text: Delta([const Op.insert('\n')]),
+          ),
+        ),
+      );
     }
     return Edit(changes);
   }
@@ -224,10 +234,7 @@ class DeckEdits {
   /// A copy of a slide right after it, its shapes under new ids.
   Edit duplicateSlide(Node slide) {
     final id = randomId();
-    return Edit([
-      Change.create(Node(id: id, type: 'slide', parent: 'deck', key: keyAfter('deck', slide), attributes: slide.attributes)),
-      ...copies(tree.children(slide.id).where(isShape), id),
-    ]);
+    return Edit([Change.create(Node(id: id, type: 'slide', parent: 'deck', key: keyAfter('deck', slide), attributes: slide.attributes)), ...copies(tree.children(slide.id).where(isShape), id)]);
   }
 
   /// Copies of nodes and everything under them, under new ids, into

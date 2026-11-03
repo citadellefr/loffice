@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/citadellefr/loffice/formula"
 	"github.com/citadellefr/loffice/opc"
 	"github.com/citadellefr/trame/ot"
 )
@@ -172,6 +174,40 @@ func samePackage(t *testing.T, name string, a, b []byte) {
 		y, _ := pb.Read(n)
 		if !bytes.Equal(x, y) {
 			t.Fatalf("%s: %s changed", name, n)
+		}
+	}
+}
+
+// Excel calculated the circle of this workbook again and again, as its
+// calcPr asks: the iteration finds the values it saved.
+func TestCorpusIteration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("the corpus is not read in -short mode")
+	}
+	data, err := os.ReadFile("../corpus/files/poi/57535.xlsx")
+	if err != nil {
+		t.Skip("no corpus: go run ./tools/corpus")
+	}
+	_, tree, err := Open(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := NewCalc(tree, formula.Options{})
+	id := tree.Children("book")[0].ID
+	value := func(row int) float64 {
+		var f struct{ V float64 }
+		_ = json.Unmarshal(tree.Node(id).Grid.Cell(row, 5), &f)
+		return f.V
+	}
+	saved := []float64{value(5), value(6)}
+	edit(t, tree, c, ot.Edit{{Op: ot.OpCel, ID: id, Cells: []ot.Cell{cell(4, 4, `{"v":0}`)}}})
+	if value(5) == saved[0] {
+		t.Fatal("E5 not calculated")
+	}
+	edit(t, tree, c, ot.Edit{{Op: ot.OpCel, ID: id, Cells: []ot.Cell{cell(4, 4, `{"v":5}`)}}})
+	for i, row := range []int{5, 6} {
+		if got := value(row); math.Abs(got-saved[i]) > 0.001 {
+			t.Errorf("E%d = %v, Excel saved %v", row, got, saved[i])
 		}
 	}
 }

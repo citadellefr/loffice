@@ -27,15 +27,20 @@ void main() {
       final base = file.path.substring(0, file.path.length - 5);
       final tree = Tree.fromEdit(Edit.fromJson(jsonDecode(file.readAsStringSync()))!)!;
       final book = Workbook(tree);
-      final sheets = [for (final s in book.sheets) if (s.grid != null) s];
+      final sheets = [
+        for (final s in book.sheets)
+          if (s.grid != null) s,
+      ];
       for (var i = 0; i < sheets.length && i < 4; i++) {
         final key = GlobalKey();
-        await tester.pumpWidget(MaterialApp(
-          home: RepaintBoundary(
-            key: key,
-            child: SheetView(book: book, sheet: sheets[i], selection: SheetSelection(), locale: NumberLocale.fr, filter: SheetFilter.of(sheets[i])),
+        await tester.pumpWidget(
+          MaterialApp(
+            home: RepaintBoundary(
+              key: key,
+              child: SheetView(book: book, sheet: sheets[i], selection: SheetSelection(), locale: NumberLocale.fr, filter: SheetFilter.of(sheets[i])),
+            ),
           ),
-        ));
+        );
         await tester.pump();
         await tester.runAsync(() async {
           final boundary = key.currentContext!.findRenderObject()! as RenderRepaintBoundary;

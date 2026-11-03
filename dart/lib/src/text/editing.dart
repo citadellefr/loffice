@@ -42,9 +42,7 @@ class FlowEditing {
   /// mark in an empty paragraph; paragraph and field keys left out.
   Attributes typingAttributes(int offset) {
     final (start, end) = paragraphAt(offset);
-    final source = offset > start
-        ? attributesAt(offset - 1)
-        : (end > start ? attributesAt(start) : attributesAt(end));
+    final source = offset > start ? attributesAt(offset - 1) : (end > start ? attributesAt(start) : attributesAt(end));
     return {
       for (final e in (source ?? const <String, String>{}).entries)
         if (!keys.paragraph.contains(e.key) && !keys.objects.contains(e.key)) e.key: e.value,

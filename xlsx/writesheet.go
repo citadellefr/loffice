@@ -415,7 +415,26 @@ func (c *sheetWriter) value(f *cellFields) (string, []byte) {
 	if err != nil || math.IsInf(n, 0) || math.IsNaN(n) {
 		return "", nil
 	}
+	if c.w.pkg.Strict() && c.w.isDate(f.S) {
+		if iso, ok := isoDate(n, c.w.date1904); ok {
+			return "d", []byte(iso)
+		}
+	}
 	return "", f.V
+}
+
+// isDate tells whether the cells of an xf node show dates.
+func (w *writer) isDate(xf string) bool {
+	date, ok := w.dates[xf]
+	if !ok {
+		var st Style
+		if n := w.tree.Node(xf); n != nil {
+			_ = json.Unmarshal(n.Attrs["style"], &st)
+		}
+		date = formula.ParseFormat(st.Format).IsDate()
+		w.dates[xf] = date
+	}
+	return date
 }
 
 // columns writes the fields of whole columns, those next to each other

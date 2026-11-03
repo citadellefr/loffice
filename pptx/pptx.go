@@ -287,6 +287,10 @@ func (r *reader) master(name, id, key string, layoutCount *int) error {
 	if err != nil {
 		return err
 	}
+	cSld, spTree, err := shapeTree(m, "sldMaster", name)
+	if err != nil {
+		return err
+	}
 	attrs := ot.Values{}
 	if theme := rels.OfType(name, relTheme); theme != "" {
 		if t, _, _, err := r.part(theme); err == nil {
@@ -296,7 +300,6 @@ func (r *reader) master(name, id, key string, layoutCount *int) error {
 	if clrMap := m.Child(pNS, "clrMap"); clrMap != nil {
 		putJSON(attrs, "clrMap", attrMap(clrMap))
 	}
-	cSld := m.Child(pNS, "cSld")
 	putJSON(attrs, "bg", background(cSld, r.d.media))
 	if styles := m.Child(pNS, "txStyles"); styles != nil {
 		for _, s := range []string{"title", "body", "other"} {
@@ -304,7 +307,7 @@ func (r *reader) master(name, id, key string, layoutCount *int) error {
 		}
 	}
 	r.add(id, "master", "", key, attrs, nil)
-	r.shapes(cSld.Child(pNS, "spTree"), id, id, spaces)
+	r.shapes(spTree, id, id, spaces)
 
 	layouts := elements(m.Child(pNS, "sldLayoutIdLst"), pNS, "sldLayoutId")
 	keys := ot.Keys(len(layouts))
@@ -321,12 +324,29 @@ func (r *reader) master(name, id, key string, layoutCount *int) error {
 	return nil
 }
 
+// shapeTree is the cSld and the spTree of a slide, layout or master part
+// whose root is that element.
+func shapeTree(root *xmldom.Element, local, name string) (cSld, spTree *xmldom.Element, err error) {
+	if root.Space == pNS && root.Local == local {
+		if cSld = root.Child(pNS, "cSld"); cSld != nil {
+			spTree = cSld.Child(pNS, "spTree")
+		}
+	}
+	if spTree == nil {
+		return nil, nil, fmt.Errorf("pptx: %s is not a %s", name, local)
+	}
+	return cSld, spTree, nil
+}
+
 func (r *reader) layout(name, id, master, key string) error {
 	l, _, spaces, err := r.part(name)
 	if err != nil {
 		return err
 	}
-	cSld := l.Child(pNS, "cSld")
+	cSld, spTree, err := shapeTree(l, "sldLayout", name)
+	if err != nil {
+		return err
+	}
 	attrs := ot.Values{}
 	putString(attrs, "name", cSld.Get("name"))
 	putString(attrs, "type", l.Get("type"))
@@ -338,7 +358,7 @@ func (r *reader) layout(name, id, master, key string) error {
 	r.d.layouts[id] = name
 	r.d.layoutNodes[name] = id
 	r.add(id, "layout", master, key, attrs, nil)
-	r.shapes(cSld.Child(pNS, "spTree"), id, id, spaces)
+	r.shapes(spTree, id, id, spaces)
 	return nil
 }
 
@@ -347,14 +367,14 @@ func (r *reader) slide(name string, sldID int64, key string) error {
 	if err != nil {
 		return err
 	}
-	if s.Space != pNS || s.Local != "sld" {
-		return fmt.Errorf("pptx: %s is not a slide", name)
+	cSld, spTree, err := shapeTree(s, "sld", name)
+	if err != nil {
+		return err
 	}
 	id := "s" + strconv.FormatInt(sldID, 10)
 	part := &slidePart{name: name, rels: rels, sldID: sldID, notes: rels.OfType(name, relNotesSlide)}
 	r.d.slides[id] = part
 
-	cSld := s.Child(pNS, "cSld")
 	attrs := ot.Values{}
 	putString(attrs, "layout", r.d.layoutNodes[rels.OfType(name, relSlideLayout)])
 	putString(attrs, "name", cSld.Get("name"))
@@ -367,7 +387,6 @@ func (r *reader) slide(name string, sldID int64, key string) error {
 		attrs["showMasterSp"] = json.RawMessage(strconv.FormatBool(v != "0" && v != "false"))
 	}
 	putJSON(attrs, "transition", readTransition(s))
-	spTree := cSld.Child(pNS, "spTree")
 	placeholder := len(r.nodes)
 	r.add(id, "slide", "deck", key, nil, nil)
 	r.shapes(spTree, id, id, spaces)

@@ -23,10 +23,16 @@ void main() {
     final hub = FakeHub.tree(Edit.fromJson(jsonDecode(File('../testdata/docx/${Platform.environment['LOFFICE_FIXTURE'] ?? 'tbl-having-applied-style'}.json').readAsStringSync()))!);
     final session = DocSession(hub.connect)..start();
     addTearDown(session.dispose);
-    await tester.pumpWidget(MaterialApp(
-      theme: ThemeData(fontFamily: 'Carlito'),
-      home: Scaffold(body: RepaintBoundary(child: WordEditor(session: session, media: (_) async => Uint8List(0), title: 'Document'))),
-    ));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(fontFamily: 'Carlito'),
+        home: Scaffold(
+          body: RepaintBoundary(
+            child: WordEditor(session: session, media: (_) async => Uint8List(0), title: 'Document'),
+          ),
+        ),
+      ),
+    );
     await tester.runAsync(hub.settle);
     await tester.pump();
     final boundary = tester.renderObject<RenderRepaintBoundary>(find.byType(RepaintBoundary).first);

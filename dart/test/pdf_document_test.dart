@@ -46,7 +46,15 @@ void main() {
     final text = [for (final c in 'Été à Noël'.runes) font.glyph(c)!].join();
     final image = doc.image(2, 2, Uint8List.fromList([255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 0]), Uint8List.fromList([255, 255, 255, 64]));
     final state = doc.alpha(0.5, 1);
-    final shade = doc.shading([72, 0, 300, 0], [[1, 0, 0], [1, 1, 0], [0, 0, 1]], [0, 0.3, 1]);
+    final shade = doc.shading(
+      [72, 0, 300, 0],
+      [
+        [1, 0, 0],
+        [1, 1, 0],
+        [0, 0, 1],
+      ],
+      [0, 0.3, 1],
+    );
     doc.addPage(595, 842, '''
 BT /${font.name} 24 Tf 0 0 0 rg 1 0 0 -1 72 100 Tm <$text> Tj ET
 q 72 120 228 60 re W n /$shade sh Q

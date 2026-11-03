@@ -40,13 +40,8 @@ class LinkCards {
     _pointed = uri;
     final placed = CustomSingleChildLayout(delegate: _CardPlace(at), child: card);
     final entry = _entry = OverlayEntry(
-      builder: (context) => touch
-          ? Listener(
-              behavior: HitTestBehavior.translucent,
-              onPointerUp: (_) => WidgetsBinding.instance.addPostFrameCallback((_) => hide()),
-              child: placed,
-            )
-          : IgnorePointer(child: placed),
+      builder: (context) =>
+          touch ? Listener(behavior: HitTestBehavior.translucent, onPointerUp: (_) => WidgetsBinding.instance.addPostFrameCallback((_) => hide()), child: placed) : IgnorePointer(child: placed),
     );
     Overlay.of(context).insert(entry);
     return true;
@@ -72,8 +67,7 @@ class _CardPlace extends SingleChildLayoutDelegate {
   BoxConstraints getConstraintsForChild(BoxConstraints constraints) => constraints.loosen();
 
   @override
-  Offset getPositionForChild(Size size, Size childSize) =>
-      positionDependentBox(size: size, childSize: childSize, target: target, preferBelow: true, verticalOffset: 14);
+  Offset getPositionForChild(Size size, Size childSize) => positionDependentBox(size: size, childSize: childSize, target: target, preferBelow: true, verticalOffset: 14);
 
   @override
   bool shouldRelayout(_CardPlace old) => old.target != target;

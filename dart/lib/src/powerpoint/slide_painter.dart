@@ -138,13 +138,11 @@ class SlidePainter {
     final box = style.bounds;
     if (box == null) return Matrix4Like.identity();
     final x = style.xfrm!;
-    var m = Matrix4Like.translation(box.left, box.top)
-        .multiply(_rotation(box.size, (x['rot'] is num ? (x['rot']! as num) / 60000 : 0).toDouble(), x['flipH'] == true, x['flipV'] == true));
+    var m = Matrix4Like.translation(box.left, box.top).multiply(_rotation(box.size, (x['rot'] is num ? (x['rot']! as num) / 60000 : 0).toDouble(), x['flipH'] == true, x['flipV'] == true));
     if (n.type == 'grp') {
       double v(String k) => (x[k] is num ? (x[k]! as num).toDouble() : 0) / emuPerPoint;
       final cw = v('cw'), ch = v('ch');
-      m = m.multiply(Matrix4Like.scale(cw > 0 ? box.width / cw : 1, ch > 0 ? box.height / ch : 1))
-          .multiply(Matrix4Like.translation(-v('cx'), -v('cy')));
+      m = m.multiply(Matrix4Like.scale(cw > 0 ? box.width / cw : 1, ch > 0 ? box.height / ch : 1)).multiply(Matrix4Like.translation(-v('cx'), -v('cy')));
     }
     return m;
   }
@@ -152,10 +150,10 @@ class SlidePainter {
   Matrix4Like _rotation(Size size, double degrees, bool flipH, bool flipV) {
     if (degrees == 0 && !flipH && !flipV) return Matrix4Like.identity();
     final c = Offset(size.width / 2, size.height / 2);
-    return Matrix4Like.translation(c.dx, c.dy)
-        .multiply(Matrix4Like.rotation(degrees * math.pi / 180))
-        .multiply(Matrix4Like.scale(flipH ? -1 : 1, flipV ? -1 : 1))
-        .multiply(Matrix4Like.translation(-c.dx, -c.dy));
+    return Matrix4Like.translation(
+      c.dx,
+      c.dy,
+    ).multiply(Matrix4Like.rotation(degrees * math.pi / 180)).multiply(Matrix4Like.scale(flipH ? -1 : 1, flipV ? -1 : 1)).multiply(Matrix4Like.translation(-c.dx, -c.dy));
   }
 
   void _shape(Canvas canvas, Node shape, ColorContext colors, DeckTheme theme, Map<String, Object?>? groupFill) {
@@ -190,7 +188,11 @@ class SlidePainter {
     if (shape.type == 'frame' || shape.type == 'other') {
       final chart = shape.type == 'frame' ? _charts[shape] ??= ChartSpec.fromJson(shape.attributes['chart']) : null;
       if (chart != null) {
-        ChartPainter(chart, colors: colors, fonts: Fonts(theme: theme.typeface, package: fonts)).paint(canvas, size);
+        ChartPainter(
+          chart,
+          colors: colors,
+          fonts: Fonts(theme: theme.typeface, package: fonts),
+        ).paint(canvas, size);
       } else {
         _stand(canvas, size);
       }
@@ -235,13 +237,7 @@ class SlidePainter {
     final kept = _tables[frame];
     if (kept != null && kept.isOf(nodes)) return kept;
     final page = deck.pageOf(frame);
-    return _tables[frame] = TableLayout.of(
-      deck,
-      frame,
-      colors: page == null ? const ColorContext() : deck.colorsOf(page),
-      theme: page == null ? DeckTheme(null) : deck.themeOf(page),
-      fonts: fonts,
-    );
+    return _tables[frame] = TableLayout.of(deck, frame, colors: page == null ? const ColorContext() : deck.colorsOf(page), theme: page == null ? DeckTheme(null) : deck.themeOf(page), fonts: fonts);
   }
 
   /// The table frame a cell is in.
@@ -330,8 +326,7 @@ class SlidePainter {
 
   /// Whether a shape is a placeholder with no text, which the editor shows
   /// with its prompt.
-  bool isEmptyPlaceholder(Node shape) =>
-      shape.type == 'sp' && shape.attributes['ph'] != null && (shape.text?.length ?? 1) <= 1;
+  bool isEmptyPlaceholder(Node shape) => shape.type == 'sp' && shape.attributes['ph'] != null && (shape.text?.length ?? 1) <= 1;
 
   /// A text laid out as the shape would lay out its own, in [color] when
   /// given.
@@ -343,9 +338,7 @@ class SlidePainter {
     final colors = page == null ? const ColorContext() : deck.colorsOf(page);
     final theme = page == null ? DeckTheme(null) : deck.themeOf(page);
     final fontRef = style.style?['font'];
-    Props levels(int lvl) => color == null
-        ? style.level(lvl)
-        : {...style.level(lvl), 'fill': '{"solid":{"rgb":"${(color.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}"}}'};
+    Props levels(int lvl) => color == null ? style.level(lvl) : {...style.level(lvl), 'fill': '{"solid":{"rgb":"${(color.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}"}}'};
     return TextFrame.layout(
       text,
       box: _geometry(style).textRect(box.size, _adjust(style)),
@@ -365,11 +358,9 @@ class Matrix4Like {
 
   factory Matrix4Like.identity() => Matrix4Like._(Float64List.fromList([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]));
 
-  factory Matrix4Like.translation(double x, double y) =>
-      Matrix4Like._(Float64List.fromList([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, 0, 1]));
+  factory Matrix4Like.translation(double x, double y) => Matrix4Like._(Float64List.fromList([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, 0, 1]));
 
-  factory Matrix4Like.scale(double x, double y) =>
-      Matrix4Like._(Float64List.fromList([x, 0, 0, 0, 0, y, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]));
+  factory Matrix4Like.scale(double x, double y) => Matrix4Like._(Float64List.fromList([x, 0, 0, 0, 0, y, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]));
 
   factory Matrix4Like.rotation(double radians) {
     final c = math.cos(radians), s = math.sin(radians);
