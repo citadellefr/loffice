@@ -19,11 +19,14 @@ func (w *writer) workbook(sheets []sheet, rewritten bool) error {
 	for _, e := range elements(list, "sheet") {
 		old[atoi(e.Get("sheetId"))] = e
 	}
-	rel := "r"
-	if p, ok := prefixFor(root, relNS); ok {
-		rel = p
-	} else {
-		root.Set("xmlns:r", relNS)
+	rel, ok := prefixFor(root, relNS)
+	if !ok {
+		spaces := root.Spaces()
+		rel = "r"
+		for n := 1; spaces[rel] != ""; n++ {
+			rel = "r" + strconv.Itoa(n)
+		}
+		root.Set("xmlns:"+rel, relNS)
 	}
 	list.Content = nil
 	index := map[string]int{}
