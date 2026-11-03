@@ -239,7 +239,7 @@ func (m *mover) sheet(e *xmldom.Element, own string) bool {
 var vmlAnchor = regexp.MustCompile(`<x:(Row|Column)>(\d+)</x:(?:Row|Column)>`)
 
 // moveParts moves what the parts around the sheets written hold: the anchors
-// of drawings, the areas of tables, comments and pivot tables, and the
+// of drawings, the areas of tables and pivot tables, and the
 // formulas of charts and pivot caches.
 func (w *writer) moveParts(sheets []sheet) error {
 	m := w.mover()
@@ -279,18 +279,8 @@ func (w *writer) moveParts(sheets []sheet) error {
 				err = edit(name, func(root *xmldom.Element) bool { return m.anchors(root, own) })
 			case relTable:
 				err = edit(name, func(root *xmldom.Element) bool { return m.areas(root, own) })
-			case relComments, relPivotTable:
+			case relPivotTable:
 				err = edit(name, func(root *xmldom.Element) bool { return m.areas(root, own) })
-			case relVML:
-				data, _ := w.pkg.Read(name)
-				moved := vmlAnchor.ReplaceAllStringFunc(string(data), func(s string) string {
-					g := vmlAnchor.FindStringSubmatch(s)
-					i, _ := strconv.Atoi(g[2])
-					return "<x:" + g[1] + ">" + strconv.Itoa(m.index(i, own, g[1] == "Row")) + "</x:" + g[1] + ">"
-				})
-				if moved != string(data) {
-					err = w.pkg.Set(name, []byte(moved))
-				}
 			}
 			if err != nil {
 				return err

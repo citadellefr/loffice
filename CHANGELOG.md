@@ -22,6 +22,17 @@
   checking or writing a file, or of the calculation following an edit, is
   an error returned, its stack logged. A calculation that failed starts
   over from the sheets and sends the formula cells as they are.
+- `xlsx` reads the notes and the threaded comments of a sheet into the
+  "note" and "thread" fields of their cell, so that they follow the rows and
+  columns inserted or removed. Clients add, change and delete a note, reply
+  to a thread, resolve it and delete it; the hub signs the author as for
+  `docx` and `pptx`. They are written as Excel does: comments, the shape of
+  each note, the threaded comments with their persons and the note that
+  stands in for them in versions that do not know them.
+- Dart: the spreadsheet editor shows a red triangle in the corner of a cell
+  that holds a note and a violet one for a thread, a bubble over it under
+  the pointer, a Review tab (New Comment, New Note, Edit Note, Delete, Show
+  Comments) and the comments pane on the right.
 - The hub serves `.dotm`, `.xltm`, `.potx` and `.potm`.
 
 ## 0.11.1 — 2026-10-15

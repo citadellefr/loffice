@@ -19,7 +19,9 @@
 // id, none for the default), m the rows and columns it is merged over
 // ([2,3]), fa the area of the array formula it holds, ca when it is always
 // recalculated, cm its metadata index (dynamic arrays), rich its rich text
-// and fx a data table formula, both XML the workbook carried. Column 0
+// and fx a data table formula, both XML the workbook carried, note its note
+// (Note: author, text) and thread its threaded comments (ThreadItem: id,
+// author, date, text), never both. Column 0
 // holds the fields of rows: h their height in points, ch when it was set
 // by hand, hide, s, ol their outline level, cl when collapsed; row 0 those
 // of columns: w their width in characters, cw, bf, hide, s, ol, cl.
@@ -125,6 +127,11 @@ type Document struct {
 	// csv is set for the workbook of a CSV file, whose cells may keep the
 	// text they were read from.
 	csv bool
+	// persons are the authors of threaded comments as read, and the part
+	// that lists them.
+	persons     []person
+	personsName string
+	personsDoc  *xmldom.Document
 }
 
 type sheetPart struct {
@@ -137,6 +144,8 @@ type sheetPart struct {
 	doc *xmldom.Document
 	// strings counts its cells that point to shared strings.
 	strings int
+	// cm are its notes and threaded comments as read.
+	cm *sheetComments
 }
 
 // Open reads a workbook.
@@ -248,6 +257,7 @@ func (r *reader) workbook() error {
 	if d.styles == nil {
 		d.styles = readStyles("", &xmldom.Document{Root: xmldom.New(mainNS, "styleSheet")})
 	}
+	r.persons()
 	if name := target(d.bookName, d.bookRels, relSharedStrings); name != "" {
 		data, err := d.pkg.Read(name)
 		if err != nil {

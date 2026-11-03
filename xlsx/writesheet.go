@@ -69,6 +69,9 @@ func (w *writer) sheet(n *ot.Node, p *sheetPart) error {
 			merges.Append(xmldom.New(mainNS, prefixOf(merges)+"mergeCell", "ref", ref))
 		}
 	}
+	if err := w.comments(root, n, p); err != nil {
+		return err
+	}
 	w.stringRefs[p] = c.strings
 	doc := &xmldom.Document{Prolog: p.doc.Prolog, Root: root, Tail: p.doc.Tail}
 	return w.put(p.name, typeWorksheet, doc.Bytes())

@@ -169,6 +169,7 @@ func (r *reader) sheet(s *xmldom.Element, key string) (string, error) {
 	if len(merges) > 0 {
 		cells = mergeInto(cells, merges)
 	}
+	cells = r.comments(id, root, part, cells)
 	if cells == nil {
 		cells = []ot.Cell{}
 	}
