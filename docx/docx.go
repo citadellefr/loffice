@@ -583,7 +583,7 @@ func (r *reader) run(e *xmldom.Element, wrap []string, flow ot.Delta) ot.Delta {
 				push("‑")
 				continue
 			case "softHyphen":
-				push("­")
+				push("\u00ad")
 				continue
 			}
 		}

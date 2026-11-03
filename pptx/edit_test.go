@@ -218,8 +218,7 @@ func TestEdits(t *testing.T) {
 		t.Fatal("notes lost")
 	}
 
-	var copied []*ot.Node
-	copied = again.Children(got[0].ID)
+	copied := again.Children(got[0].ID)
 	if len(copied) != len(tree.Children("copy")) {
 		t.Fatalf("copy has %d shapes, want %d", len(copied), len(tree.Children("copy")))
 	}
