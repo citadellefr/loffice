@@ -278,6 +278,8 @@ func (d *Document) checkCell(k string, v json.RawMessage, typeOf func(string) st
 	case "ca":
 		var b bool
 		return json.Unmarshal(v, &b) == nil
+	case "cm":
+		return string(v) == "1"
 	case "m":
 		var m [2]int
 		return json.Unmarshal(v, &m) == nil && m[0] >= 1 && m[1] >= 1 && m[0] <= formula.MaxRows && m[1] <= formula.MaxCols

@@ -115,3 +115,20 @@ func TestDrop(t *testing.T) {
 		t.Errorf("got %s, %v; want %s", got, err, want)
 	}
 }
+
+func TestStored(t *testing.T) {
+	for f, want := range map[string]string{
+		"SUM(A1:A3)":                         "SUM(A1:A3)",
+		"SORT(UNIQUE(A1:A9))":                "_xlfn._xlws.SORT(_xlfn.UNIQUE(A1:A9))",
+		"_xlfn._xlws.filter(A1:A3,B1:B3>0)":  "_xlfn._xlws.filter(A1:A3,B1:B3>0)",
+		"SUM(A1#)+Feuil2!$B$2#":              "SUM(_xlfn.ANCHORARRAY(A1))+_xlfn.ANCHORARRAY(Feuil2!$B$2)",
+		"sequence(3)&\"#(\"":                 "_xlfn.sequence(3)&\"#(\"",
+		"IFERROR(A1,#N/A)":                   "IFERROR(A1,#N/A)",
+		"NORM.S.DIST(T.TEST(A:A,B:B,2,1),1)": "_xlfn.NORM.S.DIST(_xlfn.T.TEST(A:A,B:B,2,1),1)",
+		"MMULT(MUNIT(2),A1:B2)":              "MMULT(_xlfn.MUNIT(2),A1:B2)",
+	} {
+		if got := Stored(f); got != want {
+			t.Errorf("%s: %s, want %s", f, got, want)
+		}
+	}
+}

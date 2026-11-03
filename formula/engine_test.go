@@ -220,6 +220,113 @@ func BenchmarkRecalc(b *testing.B) {
 	}
 }
 
+// recalc calculates what the cells changed reach, and keeps the values.
+func (s *sheetSource) recalc(e *Engine, cells ...string) []Result {
+	var changed []Pos
+	for _, cell := range cells {
+		r, c, _ := ParseCell(cell)
+		changed = append(changed, Pos{0, r, c})
+	}
+	out := e.Recalc(changed)
+	for _, x := range out {
+		s.cells[[3]int{x.Sheet, x.Row, x.Col}] = x.Value
+	}
+	return out
+}
+
+func (s *sheetSource) dynamic(e *Engine, cell, f string) []Result {
+	r, c, _ := ParseCell(cell)
+	e.SetDynamic(Pos{0, r, c}, f, e.Spill(Pos{0, r, c}))
+	return s.recalc(e, cell)
+}
+
+func spillOf(out []Result) string {
+	for _, r := range out {
+		if r.Spill != nil {
+			return CellName(r.Row, r.Col) + ":" + r.Spill.String()
+		}
+	}
+	return ""
+}
+
+func TestEngineSpill(t *testing.T) {
+	s, e := newSource()
+	s.set(e, "C1", "=A2*10")
+	s.set(e, "D1", "=A6")
+	out := s.dynamic(e, "A1", "SEQUENCE(3)")
+	if got := results(out); got != "[A1=1 C1=20 A2=2 A3=3]" {
+		t.Fatal(got)
+	}
+	if got := spillOf(out); got != "A1:A1:A3" {
+		t.Fatal(got)
+	}
+	if got := results(s.set(e, "B1", "=SUM(A1#)")); got != "[B1=6]" {
+		t.Fatal(got)
+	}
+	// the spill grows over a cell another formula reads
+	out = s.dynamic(e, "A1", "SEQUENCE(6)")
+	if got := results(out); got != "[A1=1 B1=21 D1=6 A4=4 A5=5 A6=6]" {
+		t.Fatal(got)
+	}
+	if got := spillOf(out); got != "A1:A1:A6" {
+		t.Fatal(got)
+	}
+	// a value in the way blocks it, and its going frees it
+	s.cells[[3]int{0, 3, 1}] = Str("x")
+	out = s.recalc(e, "A3")
+	if got := results(out); got != "[A1=#SPILL! B1=#SPILL! C1=0 D1=0 A2=blank A4=blank A5=blank A6=blank]" {
+		t.Fatal(got)
+	}
+	if got := spillOf(out); got != "A1:A1" {
+		t.Fatal(got)
+	}
+	delete(s.cells, [3]int{0, 3, 1})
+	if got := results(s.recalc(e, "A3")); got != "[A1=1 B1=21 C1=20 D1=6 A2=2 A3=3 A4=4 A5=5 A6=6]" {
+		t.Fatal(got)
+	}
+	// a formula in the way, or another spill
+	if got := results(s.set(e, "A5", "=1")); got != "[A1=#SPILL! B1=#SPILL! C1=0 D1=0 A2=blank A3=blank A4=blank A5=1 A6=blank]" {
+		t.Fatal(got)
+	}
+	e.Set(Pos{0, 5, 1}, "", nil)
+	delete(s.cells, [3]int{0, 5, 1})
+	if got := results(s.recalc(e, "A5")); got != "[A1=1 B1=21 C1=20 D1=6 A2=2 A3=3 A4=4 A5=5 A6=6]" {
+		t.Fatal(got)
+	}
+	if got := results(s.dynamic(e, "A4", "{1;2}")); got != "[A1=#SPILL! B1=#SPILL! C1=0 D1=0 A2=blank A3=blank A4=1 A5=2 A6=blank]" {
+		t.Fatal(got)
+	}
+	// shrinking the one in the way
+	delete(s.cells, [3]int{0, 4, 1})
+	if got := results(s.dynamic(e, "A4", "")); got != "[A1=1 B1=21 C1=20 D1=6 A2=2 A3=3 A4=4 A5=5 A6=6]" {
+		t.Fatal(got)
+	}
+	if got := results(s.dynamic(e, "A1", "SEQUENCE(2)")); got != "[A1=1 B1=3 D1=0 A3=blank A4=blank A5=blank A6=blank]" {
+		t.Fatal(got)
+	}
+	// a formula taken away leaves no values behind
+	e.SetDynamic(Pos{0, 1, 1}, "", nil)
+	delete(s.cells, [3]int{0, 1, 1})
+	if got := results(s.recalc(e, "A1")); got != "[B1=#REF! C1=0 A2=blank]" {
+		t.Fatal(got)
+	}
+	// a range spills, an edge too close does not, A1# of a value is #REF!
+	s.set(e, "F1", 1)
+	s.set(e, "F2", 2)
+	if got := results(s.dynamic(e, "G1", "F1:F2*2")); got != "[G1=2 G2=4]" {
+		t.Fatal(got)
+	}
+	if got := results(s.dynamic(e, "H1048575", "SEQUENCE(3)")); got != "[H1048575=#SPILL!]" {
+		t.Fatal(got)
+	}
+	if got := results(s.dynamic(e, "I1", "SUM(F1#)+ROWS(_xlfn.ANCHORARRAY(G1))")); got != "[I1=#REF!]" {
+		t.Fatal(got)
+	}
+	if got := results(s.dynamic(e, "I1", "ROWS(_xlfn.ANCHORARRAY(G1))+_xlfn.SINGLE(F1:F2)")); got != "[I1=3]" {
+		t.Fatal(got)
+	}
+}
+
 func (s *sheetSource) show(cell string) string {
 	r, c, _ := ParseCell(cell)
 	return s.Value(Pos{0, r, c}).show()
@@ -278,6 +385,30 @@ func TestEngineCircleThrough(t *testing.T) {
 		fresh.Set(p, f, nil)
 	}
 	if got := circular(fresh); got != "[A1 B1 C1 A3]" {
+		t.Fatal(got)
+	}
+}
+
+// A workbook read with its spills holds their values: the engine takes
+// them as its own, and a spill saved blocked spills once the way is free.
+func TestEngineSpillRead(t *testing.T) {
+	s, e := newSource()
+	for i, v := range []int{1, 2, 3} {
+		s.cells[[3]int{0, i + 1, 1}] = Num(float64(v))
+	}
+	e.SetDynamic(Pos{0, 1, 1}, "SEQUENCE(4)", &Area{R1: 1, C1: 1, R2: 3, C2: 1})
+	if got := results(s.recalc(e, "A1")); got != "[A1=1 A4=4]" {
+		t.Fatal(got)
+	}
+	s.cells[[3]int{0, 1, 2}] = ErrSpill
+	s.cells[[3]int{0, 3, 2}] = Str("x")
+	e.SetDynamic(Pos{0, 1, 2}, "SEQUENCE(3)", nil)
+	delete(s.cells, [3]int{0, 3, 2})
+	out := s.recalc(e, "B3")
+	if got := results(out); got != "[B1=1 B2=2 B3=3]" {
+		t.Fatal(got)
+	}
+	if got := spillOf(out); got != "B1:B1:B3" {
 		t.Fatal(got)
 	}
 }

@@ -117,15 +117,18 @@ func (c *Calc) rebuild() {
 		}
 		n.Grid.Each(1, formula.MaxRows, func(row, col int, raw json.RawMessage) bool {
 			if col > 0 && bytes.Contains(raw, []byte(`"f":`)) {
-				c.set(formula.Pos{Sheet: h, Row: row, Col: col}, raw)
+				c.set(formula.Pos{Sheet: h, Row: row, Col: col}, raw, false)
 			}
 			return true
 		})
 	}
 }
 
-// set gives the engine the formula of a cell, or takes it away.
-func (c *Calc) set(p formula.Pos, raw json.RawMessage) {
+// set gives the engine the formula of a cell, or takes it away. A formula
+// typed spills its result as Excel 365 does, as does one saved with the
+// metadata of dynamic arrays; others are array formulas when they fill an
+// area, or give a single value.
+func (c *Calc) set(p formula.Pos, raw json.RawMessage, typed bool) {
 	var f cellFields
 	if raw != nil && bytes.Contains(raw, []byte(`"f":`)) {
 		_ = json.Unmarshal(raw, &f)
@@ -136,7 +139,12 @@ func (c *Calc) set(p formula.Pos, raw json.RawMessage) {
 			array = &a
 		}
 	}
-	c.engine.Set(p, f.F, array)
+	switch {
+	case array != nil && f.CM > 0 || array == nil && typed:
+		c.engine.SetDynamic(p, f.F, array)
+	default:
+		c.engine.Set(p, f.F, array)
+	}
 }
 
 // Formulas is the number of formulas the engine calculates.
@@ -683,7 +691,7 @@ func (f *follow) recalc(e ot.Edit, circles bool) {
 	seen := map[formula.Pos]bool{}
 	c.filters = map[int]*formula.Area{}
 	// cells in column 0 are rows hidden or shown, row 0 all of a sheet's
-	add := func(id string, row, col int) {
+	add := func(id string, row, col int, typed bool) {
 		h, ok := c.handles[id]
 		p := formula.Pos{Sheet: h, Row: row, Col: col}
 		if !ok || row == 0 && col != 0 || seen[p] {
@@ -692,19 +700,29 @@ func (f *follow) recalc(e ot.Edit, circles bool) {
 		seen[p] = true
 		changed = append(changed, p)
 		if n := c.tree.Node(id); col > 0 && n != nil && n.Grid != nil {
-			c.set(p, n.Grid.Cell(row, col))
+			raw := n.Grid.Cell(row, col)
+			c.set(p, raw, typed)
+			var fields cellFields
+			if typed && json.Unmarshal(raw, &fields) == nil && formula.Stored(fields.F) != fields.F {
+				f.setCell(id, row, col, "f", formula.Stored(fields.F))
+			}
+			// a dynamic formula taken away
+			if !bytes.Contains(raw, []byte(`"f":`)) && bytes.Contains(raw, []byte(`"cm":`)) {
+				f.setCell(id, row, col, "cm", nil)
+				f.setCell(id, row, col, "fa", nil)
+			}
 		}
 	}
-	for _, ch := range append(slices.Clone(e), f.out...) {
+	for i, ch := range append(slices.Clone(e), f.out...) {
 		switch {
 		case ch.Op == ot.OpCel || ch.Op == ot.OpNew && ch.Cells != nil:
 			for _, cell := range ch.Cells {
 				if cell.Row > 0 {
-					add(ch.ID, cell.Row, cell.Col)
+					add(ch.ID, cell.Row, cell.Col, i < len(e) && typedFormula(cell.Fields))
 				}
 			}
 		case ch.Op == ot.OpSet && ch.Attrs[filterKey] != nil:
-			add(ch.ID, 0, 0)
+			add(ch.ID, 0, 0, false)
 		case ch.Op == ot.OpIns || ch.Op == ot.OpRem:
 			// what moved may read other cells now: ROW(), OFFSET
 			h := c.handles[ch.ID]
@@ -733,6 +751,12 @@ func (f *follow) recalc(e ot.Edit, circles bool) {
 	for _, r := range c.engine.Recalc(changed) {
 		id := c.sheets[r.Sheet]
 		raw := c.tree.Node(id).Grid.Cell(r.Row, r.Col)
+		if r.Spill != nil {
+			f.setCell(id, r.Row, r.Col, "fa", r.Spill.String())
+			if !bytes.Contains(raw, []byte(`"cm":`)) {
+				f.setCell(id, r.Row, r.Col, "cm", dynamicArray)
+			}
+		}
 		if r.Value.Type == formula.TypeError {
 			f.setCell(id, r.Row, r.Col, "e", r.Value.Str)
 			if bytes.Contains(raw, []byte(`"v":`)) {
@@ -754,6 +778,20 @@ func (f *follow) recalc(e ot.Edit, circles bool) {
 		}
 		f.setCell(id, r.Row, r.Col, "v", v)
 	}
+}
+
+// dynamicArray is the metadata of the cells holding a dynamic array
+// formula, the first of those the workbook writes.
+const dynamicArray = 1
+
+// typedFormula tells whether the fields an edit sets give a cell a formula.
+func typedFormula(fields json.RawMessage) bool {
+	for key, val := range members(fields) {
+		if string(key) == "f" {
+			return len(val) > 0 && val[0] == '"'
+		}
+	}
+	return false
 }
 
 // The workbook as the engine reads it.

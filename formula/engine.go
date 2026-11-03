@@ -67,8 +67,17 @@ type Engine struct {
 	// subtotals are the formulas calling SUBTOTAL or AGGREGATE, which
 	// read whether rows are hidden.
 	subtotals map[Pos]bool
-	// arrays gives each cell of an array formula its anchor.
+	// arrays gives each cell of an array formula its anchor, and each cell
+	// a dynamic one spilled over.
 	arrays map[Pos]Pos
+	// spills are the dynamic array formulas, by anchor.
+	spills map[Pos]*cellFormula
+	// spread are those spilling or meant to spill beyond their cell, or
+	// that did before the calculation: the others are like any formula.
+	spread map[Pos]*cellFormula
+	// orphans are the cells the dynamic formulas taken away spilled over,
+	// which hold their values until the next calculation clears them.
+	orphans map[Pos]bool
 	// circular are the formulas found in a circle, kept between
 	// calculations; scanned once those of all the formulas are.
 	circular map[Pos]bool
@@ -76,6 +85,10 @@ type Engine struct {
 
 	// what a calculation knows, besides what its formulas hold
 	dirty []*cellFormula
+	round int
+	// grown are the cells the dynamic formulas calculated spill over anew,
+	// whose readers are calculated in another round.
+	grown []Pos
 	// filled are the values of the cells of the array formulas calculated.
 	filled map[Pos]Value
 	names  map[string]Expr
@@ -116,12 +129,24 @@ type cellFormula struct {
 	expr  Expr
 	array *Area // the cells an array formula fills, from its anchor
 	reads []Area3
+	// dynamic formulas spill their result over array; reach is where it
+	// went or would go, which the cells changed there calculate again.
+	dynamic bool
+	reach   Area
+	// fresh is set on a dynamic formula set without its spill, until it
+	// first spills.
+	fresh bool
 	calc
 }
 
 // calc is what a calculation knows of a formula, cleared once it is over.
 type calc struct {
 	dirty, busy, done bool
+	round             int
+	// prior is the area a dynamic formula spilled over before, spilled
+	// whether its result is an array.
+	prior   Area
+	spilled bool
 	// readers are the formulas reading this one, pending those not
 	// calculated yet among the formulas it reads.
 	readers []*cellFormula
@@ -151,7 +176,7 @@ func NewEngine(src Source, opt Options) *Engine {
 	}
 	return &Engine{src: src, opt: opt, formulas: map[Pos]*cellFormula{}, readers: map[Pos][]*cellFormula{},
 		areas: map[[2]int][]areaReader{}, wide: map[int][]areaReader{}, volatile: map[Pos]bool{}, subtotals: map[Pos]bool{}, arrays: map[Pos]Pos{},
-		circular: map[Pos]bool{}}
+		spills: map[Pos]*cellFormula{}, spread: map[Pos]*cellFormula{}, orphans: map[Pos]bool{}, circular: map[Pos]bool{}}
 }
 
 // Len is the number of formulas.
@@ -163,6 +188,17 @@ func (e *Engine) Len() int {
 // formula fills array, its anchor the cell. A formula that does not read
 // is kept with none.
 func (e *Engine) Set(p Pos, f string, array *Area) {
+	e.set(p, f, array, false)
+}
+
+// SetDynamic gives a cell a dynamic array formula, which spills its result
+// over the cells next to it, or takes it away when f is "". spill is the
+// area it spilled over last, nil for its cell alone.
+func (e *Engine) SetDynamic(p Pos, f string, spill *Area) {
+	e.set(p, f, spill, true)
+}
+
+func (e *Engine) set(p Pos, f string, array *Area, dynamic bool) {
 	if old := e.formulas[p]; old != nil {
 		e.unindex(p, old)
 		delete(e.formulas, p)
@@ -175,6 +211,19 @@ func (e *Engine) Set(p Pos, f string, array *Area) {
 		return
 	}
 	cf := &cellFormula{pos: p, text: f, expr: e.bind(x, p.Sheet), array: array}
+	if dynamic {
+		if array == nil || array.R1 != p.Row || array.C1 != p.Col {
+			one := spillArea(p, 1, 1)
+			cf.array = &one
+		}
+		cf.dynamic, cf.fresh, cf.reach = true, array == nil, *cf.array
+		// a formula saved blocked spills as far as the sheet goes
+		if v := e.src.Value(p); v.Type == TypeError && v.Str == ErrSpill.Str {
+			cf.reach = Area{R1: p.Row, C1: p.Col, R2: MaxRows, C2: MaxCols}
+		}
+		e.spills[p] = cf
+		e.spreads(cf)
+	}
 	e.reads(x, p.Sheet, 0, func(a Area3) { cf.reads = append(cf.reads, a) }, func(name string) {
 		if f := functions[name]; f != nil && f.volatile {
 			e.volatile[p] = true
@@ -200,13 +249,22 @@ func (e *Engine) Set(p Pos, f string, array *Area) {
 			e.areas[k] = append(e.areas[k], r)
 		}
 	}
-	if array != nil {
-		for r := array.R1; r <= array.R2; r++ {
-			for c := array.C1; c <= array.C2; c++ {
+	if a := cf.array; a != nil {
+		for r := a.R1; r <= a.R2; r++ {
+			for c := a.C1; c <= a.C2; c++ {
 				e.arrays[Pos{p.Sheet, r, c}] = p
 			}
 		}
 	}
+}
+
+// Spill is the area the dynamic formula of a cell spills over, nil when
+// it holds none.
+func (e *Engine) Spill(p Pos) *Area {
+	if cf := e.spills[p]; cf != nil {
+		return cf.array
+	}
+	return nil
 }
 
 func (e *Engine) unindex(p Pos, cf *cellFormula) {
@@ -239,12 +297,18 @@ func (e *Engine) unindex(p Pos, cf *cellFormula) {
 	if cf.array != nil {
 		for r := cf.array.R1; r <= cf.array.R2; r++ {
 			for c := cf.array.C1; c <= cf.array.C2; c++ {
-				if e.arrays[Pos{p.Sheet, r, c}] == p {
-					delete(e.arrays, Pos{p.Sheet, r, c})
+				q := Pos{p.Sheet, r, c}
+				if e.arrays[q] == p {
+					delete(e.arrays, q)
+					if cf.dynamic && q != p {
+						e.orphans[q] = true
+					}
 				}
 			}
 		}
 	}
+	delete(e.spills, p)
+	delete(e.spread, p)
 }
 
 // reads calls f with the areas a formula reads, those of the names it
@@ -362,7 +426,14 @@ func (e *Engine) bind(x Expr, sheet int) Expr {
 type Result struct {
 	Pos
 	Value Value
+	// Spill is, on the anchor of a dynamic array formula, the cells it
+	// spills over, when they changed or it was set.
+	Spill *Area
 }
+
+// maxRounds bounds how many times a calculation follows dynamic formulas
+// that spill over cells other formulas read.
+const maxRounds = 16
 
 // Recalc calculates again the formulas that read the cells changed, those
 // that read them in turn, and the volatile ones, and returns the cells
@@ -378,62 +449,129 @@ func (e *Engine) Recalc(changed []Pos) []Result {
 	defer func() {
 		for _, cf := range e.dirty {
 			cf.calc = calc{}
+			if cf.dynamic && single(cf.reach) && single(*cf.array) {
+				delete(e.spread, cf.pos)
+			}
 		}
-		e.dirty, e.filled, e.names, e.bounds, e.ranges = nil, nil, nil, nil, nil
+		e.dirty, e.filled, e.names, e.bounds, e.ranges, e.grown = nil, nil, nil, nil, nil, nil
+		e.orphans = map[Pos]bool{}
 	}()
 
-	mark := func(cf *cellFormula) {
-		if !cf.dirty {
-			cf.dirty = true
-			e.dirty = append(e.dirty, cf)
-		}
-	}
+	var batch []*cellFormula
+	mark := func(cf *cellFormula) { batch = append(batch, cf) }
 	for _, p := range changed {
 		if p.Col == 0 {
 			e.subtotalsOf(p, mark)
 			continue
 		}
+		if anchor, ok := e.arrays[p]; ok && anchor != p && e.spills[anchor] != nil {
+			delete(e.arrays, p)
+		}
+		delete(e.orphans, p)
+		e.spillsAt(p, mark)
 		if cf := e.formulas[p]; cf != nil {
 			mark(cf)
 			continue
 		}
 		e.readersOf(p, mark)
 	}
+	for p := range e.orphans {
+		if _, array := e.arrays[p]; array || e.formulas[p] != nil {
+			continue
+		}
+		e.filled[p] = Value{}
+		e.readersOf(p, mark)
+		e.spillsAt(p, mark)
+	}
 	for p := range e.volatile {
 		mark(e.formulas[p])
 	}
-	// the formulas the dirty ones reach, which join them
-	for i := 0; i < len(e.dirty); i++ {
-		cf := e.dirty[i]
+	e.run(batch)
+	for round := 0; len(e.grown) > 0 && round < maxRounds; round++ {
+		batch = nil
+		for _, p := range e.grown {
+			e.readersOf(p, mark)
+			e.spillsAt(p, mark)
+		}
+		e.grown = nil
+		e.run(batch)
+	}
+
+	var out []Result
+	add := func(r Result) {
+		if r.Spill == nil && (r.Value.Type == TypeError && r.Value.Str == ErrUnsupported.Str || sameValue(r.Value, e.src.Value(r.Pos))) {
+			return
+		}
+		out = append(out, r)
+	}
+	for _, cf := range e.dirty {
+		if cf.array == nil {
+			add(Result{Pos: cf.pos, Value: cf.value})
+		}
+	}
+	for p, v := range e.filled {
+		r := Result{Pos: p, Value: v}
+		if cf := e.spills[p]; cf != nil && cf.dirty && cf.done && (cf.fresh && cf.spilled || cf.prior != *cf.array) {
+			r.Spill = cf.array
+			cf.fresh = false
+		}
+		add(r)
+	}
+	slices.SortFunc(out, func(a, b Result) int { return comparePos(a.Pos, b.Pos) })
+	return out
+}
+
+// run calculates a batch of formulas, and those they reach, in the order
+// they read each other. Formulas calculated in a round before are
+// calculated again.
+func (e *Engine) run(batch []*cellFormula) {
+	e.round++
+	var all []*cellFormula
+	join := func(cf *cellFormula) {
+		if cf.round == e.round {
+			return
+		}
+		if !cf.dirty {
+			cf.dirty = true
+			if cf.array != nil {
+				cf.prior = *cf.array
+			}
+			e.dirty = append(e.dirty, cf)
+		}
+		cf.round, cf.done, cf.readers, cf.pending, cf.circle = e.round, false, nil, 0, nil
+		all = append(all, cf)
+	}
+	for _, cf := range batch {
+		join(cf)
+	}
+	for i := 0; i < len(all); i++ {
+		cf := all[i]
 		e.cellsOf(cf, func(q Pos) {
 			e.readersOf(q, func(f *cellFormula) {
 				cf.readers = append(cf.readers, f)
-				mark(f)
+				join(f)
 			})
 		})
 	}
 
-	for _, cf := range e.dirty {
+	for _, cf := range all {
 		p := cf.pos
 		a := Area{R1: p.Row, C1: p.Col, R2: p.Row, C2: p.Col}
 		if cf.array != nil {
 			a = *cf.array
 		}
-		if b, ok := e.bounds[p.Sheet]; ok {
-			a = Area{R1: min(a.R1, b.R1), C1: min(a.C1, b.C1), R2: max(a.R2, b.R2), C2: max(a.C2, b.C2)}
-		}
-		e.bounds[p.Sheet] = a
+		e.widen(p.Sheet, a)
 	}
 
 	// the formulas in the order they read each other, those left reading
 	// themselves in circles or reading those
-	for _, cf := range e.dirty {
+	for _, cf := range all {
 		for _, f := range cf.readers {
 			f.pending++
 		}
 	}
 	var order, left []*cellFormula
-	for _, cf := range e.dirty {
+	for _, cf := range all {
 		if cf.pending == 0 {
 			order = append(order, cf)
 		}
@@ -446,8 +584,8 @@ func (e *Engine) Recalc(changed []Pos) []Result {
 			}
 		}
 	}
-	if len(order) < len(e.dirty) {
-		for _, cf := range e.dirty {
+	if len(order) < len(all) {
+		for _, cf := range all {
 			if cf.pending > 0 {
 				left = append(left, cf)
 			}
@@ -471,8 +609,7 @@ func (e *Engine) Recalc(changed []Pos) []Result {
 	calculate()
 	if e.again {
 		e.again = false
-		clear(e.filled)
-		for _, cf := range e.dirty {
+		for _, cf := range all {
 			cf.busy, cf.done, cf.value = false, false, Value{}
 			if cf.circle != nil {
 				cf.circle.done = false
@@ -481,33 +618,31 @@ func (e *Engine) Recalc(changed []Pos) []Result {
 		calculate()
 		e.again = false
 	}
-	for _, cf := range e.dirty {
+	for _, cf := range all {
 		if cf.circle != nil {
 			e.circular[cf.pos] = true
 		} else {
 			delete(e.circular, cf.pos)
 		}
 	}
+}
 
-	var out []Result
-	add := func(p Pos, v Value) {
-		if v.Type == TypeError && v.Str == ErrUnsupported.Str {
-			return
-		}
-		if !sameValue(v, e.src.Value(p)) {
-			out = append(out, Result{p, v})
+// widen adds an area to the bounds of the formulas calculated on a sheet.
+func (e *Engine) widen(sheet int, a Area) {
+	if b, ok := e.bounds[sheet]; ok {
+		a = Area{R1: min(a.R1, b.R1), C1: min(a.C1, b.C1), R2: max(a.R2, b.R2), C2: max(a.C2, b.C2)}
+	}
+	e.bounds[sheet] = a
+}
+
+// spillsAt calls f with the dynamic formulas, other than one at p, that
+// spill or would spill over p.
+func (e *Engine) spillsAt(p Pos, f func(*cellFormula)) {
+	for q, cf := range e.spread {
+		if q != p && q.Sheet == p.Sheet && cf.reach.Contains(p.Row, p.Col) {
+			f(cf)
 		}
 	}
-	for _, cf := range e.dirty {
-		if cf.array == nil {
-			add(cf.pos, cf.value)
-		}
-	}
-	for p, v := range e.filled {
-		add(p, v)
-	}
-	slices.SortFunc(out, func(a, b Result) int { return comparePos(a.Pos, b.Pos) })
-	return out
 }
 
 // Circular are the formulas found reading themselves, through others or
@@ -808,17 +943,16 @@ func (e *Engine) eval(cf *cellFormula) {
 // fill gives the cells of a formula the value it calculated, read while
 // the formula is still being calculated.
 func (e *Engine) fill(cf *cellFormula, c *Context, v Value) {
-	if cf.array == nil {
+	switch {
+	case cf.dynamic:
+		e.spill(c, cf, v)
+		return
+	case cf.array == nil:
 		cf.value = cellValue(c.scalar(v))
 		return
 	}
 	a, p := cf.array, cf.pos
-	var t *Table
-	if v.Type == TypeArray || v.Type == TypeRange {
-		t = c.array(v)
-	} else {
-		t = &Table{Rows: 1, Cols: 1, Cells: []Value{v}}
-	}
+	t := c.array(v)
 	for r := a.R1; r <= a.R2; r++ {
 		for k := a.C1; k <= a.C2; k++ {
 			i, j := r-a.R1, k-a.C1
@@ -835,6 +969,99 @@ func (e *Engine) fill(cf *cellFormula, c *Context, v Value) {
 			e.filled[Pos{p.Sheet, r, k}] = x
 		}
 	}
+}
+
+// spill gives a dynamic formula the cells its result takes, those next to
+// its cell, or #SPILL! when they are not free.
+func (e *Engine) spill(c *Context, cf *cellFormula, v Value) {
+	p := cf.pos
+	if v.Type == TypeError && v.Str == ErrUnsupported.Str {
+		e.filled[p] = v
+		return
+	}
+	single := v.Type != TypeArray && (v.Type != TypeRange || len(v.Refs) == 1 && v.Refs[0].R1 == v.Refs[0].R2 && v.Refs[0].C1 == v.Refs[0].C2)
+	t := &Table{Rows: 1, Cols: 1, Cells: []Value{c.scalar(v)}}
+	if !single {
+		t = c.array(v)
+	}
+	cf.spilled = !single
+	want := spillArea(p, t.Rows, t.Cols)
+	cf.reach = spillArea(p, min(t.Rows, MaxRows-p.Row+1), min(t.Cols, MaxCols-p.Col+1))
+	area := want
+	if want != cf.reach || !e.free(cf, want) {
+		area = spillArea(p, 1, 1)
+		t = &Table{Rows: 1, Cols: 1, Cells: []Value{ErrSpill}}
+	}
+	old := *cf.array
+	for r := old.R1; r <= old.R2; r++ {
+		for k := old.C1; k <= old.C2; k++ {
+			q := Pos{p.Sheet, r, k}
+			if !area.Contains(r, k) && e.arrays[q] == p {
+				delete(e.arrays, q)
+				e.filled[q] = Value{}
+			}
+		}
+	}
+	for r := area.R1; r <= area.R2; r++ {
+		for k := area.C1; k <= area.C2; k++ {
+			q := Pos{p.Sheet, r, k}
+			if _, owned := e.arrays[q]; !owned && !old.Contains(r, k) {
+				e.grown = append(e.grown, q)
+			}
+			e.arrays[q] = p
+			e.filled[q] = cellValue(t.At(r-area.R1, k-area.C1))
+		}
+	}
+	cf.value = e.filled[p]
+	if area != old {
+		cf.array = &area
+		e.widen(p.Sheet, area)
+		e.widen(p.Sheet, old)
+	}
+	e.spreads(cf)
+}
+
+// spreads keeps a dynamic formula among those spilling beyond their cell
+// when it does or is meant to.
+func (e *Engine) spreads(cf *cellFormula) {
+	if !single(cf.reach) || !single(*cf.array) {
+		e.spread[cf.pos] = cf
+	}
+}
+
+func single(a Area) bool {
+	return a.R1 == a.R2 && a.C1 == a.C2
+}
+
+// spillArea is the area of rows and columns from p, a cell when it is one.
+func spillArea(p Pos, rows, cols int) Area {
+	return Area{R1: p.Row, C1: p.Col, R2: p.Row + rows - 1, C2: p.Col + cols - 1, Cell: rows == 1 && cols == 1}
+}
+
+// free tells whether the cells of an area, but the anchor's, hold nothing
+// a dynamic formula may not spill over: values, formulas, other arrays.
+func (e *Engine) free(cf *cellFormula, a Area) bool {
+	p := cf.pos
+	for q, other := range e.spread {
+		b := other.array
+		if q != p && q.Sheet == p.Sheet && b.R1 <= a.R2 && a.R1 <= b.R2 && b.C1 <= a.C2 && a.C1 <= b.C2 {
+			return false
+		}
+	}
+	ok := true
+	e.src.Each(Area3{p.Sheet, a}, func(row, col int, v Value) bool {
+		q := Pos{p.Sheet, row, col}
+		if owner, array := e.arrays[q]; q != p && e.formulas[q] != nil || array && owner != p {
+			ok = false
+		} else if !array && !e.orphans[q] {
+			if x, cleared := e.filled[q]; cleared {
+				v = x
+			}
+			ok = v.Type == TypeBlank
+		}
+		return ok
+	})
+	return ok
 }
 
 // cellValue is a value as a cell holds it: an empty cell read gives 0.
@@ -877,6 +1104,9 @@ func (b *engineBook) value(p Pos) Value {
 		}
 	} else if cf := e.formulas[p]; cf != nil && cf.dirty {
 		v, ok = e.read(cf, p)
+	} else if v, ok = e.filled[p]; ok {
+		// a cell a dynamic formula no longer spills over
+		return v
 	}
 	if !ok || v.Type == TypeError && v.Str == ErrUnsupported.Str {
 		return e.src.Value(p)
@@ -911,6 +1141,10 @@ func (b *engineBook) Cells(a Area3, f func(row, col int, v Value) bool) {
 		b.sourceCells(a, f)
 		return
 	}
+	if b.spilt(a) {
+		b.spiltCells(a, f)
+		return
+	}
 	e.src.Each(a, func(row, col int, v Value) bool {
 		p := Pos{a.Sheet, row, col}
 		if _, array := e.arrays[p]; array {
@@ -923,6 +1157,51 @@ func (b *engineBook) Cells(a Area3, f func(row, col int, v Value) bool) {
 		}
 		return f(row, col, v)
 	})
+}
+
+// spilt tells whether an area meets the cells a dynamic formula of the
+// calculation spills over, or spilled over before it.
+func (b *engineBook) spilt(a Area3) bool {
+	for q, cf := range b.spread {
+		if q.Sheet == a.Sheet && cf.dirty && (overlaps(*cf.array, a.Area) || overlaps(cf.prior, a.Area)) {
+			return true
+		}
+	}
+	return false
+}
+
+func overlaps(a, b Area) bool {
+	return a.R1 <= b.R2 && b.R1 <= a.R2 && a.C1 <= b.C2 && b.C1 <= a.C2
+}
+
+// spiltCells calls f with the cells of an area the dynamic formulas of
+// the calculation spill over, which the source may not hold yet, and those
+// it holds.
+func (b *engineBook) spiltCells(a Area3, f func(row, col int, v Value) bool) {
+	e := (*Engine)(b)
+	seen := map[Pos]bool{}
+	var cells []Pos
+	add := func(p Pos) {
+		if !seen[p] && a.Contains(p.Row, p.Col) {
+			seen[p] = true
+			cells = append(cells, p)
+		}
+	}
+	e.src.Each(a, func(row, col int, _ Value) bool {
+		add(Pos{a.Sheet, row, col})
+		return true
+	})
+	for p := range e.filled {
+		if p.Sheet == a.Sheet {
+			add(p)
+		}
+	}
+	slices.SortFunc(cells, comparePos)
+	for _, p := range cells {
+		if v := b.value(p); v.Type != TypeBlank && !f(p.Row, p.Col, v) {
+			return
+		}
+	}
 }
 
 // sourceCells calls f with the cells of an area no formula calculated
@@ -958,7 +1237,24 @@ func (b *engineBook) sourceCells(a Area3, f func(row, col int, v Value) bool) {
 }
 
 func (b *engineBook) Size(sheet int) (int, int) {
-	return b.src.Size(sheet)
+	rows, cols := b.src.Size(sheet)
+	if d, ok := b.bounds[sheet]; ok {
+		rows, cols = max(rows, d.R2), max(cols, d.C2)
+	}
+	return rows, cols
+}
+
+// Spill is the area the dynamic formula of a cell spills over, its error
+// when it cannot; false when the cell holds none.
+func (b *engineBook) Spill(sheet, row, col int) (Value, bool) {
+	cf := b.spills[Pos{sheet, row, col}]
+	if cf == nil {
+		return Value{}, false
+	}
+	if v := b.value(cf.pos); v.Type == TypeError && v.Str == ErrSpill.Str {
+		return v, true
+	}
+	return Value{Type: TypeRange, Refs: []Area3{{sheet, *cf.array}}}, true
 }
 
 func (b *engineBook) Sheets(first, last string) ([]int, bool) {

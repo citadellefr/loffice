@@ -64,6 +64,8 @@ type writer struct {
 	// moves are the rows and columns inserted and removed since the
 	// workbook was read, which every sheet is rewritten after.
 	moves []move
+	// dynamic tells whether a cell rewritten holds a dynamic array.
+	dynamic bool
 	// dates tells, by xf node, whether cells of that style show dates, of
 	// the 1904 date system or not.
 	dates    map[string]bool
@@ -121,6 +123,11 @@ func (w *writer) save() error {
 		if !used[p] {
 			w.remove(p)
 			removed = true
+		}
+	}
+	if w.dynamic {
+		if err := w.metadata(); err != nil {
+			return err
 		}
 	}
 	if w.strings.changed() {

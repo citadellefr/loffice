@@ -79,6 +79,8 @@ func TestCorpusEdits(t *testing.T) {
 					cell(1, 2, `{"v":true}`),
 					cell(2, 1, `{"e":"#N/A"}`),
 					cell(2, 2, `{"f":"SUM(Édité!B2:C3)","v":10.5}`),
+					cell(4, 1, `{"f":"_xlfn.SEQUENCE(2)","fa":"A4:A5","cm":1,"v":1}`),
+					cell(5, 1, `{"v":2}`),
 				}},
 		})
 		if last := all[len(all)-1]; len(all) > 1 && last.ID != first {
@@ -94,8 +96,11 @@ func TestCorpusEdits(t *testing.T) {
 			t.Fatalf("%s: edited workbook does not open: %v", f, err)
 		}
 		book := again.Children("book")
-		if str(book[0], "name") != "Nouvelle" || book[0].Grid.Len() != 4 {
+		if str(book[0], "name") != "Nouvelle" || book[0].Grid.Len() != 6 {
 			t.Fatalf("%s: added sheet read back as %v", f, book[0])
+		}
+		if got := string(book[0].Grid.Cell(4, 1)) + string(book[0].Grid.Cell(5, 1)); got != `{"cm":1,"f":"_xlfn.SEQUENCE(2)","fa":"A4:A5","v":1}{"v":2}` {
+			t.Fatalf("%s: spilled cells read back as %s", f, got)
 		}
 		var text cellFields
 		_ = json.Unmarshal(book[0].Grid.Cell(1, 1), &text)
