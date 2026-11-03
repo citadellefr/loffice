@@ -29,6 +29,7 @@ license.
 | [`drawingml`](drawingml) | The DrawingML of all three formats: colors, fills, lines, geometries, positions and text bodies, read as JSON and text flows, written back as patches of the XML they came from. |
 | [`pptx`](pptx) | Presentations as trees: masters, layouts, slides, shapes, tables of rows and cells, and notes; table styles, Office's built-in ones included. Only what changed is written back; a copied shape keeps its pictures and links. |
 | [`xlsx`](xlsx) | Workbooks as trees: sheets, grids of cells and cell formats. Only the sheets that changed are written back; what the file keeps as XML moves with the rows and columns inserted and removed. CSV files are read as workbooks of one sheet and written back as they were read. |
+| [`agent`](agent) | An AI in a room, as one more participant: it reads a document as Markdown or CriticMarkup, and edits it by batches of revisions signed with its name. |
 | [`docx`](docx) | Word documents as trees: the body and the headers and footers as blocks, paragraphs as flows whose attributes are their formatting and that of their characters, tables of rows and cells; styles, lists and sections read for the editor. Only the parts that changed are written back, and what the model does not cover rides along in the nodes. |
 | [`legacy`](legacy) | The documents of Office 97 to 2003, converted once into those of today: Excel workbooks (`.xls`) with their cells, formulas, formats, sizes, merged cells, frozen panes and names. What a file held that its conversion leaves out is told, never lost in silence. |
 | [`formula`](formula) | Excel formulas parsed and calculated in the French locale, 223 functions, number formats, and an engine that calculates again only what a change reaches. |
@@ -38,6 +39,23 @@ license.
 | `internal/partrel` | Relationships named across the parts of a package, so that what points to a picture or a link can move from a part to another. |
 | `internal/xmldom` | A tree of XML elements that keep the bytes they were read from: only what changed is written anew. |
 | `internal/xmlcanon` | Whether two XML parts mean the same thing to Office, whatever their prefixes, quoting or layout: how rewritten parts are checked. |
+
+## AI participants
+
+`agent.Join` puts a program in a document's room through the hub, as anyone
+else: its edits pass the same checks, are rebased over what people type
+meanwhile, and its cursor shows. It reads a Word document as Markdown, or as
+CriticMarkup with its revisions and comments, every block given an id
+(`[p3]`, `[t1]`), and finds headings and text. It edits by batches applied
+whole or not at all, which `Preview` shows first: replacing text, inserting
+paragraphs written in Markdown, deleting, formatting, commenting, accepting
+and rejecting revisions. Its changes of text are revisions signed with its
+name unless the batch is direct. Each batch names the user the agent acts
+for, and `UndoMine` rejects what it did for one of them. A batch prepared on
+a version whose blocks changed since fails without writing; the host's
+`Allow` can refuse any write before it is sent. The agent keeps up with the
+room however long its model thinks. PowerPoint and Excel will take the same
+batches.
 
 ## Protocol
 
