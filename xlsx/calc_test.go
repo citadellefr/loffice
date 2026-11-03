@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -193,3 +194,23 @@ func BenchmarkFollow(b *testing.B) {
 		}
 	}
 }
+
+func TestRefreshCalculatesEverythingAgainFromAnEngineBroken(t *testing.T) {
+	tree, c := calcTree(t)
+	if err := tree.Apply(ot.Edit{{Op: ot.OpCel, ID: "S1", Cells: []ot.Cell{cell(1, 1, `{"v":10}`)}}}); err != nil {
+		t.Fatal(err)
+	}
+	c.engine = nil
+	out := c.Refresh()
+	if got := fieldsAt(tree, "S1", 3, 1); got != `{"f":"SUM(A1:A2)","v":12}` {
+		t.Fatalf("A3: %s", got)
+	}
+	if got := fieldsAt(tree, "S2", 1, 1); got != `{"f":"Feuil1!A3*10","v":120}` {
+		t.Fatalf("Data!A1: %s", got)
+	}
+	raw, _ := json.Marshal(out)
+	if want := `{"o":"cel","id":"S1","c":[[2,2,{"f":"A3*Taux","v":2.4000000000000004}],[3,1,{"f":"SUM(A1:A2)","v":12}]]}`; !strings.Contains(string(raw), want) {
+		t.Fatalf("the formula cells are not all sent: %s", raw)
+	}
+}
+
