@@ -1680,8 +1680,9 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
           Edit([
             Change.set(sheet.id, attributes: {'state': 'hidden'}),
           ]),
-        ))
+        )) {
           _stepSheet(0);
+        }
       case final String c when c.startsWith('unhide:'):
         _edit(
           Edit([

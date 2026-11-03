@@ -400,7 +400,7 @@ class ChartPainter {
 
   void _key(Canvas canvas, _Entry e, Rect r) {
     if (e.lineKey) {
-      if (e.line != null)
+      if (e.line != null) {
         _painter.line(
           canvas,
           Path()
@@ -408,6 +408,7 @@ class ChartPainter {
             ..lineTo(r.right, r.center.dy),
           e.line,
         );
+      }
       if (e.marker != null) _mark(canvas, r.center, e.marker!);
       return;
     }
@@ -661,10 +662,11 @@ class ChartPainter {
         final shape = Path()..addRect(rect);
         var fill = _fill(s, i, vary: vary, count: n);
         final invert = _pointInvert(s, i);
-        if (raw < 0 && invert)
+        if (raw < 0 && invert) {
           fill = {
             'solid': {'rgb': 'FFFFFF'},
           };
+        }
         _painter.fill(canvas, shape, rect, fill);
         final line = _line(s, i, vary: vary, count: n);
         if (line != null) _painter.line(canvas, shape, line);
