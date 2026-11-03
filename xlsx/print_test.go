@@ -43,7 +43,7 @@ func TestPrintMoved(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, again, err := Open(saved)
+	_, again, err := Open(saved, Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestPrintEdited(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d, tree, err := Open(data)
+	d, tree, err := Open(data, Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestPrintEdited(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, again, err := Open(saved)
+	_, again, err := Open(saved, Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func TestPrintEdited(t *testing.T) {
 	if saved, err = d.Save(tree); err != nil {
 		t.Fatal(err)
 	}
-	_, again, _ = Open(saved)
+	_, again, _ = Open(saved, Limits{})
 	if got := firstSheet(again).Attrs[printKey]; got != nil {
 		t.Errorf("print cleared read back as %s", got)
 	}

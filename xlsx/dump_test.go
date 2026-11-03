@@ -23,7 +23,7 @@ func TestDump(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, tree, err := Open(data)
+		_, tree, err := Open(data, Limits{})
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}

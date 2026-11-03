@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/citadellefr/loffice/opc"
 )
 
 var update = flag.Bool("update", false, "rewrite the trees in testdata/docx")
@@ -22,7 +24,7 @@ func TestFixtures(t *testing.T) {
 		if err != nil {
 			t.Skip("no corpus: go run ./tools/corpus")
 		}
-		_, tree, err := Open(data)
+		_, tree, err := Open(data, opc.Limits{})
 		if err != nil {
 			t.Fatal(err)
 		}

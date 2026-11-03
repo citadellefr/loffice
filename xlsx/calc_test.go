@@ -256,7 +256,7 @@ func TestCalcPr(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d, tree, err := Open(blank)
+	d, tree, err := Open(blank, Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -267,7 +267,7 @@ func TestCalcPr(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if d, tree, err = Open(data); err != nil {
+		if d, tree, err = Open(data, Limits{}); err != nil {
 			t.Fatal(err)
 		}
 		if got := string(tree.Node("book").Attrs["iterate"]); got != strings.TrimSuffix(iterate, "null") {
@@ -275,7 +275,7 @@ func TestCalcPr(t *testing.T) {
 		}
 	}
 	bad := ot.Edit{{Op: ot.OpSet, ID: "book", Attrs: ot.Values{"iterate": json.RawMessage(`{"count":0,"delta":0.001}`)}}}
-	if err := d.Check(tree, bad); err == nil {
+	if err := d.Check(tree, bad, ""); err == nil {
 		t.Fatal("no iteration taken")
 	}
 }

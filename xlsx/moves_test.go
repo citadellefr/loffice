@@ -17,7 +17,7 @@ import (
 // book told how many moves the file saw.
 func moveRows(t *testing.T, d *Document, tree *ot.Tree, e ot.Edit) error {
 	t.Helper()
-	if err := d.Check(tree, e); err != nil {
+	if err := d.Check(tree, e, ""); err != nil {
 		return err
 	}
 	if err := tree.Apply(e); err != nil {
@@ -32,7 +32,7 @@ func TestMovedFormats(t *testing.T) {
 	if err != nil {
 		t.Skip("no corpus: go run ./tools/corpus")
 	}
-	d, tree, err := Open(data)
+	d, tree, err := Open(data, Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestMovedFormats(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pkg, _ := opc.Open(saved, Limits)
+	pkg, _ := opc.Open(saved, opc.Limits{})
 	sheet, _ := pkg.Read("xl/worksheets/sheet1.xml")
 	for _, want := range []string{`<conditionalFormatting sqref="C7:C25">`, `<formula>LEN(B7)&gt;0</formula>`, `sqref="E7:E25"`} {
 		if !strings.Contains(string(sheet), want) {
@@ -60,7 +60,7 @@ func TestCorpusMoves(t *testing.T) {
 	moved := 0
 	for _, f := range workbooks(t) {
 		data, _ := os.ReadFile(f)
-		d, tree, err := Open(data)
+		d, tree, err := Open(data, Limits{})
 		if err != nil {
 			continue
 		}
@@ -87,7 +87,7 @@ func TestCorpusMoves(t *testing.T) {
 			t.Fatalf("%s: %v", f, err)
 		}
 		moved++
-		if _, _, err := Open(saved); err != nil {
+		if _, _, err := Open(saved, Limits{}); err != nil {
 			t.Fatalf("%s: moved workbook does not open: %v", f, err)
 		}
 		if out != "" {

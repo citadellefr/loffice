@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/citadellefr/loffice/opc"
 	"github.com/citadellefr/trame/ot"
 )
 
@@ -107,7 +108,7 @@ func TestTrackedChanges(t *testing.T) {
 	if !strings.Contains(partOf(t, saved, "word/settings.xml"), "<w:trackRevisions/>") {
 		t.Error("tracking not written")
 	}
-	_, again, err := Open(saved)
+	_, again, err := Open(saved, opc.Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}

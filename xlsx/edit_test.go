@@ -11,7 +11,7 @@ import (
 
 func apply(t *testing.T, d *Document, tree *ot.Tree, e ot.Edit) {
 	t.Helper()
-	if err := d.Check(tree, e); err != nil {
+	if err := d.Check(tree, e, ""); err != nil {
 		t.Fatalf("%v refused: %v", e, err)
 	}
 	if err := tree.Apply(e); err != nil {
@@ -38,7 +38,7 @@ func TestCorpusEdits(t *testing.T) {
 	edited := 0
 	for _, f := range workbooks(t) {
 		data, _ := os.ReadFile(f)
-		d, tree, err := Open(data)
+		d, tree, err := Open(data, Limits{})
 		if err != nil {
 			continue
 		}
@@ -89,7 +89,7 @@ func TestCorpusEdits(t *testing.T) {
 			t.Fatalf("%s: %v", f, err)
 		}
 		edited++
-		_, again, err := Open(saved)
+		_, again, err := Open(saved, Limits{})
 		if err != nil {
 			t.Fatalf("%s: edited workbook does not open: %v", f, err)
 		}

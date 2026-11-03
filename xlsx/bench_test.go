@@ -21,7 +21,7 @@ func BenchmarkOpenLarge(b *testing.B) {
 	var tree *ot.Tree
 	for b.Loop() {
 		var err error
-		if _, tree, err = Open(data); err != nil {
+		if _, tree, err = Open(data, Limits{}); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -30,7 +30,7 @@ func BenchmarkOpenLarge(b *testing.B) {
 	runtime.GC()
 	var before, after runtime.MemStats
 	runtime.ReadMemStats(&before)
-	_, tree, _ = Open(data)
+	_, tree, _ = Open(data, Limits{})
 	runtime.GC()
 	runtime.ReadMemStats(&after)
 	runtime.KeepAlive(tree)
@@ -44,7 +44,7 @@ func largeWorkbook(b *testing.B, rows, cols int) []byte {
 	if err != nil {
 		b.Fatal(err)
 	}
-	d, tree, err := Open(blank)
+	d, tree, err := Open(blank, Limits{})
 	if err != nil {
 		b.Fatal(err)
 	}

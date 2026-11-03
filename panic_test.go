@@ -49,7 +49,7 @@ func capture(t *testing.T) *syncBuffer {
 
 // inject serves the extension with a format that panics, while the file
 // reads.
-func inject(t *testing.T, ext string, read trame.Format) {
+func inject(t *testing.T, ext string, read format) {
 	t.Helper()
 	formats[ext] = read
 	t.Cleanup(func() { delete(formats, ext) })
@@ -57,11 +57,11 @@ func inject(t *testing.T, ext string, read trame.Format) {
 
 func TestPanicOfOpenIsRefusedAndOtherRoomsServe(t *testing.T) {
 	logs := capture(t)
-	inject(t, ".boom", func(string, []byte) (*ot.Tree, trame.File, error) { panic("decoder") })
+	inject(t, ".boom", func(string, []byte, Limits) (*ot.Tree, trame.File, error) { panic("decoder") })
 	store := trametest.NewStore()
 	store.Data["a.boom"] = []byte("x")
 	store.Data["notes.txt"] = []byte("hello")
-	h := NewHub(store, fastOptions())
+	h := NewHub(store, fastOptions(), Limits{})
 
 	c := trametest.Connect(t, func(c *trametest.Conn) error { return h.Serve(context.Background(), c, "a.boom", Peer{ID: "1"}) })
 	if err := <-c.Done; err == nil || !strings.Contains(err.Error(), "decoder") {
@@ -111,14 +111,14 @@ func TestPanicOfCheckAndEncodeIsAnError(t *testing.T) {
 
 func TestPanicOfEncodeLeavesOtherRoomsServed(t *testing.T) {
 	capture(t)
-	inject(t, ".boom", func(key string, data []byte) (*ot.Tree, trame.File, error) {
+	inject(t, ".boom", func(key string, data []byte, _ Limits) (*ot.Tree, trame.File, error) {
 		tree, _, err := trame.Text(key, data)
 		return tree, &workbook{}, err
 	})
 	store := trametest.NewStore()
 	store.Data["a.boom"] = []byte("x")
 	store.Data["notes.txt"] = []byte("hello")
-	h := NewHub(store, fastOptions())
+	h := NewHub(store, fastOptions(), Limits{})
 
 	a, _, _ := join(t, h, "a.boom", Peer{ID: "1"})
 	a.Send(`{"t":"op","n":1,"v":0,"d":[{"o":"txt","id":"body","x":[{"i":"y"}]}]}`)
@@ -141,7 +141,7 @@ func TestPanicOfFollowStartsTheCalculationOver(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tree, f, err := openWorkbook("book.xlsx", data)
+	tree, f, err := openWorkbook("book.xlsx", data, Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -312,7 +312,7 @@ func TestPanicOfFollowAfterRowsMovedKeepsTheFormulasRight(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	doc, tree, err := xlsx.Open(data)
+	doc, tree, err := xlsx.Open(data, xlsx.Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -367,7 +367,7 @@ func TestFormulasFollowSeveralMovesOfOneEdit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tree, f, err := openWorkbook("book.xlsx", data)
+	tree, f, err := openWorkbook("book.xlsx", data, Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}

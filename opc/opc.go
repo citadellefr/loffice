@@ -18,24 +18,27 @@ import (
 )
 
 // Limits bound what Open accepts, against zip bombs. Zero fields take the
-// defaults.
+// defaults, which suit a small server: the largest package of the test
+// corpus has 1714 parts, a part of 46 MiB and 46 MiB in all.
 type Limits struct {
+	// MaxParts is the number of parts, 4096 by default.
 	MaxParts int
-	// MaxPartSize and MaxTotalSize bound uncompressed sizes. The sizes an
-	// archive declares are enforced while reading, so it cannot lie.
+	// MaxPartSize and MaxTotalSize bound uncompressed sizes, 64 MiB and
+	// 128 MiB by default. The sizes an archive declares are enforced while
+	// reading, so it cannot lie.
 	MaxPartSize  int64
 	MaxTotalSize int64
 }
 
 func (l Limits) withDefaults() Limits {
 	if l.MaxParts <= 0 {
-		l.MaxParts = 10_000
+		l.MaxParts = 4096
 	}
 	if l.MaxPartSize <= 0 {
-		l.MaxPartSize = 256 << 20
+		l.MaxPartSize = 64 << 20
 	}
 	if l.MaxTotalSize <= 0 {
-		l.MaxTotalSize = 512 << 20
+		l.MaxTotalSize = 128 << 20
 	}
 	return l
 }

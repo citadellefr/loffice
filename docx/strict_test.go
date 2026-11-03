@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/citadellefr/loffice/opc"
 	"github.com/citadellefr/trame/ot"
 )
 
@@ -54,7 +55,7 @@ func openFile(t *testing.T, name string) (*Document, *ot.Tree, []byte) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d, tree, err := Open(data)
+	d, tree, err := Open(data, opc.Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +91,7 @@ func TestStrict(t *testing.T) {
 			t.Errorf("%s changed", name)
 		}
 	}
-	_, again, err := Open(saved)
+	_, again, err := Open(saved, opc.Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +111,7 @@ func TestNeitherStrictNorTransitional(t *testing.T) {
 	} {
 		parts := rawParts(t, data)
 		parts[c.part] = bytes.ReplaceAll(parts[c.part], []byte(c.old), []byte(`"urn:other"`))
-		if _, _, err := Open(zipOf(t, parts)); !errors.Is(err, ErrNotDocument) || err.Error() != "docx: not a Word document" {
+		if _, _, err := Open(zipOf(t, parts), opc.Limits{}); !errors.Is(err, ErrNotDocument) || err.Error() != "docx: not a Word document" {
 			t.Errorf("%s changed: %v", c.part, err)
 		}
 	}

@@ -27,8 +27,12 @@ type pictureAdder interface {
 	addPicture(data []byte) (string, error)
 }
 
-// formats read files into documents, by extension; name is the file's.
-var formats = map[string]trame.Format{
+// format reads a file into a document; name is the file's, and l bounds what
+// it may hold.
+type format func(name string, data []byte, l Limits) (*ot.Tree, trame.File, error)
+
+// formats read files into documents, by extension.
+var formats = map[string]format{
 	".txt":  openText,
 	".csv":  openCSV,
 	".pptx": openPresentation,
@@ -60,7 +64,7 @@ type text struct {
 	trame.File
 }
 
-func openText(key string, data []byte) (*ot.Tree, trame.File, error) {
+func openText(key string, data []byte, _ Limits) (*ot.Tree, trame.File, error) {
 	tree, f, err := trame.Text(key, data)
 	if err != nil {
 		return nil, nil, err
@@ -83,8 +87,8 @@ type document struct {
 	doc *docx.Document
 }
 
-func openDocument(_ string, data []byte) (*ot.Tree, trame.File, error) {
-	doc, tree, err := docx.Open(data)
+func openDocument(_ string, data []byte, l Limits) (*ot.Tree, trame.File, error) {
+	doc, tree, err := docx.Open(data, l.opc())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -112,11 +116,7 @@ func (d document) addPicture(data []byte) (name string, err error) {
 
 func (d document) media(name string) (data []byte, typ string, err error) {
 	defer guard("media", &err)
-	data, typ, err = d.doc.Media(name)
-	if err != nil {
-		return nil, "", fmt.Errorf("%w: %v", ErrNoMedia, err)
-	}
-	return data, typ, nil
+	return d.doc.Media(name)
 }
 
 // presentation is a PowerPoint file.
@@ -124,8 +124,8 @@ type presentation struct {
 	doc *pptx.Document
 }
 
-func openPresentation(_ string, data []byte) (*ot.Tree, trame.File, error) {
-	doc, tree, err := pptx.Open(data)
+func openPresentation(_ string, data []byte, l Limits) (*ot.Tree, trame.File, error) {
+	doc, tree, err := pptx.Open(data, l.opc())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -144,17 +144,13 @@ func (p presentation) Encode(doc *ot.Tree) (data []byte, err error) {
 
 func (p presentation) media(name string) (data []byte, typ string, err error) {
 	defer guard("media", &err)
-	data, typ, err = p.doc.Media(name)
-	if err != nil {
-		return nil, "", fmt.Errorf("%w: %v", ErrNoMedia, err)
-	}
-	return data, typ, nil
+	return p.doc.Media(name)
 }
 
 // workbook is an Excel or CSV file, whose formulas the hub calculates.
 type workbook struct {
 	doc interface {
-		Check(tree *ot.Tree, e ot.Edit) error
+		Check(tree *ot.Tree, e ot.Edit, author string) error
 		Save(tree *ot.Tree) ([]byte, error)
 	}
 	calc *xlsx.Calc
@@ -163,15 +159,15 @@ type workbook struct {
 	stale bool
 }
 
-func openWorkbook(_ string, data []byte) (*ot.Tree, trame.File, error) {
-	doc, tree, err := xlsx.Open(data)
+func openWorkbook(_ string, data []byte, l Limits) (*ot.Tree, trame.File, error) {
+	doc, tree, err := xlsx.Open(data, l.xlsx())
 	if err != nil {
 		return nil, nil, err
 	}
 	return tree, &workbook{doc: doc, calc: xlsx.NewCalc(tree, formula.Options{})}, nil
 }
 
-func openCSV(name string, data []byte) (*ot.Tree, trame.File, error) {
+func openCSV(name string, data []byte, _ Limits) (*ot.Tree, trame.File, error) {
 	doc, tree, err := xlsx.OpenCSV(data, name)
 	if err != nil {
 		return nil, nil, err
@@ -179,9 +175,9 @@ func openCSV(name string, data []byte) (*ot.Tree, trame.File, error) {
 	return tree, &workbook{doc: doc, calc: xlsx.NewCalc(tree, formula.Options{})}, nil
 }
 
-func (w *workbook) Check(doc *ot.Tree, e ot.Edit, _ Peer) (err error) {
+func (w *workbook) Check(doc *ot.Tree, e ot.Edit, by Peer) (err error) {
 	defer guard("check", &err)
-	return w.doc.Check(doc, e)
+	return w.doc.Check(doc, e, by.Name)
 }
 
 func (w *workbook) Encode(doc *ot.Tree) (data []byte, err error) {
@@ -245,13 +241,16 @@ func (w *workbook) refresh() (out ot.Edit) {
 }
 
 // open reads a file into a document, in the format its key's extension
-// names.
-func open(key string, data []byte) (tree *ot.Tree, f trame.File, err error) {
+// names, unless it is larger than the limits allow.
+func (l Limits) open(key string, data []byte) (tree *ot.Tree, f trame.File, err error) {
 	defer guard("open", &err)
 	ext := strings.ToLower(path.Ext(key))
 	read := formats[ext]
 	if read == nil {
 		return nil, nil, fmt.Errorf("loffice: %q files are not supported", ext)
 	}
-	return read(path.Base(key), data)
+	if err := l.check(len(data)); err != nil {
+		return nil, nil, err
+	}
+	return read(path.Base(key), data, l)
 }

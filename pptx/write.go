@@ -26,7 +26,7 @@ const (
 // content changed are rewritten: a slide, when anything on it changed; its
 // notes; the presentation, when slides came, went or moved.
 func (d *Document) Save(tree *ot.Tree) ([]byte, error) {
-	pkg, err := opc.Open(d.original, Limits)
+	pkg, err := opc.Open(d.original, d.limits)
 	if err != nil {
 		return nil, err
 	}

@@ -9,17 +9,17 @@ import (
 )
 
 func TestConvert(t *testing.T) {
-	if _, _, _, err := Convert("notes.odt", nil); err == nil {
+	if _, _, _, err := Convert("notes.odt", nil, Limits{}); err == nil {
 		t.Fatal("an .odt file was converted")
 	}
-	if _, _, _, err := Convert("book.XLS", []byte("not a workbook")); !errors.Is(err, legacy.ErrInvalid) {
+	if _, _, _, err := Convert("book.XLS", []byte("not a workbook"), Limits{}); !errors.Is(err, legacy.ErrInvalid) {
 		t.Fatalf("%v", err)
 	}
 	data, err := os.ReadFile("corpus/files/poi/SampleSS.xls")
 	if err != nil {
 		t.Skip("no corpus: go run ./tools/corpus")
 	}
-	out, ext, lost, err := Convert("Sample.xls", data)
+	out, ext, lost, err := Convert("Sample.xls", data, Limits{})
 	if err != nil || ext != ".xlsx" || len(lost) != 0 {
 		t.Fatalf("%q, lost %v, %v", ext, lost, err)
 	}

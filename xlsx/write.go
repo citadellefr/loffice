@@ -36,7 +36,7 @@ func (d *Document) Save(tree *ot.Tree) ([]byte, error) {
 func (d *Document) save(tree *ot.Tree, force bool) ([]byte, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	pkg, err := opc.Open(d.original, Limits)
+	pkg, err := opc.Open(d.original, d.limits.packageLimits())
 	if err != nil {
 		return nil, err
 	}

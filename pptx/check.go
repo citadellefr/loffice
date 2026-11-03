@@ -7,10 +7,7 @@ import (
 	"github.com/citadellefr/trame/ot"
 )
 
-var (
-	ErrReadOnly = errors.New("pptx: this part of the presentation cannot be edited")
-	ErrNoMedia  = errors.New("pptx: no such picture")
-)
+var ErrReadOnly = errors.New("pptx: this part of the presentation cannot be edited")
 
 // shapeTypes are the nodes a slide or a group can hold.
 var shapeTypes = map[string]bool{"sp": true, "pic": true, "cxn": true, "grp": true, "frame": true, "alt": true, "other": true}
@@ -129,13 +126,13 @@ func (d *Document) inSlide(tree *ot.Tree, created map[string]string, id string) 
 func (d *Document) Media(name string) ([]byte, string, error) {
 	r, ok := d.names.Lookup("@" + name)
 	if !ok || r.Type != partrel.Image || r.External {
-		return nil, "", ErrNoMedia
+		return nil, "", partrel.ErrNoMedia
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	data, err := d.pkg.Read(r.Target)
 	if err != nil {
-		return nil, "", errors.Join(ErrNoMedia, err)
+		return nil, "", errors.Join(partrel.ErrNoMedia, err)
 	}
 	return data, d.pkg.ContentType(r.Target), nil
 }

@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Size limits are options, no longer global variables: `loffice.NewHub` and
+  `loffice.Convert` take `Limits`, and `docx.Open`, `pptx.Open`, `xlsx.Open`
+  and `legacy.Workbook` take theirs as an argument. The hub refuses a file
+  over `MaxFileSize` (32 MiB by default) with `ErrTooLarge`. The defaults of
+  `opc` shrink to 4096 parts, 64 MiB a part and 128 MiB in all, those of the
+  cell data of a workbook to 64 MiB.
+- `ErrNoMedia` is defined once, as `loffice.ErrNoMedia` that `docx.Media`
+  and `pptx.Media` return; `xlsx.Document.Check` takes the author as
+  `docx` and `pptx` do.
+
 - `formula` calculates FREQUENCY, TREND, GROWTH, LINEST, LOGEST, RSQ, MMULT,
   MDETERM, MINVERSE, MUNIT, the normal, lognormal, Student, chi-squared, F,
   binomial, Poisson, exponential, gamma and beta distributions with their

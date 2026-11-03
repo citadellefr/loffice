@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/citadellefr/loffice/internal/partrel"
+	"github.com/citadellefr/loffice/opc"
 )
 
 var update = flag.Bool("update", false, "rewrite the trees in testdata/pptx")
@@ -24,7 +25,7 @@ func TestFixtures(t *testing.T) {
 		if err != nil {
 			t.Skip("no corpus: go run ./tools/corpus")
 		}
-		_, tree, err := Open(data)
+		_, tree, err := Open(data, opc.Limits{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -63,7 +64,7 @@ func TestDump(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		d, tree, err := Open(data)
+		d, tree, err := Open(data, opc.Limits{})
 		if err != nil {
 			t.Fatalf("%s: %v", name, err)
 		}
