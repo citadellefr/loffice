@@ -72,6 +72,9 @@ type Engine struct {
 	arrays map[Pos]Pos
 	// spills are the dynamic array formulas, by anchor.
 	spills map[Pos]*cellFormula
+	// spread are those spilling or meant to spill beyond their cell, or
+	// that did before the calculation: the others are like any formula.
+	spread map[Pos]*cellFormula
 	// orphans are the cells the dynamic formulas taken away spilled over,
 	// which hold their values until the next calculation clears them.
 	orphans map[Pos]bool
@@ -172,7 +175,7 @@ func NewEngine(src Source, opt Options) *Engine {
 	}
 	return &Engine{src: src, opt: opt, formulas: map[Pos]*cellFormula{}, readers: map[Pos][]*cellFormula{},
 		areas: map[[2]int][]areaReader{}, wide: map[int][]areaReader{}, volatile: map[Pos]bool{}, subtotals: map[Pos]bool{}, arrays: map[Pos]Pos{},
-		spills: map[Pos]*cellFormula{}, orphans: map[Pos]bool{}, circular: map[Pos]bool{}}
+		spills: map[Pos]*cellFormula{}, spread: map[Pos]*cellFormula{}, orphans: map[Pos]bool{}, circular: map[Pos]bool{}}
 }
 
 // Len is the number of formulas.
@@ -218,6 +221,7 @@ func (e *Engine) set(p Pos, f string, array *Area, dynamic bool) {
 			cf.reach = Area{R1: p.Row, C1: p.Col, R2: MaxRows, C2: MaxCols}
 		}
 		e.spills[p] = cf
+		e.spreads(cf)
 	}
 	e.reads(x, p.Sheet, 0, func(a Area3) { cf.reads = append(cf.reads, a) }, func(name string) {
 		if f := functions[name]; f != nil && f.volatile {
@@ -303,6 +307,7 @@ func (e *Engine) unindex(p Pos, cf *cellFormula) {
 		}
 	}
 	delete(e.spills, p)
+	delete(e.spread, p)
 }
 
 // reads calls f with the areas a formula reads, those of the names it
@@ -443,6 +448,9 @@ func (e *Engine) Recalc(changed []Pos) []Result {
 	defer func() {
 		for _, cf := range e.dirty {
 			cf.calc = calc{}
+			if cf.dynamic && single(cf.reach) && single(*cf.array) {
+				delete(e.spread, cf.pos)
+			}
 		}
 		e.dirty, e.filled, e.names, e.bounds, e.ranges, e.grown = nil, nil, nil, nil, nil, nil
 		e.orphans = map[Pos]bool{}
@@ -629,7 +637,7 @@ func (e *Engine) widen(sheet int, a Area) {
 // spillsAt calls f with the dynamic formulas, other than one at p, that
 // spill or would spill over p.
 func (e *Engine) spillsAt(p Pos, f func(*cellFormula)) {
-	for q, cf := range e.spills {
+	for q, cf := range e.spread {
 		if q != p && q.Sheet == p.Sheet && cf.reach.Contains(p.Row, p.Col) {
 			f(cf)
 		}
@@ -1009,6 +1017,19 @@ func (e *Engine) spill(c *Context, cf *cellFormula, v Value) {
 		e.widen(p.Sheet, area)
 		e.widen(p.Sheet, old)
 	}
+	e.spreads(cf)
+}
+
+// spreads keeps a dynamic formula among those spilling beyond their cell
+// when it does or is meant to.
+func (e *Engine) spreads(cf *cellFormula) {
+	if !single(cf.reach) || !single(*cf.array) {
+		e.spread[cf.pos] = cf
+	}
+}
+
+func single(a Area) bool {
+	return a.R1 == a.R2 && a.C1 == a.C2
 }
 
 // spillArea is the area of rows and columns from p, a cell when it is one.
@@ -1020,7 +1041,7 @@ func spillArea(p Pos, rows, cols int) Area {
 // a dynamic formula may not spill over: values, formulas, other arrays.
 func (e *Engine) free(cf *cellFormula, a Area) bool {
 	p := cf.pos
-	for q, other := range e.spills {
+	for q, other := range e.spread {
 		b := other.array
 		if q != p && q.Sheet == p.Sheet && b.R1 <= a.R2 && a.R1 <= b.R2 && b.C1 <= a.C2 && a.C1 <= b.C2 {
 			return false
@@ -1140,7 +1161,7 @@ func (b *engineBook) Cells(a Area3, f func(row, col int, v Value) bool) {
 // spilt tells whether an area meets the cells a dynamic formula of the
 // calculation spills over, or spilled over before it.
 func (b *engineBook) spilt(a Area3) bool {
-	for q, cf := range b.spills {
+	for q, cf := range b.spread {
 		if q.Sheet == a.Sheet && cf.dirty && (overlaps(*cf.array, a.Area) || overlaps(cf.prior, a.Area)) {
 			return true
 		}
