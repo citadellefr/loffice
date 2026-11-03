@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/citadellefr/loffice/formula"
 	"github.com/citadellefr/trame/ot"
 )
 
@@ -60,8 +59,7 @@ func TestCorpusEdits(t *testing.T) {
 		if tree.Node("x0") == nil {
 			style = `{"font":{"b":true}}`
 		}
-		calc := NewCalc(tree, formula.Options{})
-		edits := ot.Edit{
+		apply(t, d, tree, ot.Edit{
 			{Op: ot.OpNew, ID: "fmt", Type: "xf", Key: "V", Attrs: ot.Values{"style": json.RawMessage(style)}},
 			{Op: ot.OpCel, ID: first, Cells: []ot.Cell{
 				cell(0, 3, `{"w":20,"cw":true}`),
@@ -81,11 +79,10 @@ func TestCorpusEdits(t *testing.T) {
 					cell(1, 2, `{"v":true}`),
 					cell(2, 1, `{"e":"#N/A"}`),
 					cell(2, 2, `{"f":"SUM(Édité!B2:C3)","v":10.5}`),
-					cell(4, 1, `{"f":"SEQUENCE(2)"}`),
+					cell(4, 1, `{"f":"_xlfn.SEQUENCE(2)","fa":"A4:A5","cm":1,"v":1}`),
+					cell(5, 1, `{"v":2}`),
 				}},
-		}
-		apply(t, d, tree, edits)
-		calc.Follow(edits, nil)
+		})
 		if last := all[len(all)-1]; len(all) > 1 && last.ID != first {
 			apply(t, d, tree, ot.Edit{{Op: ot.OpDel, ID: last.ID}})
 		}

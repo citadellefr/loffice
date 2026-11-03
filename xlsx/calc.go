@@ -628,6 +628,10 @@ func (f *follow) recalc(e ot.Edit) {
 		if n := c.tree.Node(id); col > 0 && n != nil && n.Grid != nil {
 			raw := n.Grid.Cell(row, col)
 			c.set(p, raw, typed)
+			var fields cellFields
+			if typed && json.Unmarshal(raw, &fields) == nil && formula.Stored(fields.F) != fields.F {
+				f.setCell(id, row, col, "f", formula.Stored(fields.F))
+			}
 			// a dynamic formula taken away
 			if !bytes.Contains(raw, []byte(`"f":`)) && bytes.Contains(raw, []byte(`"cm":`)) {
 				f.setCell(id, row, col, "cm", nil)

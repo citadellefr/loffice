@@ -50,8 +50,8 @@ func dynamicBook(t *testing.T) (*Document, *ot.Tree, string) {
 	e := ot.Edit{{Op: ot.OpCel, ID: id, Cells: []ot.Cell{
 		cell(1, 1, `{"f":"SEQUENCE(3)"}`),
 		cell(1, 3, `{"v":3}`), cell(2, 3, `{"v":1}`), cell(3, 3, `{"v":2}`),
-		cell(1, 5, `{"f":"SORT(C1:C3)"}`),
-		cell(1, 7, `{"f":"FILTER(C1:C3,C1:C3-1)"}`),
+		cell(1, 5, `{"f":"_xlfn._xlws.SORT(C1:C3)"}`),
+		cell(1, 7, `{"f":"_xlfn._xlws.FILTER(C1:C3,C1:C3-1)"}`),
 		cell(1, 8, `{"f":"SUM(A1#)"}`),
 	}}}
 	apply(t, d, tree, e)
@@ -65,15 +65,15 @@ func dynamicBook(t *testing.T) (*Document, *ot.Tree, string) {
 func TestSpillRoundTrip(t *testing.T) {
 	d, tree, id := dynamicBook(t)
 	want := map[[2]int]string{
-		{1, 1}: `{"cm":1,"f":"SEQUENCE(3)","fa":"A1:A3","v":1}`,
+		{1, 1}: `{"cm":1,"f":"_xlfn.SEQUENCE(3)","fa":"A1:A3","v":1}`,
 		{2, 1}: `{"v":2}`,
 		{3, 1}: `{"v":3}`,
-		{1, 5}: `{"cm":1,"f":"SORT(C1:C3)","fa":"E1:E3","v":1}`,
+		{1, 5}: `{"cm":1,"f":"_xlfn._xlws.SORT(C1:C3)","fa":"E1:E3","v":1}`,
 		{2, 5}: `{"v":2}`,
 		{3, 5}: `{"v":3}`,
-		{1, 7}: `{"cm":1,"f":"FILTER(C1:C3,C1:C3-1)","fa":"G1:G2","v":3}`,
+		{1, 7}: `{"cm":1,"f":"_xlfn._xlws.FILTER(C1:C3,C1:C3-1)","fa":"G1:G2","v":3}`,
 		{2, 7}: `{"v":2}`,
-		{1, 8}: `{"f":"SUM(A1#)","v":6}`,
+		{1, 8}: `{"f":"SUM(_xlfn.ANCHORARRAY(A1))","v":6}`,
 	}
 	for p, w := range want {
 		if got := string(tree.Node(id).Grid.Cell(p[0], p[1])); got != w {
@@ -88,10 +88,9 @@ func TestSpillRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stored := strings.NewReplacer(`"SEQUENCE(`, `"_xlfn.SEQUENCE(`, `"SORT(`, `"_xlfn._xlws.SORT(`, `"FILTER(`, `"_xlfn._xlws.FILTER(`, `SUM(A1#)`, `SUM(_xlfn.ANCHORARRAY(A1))`)
 	for p, w := range want {
-		if got := string(again.Node(firstSheet(again).ID).Grid.Cell(p[0], p[1])); got != stored.Replace(w) {
-			t.Errorf("cell %v read back: %s, want %s", p, got, stored.Replace(w))
+		if got := string(again.Node(firstSheet(again).ID).Grid.Cell(p[0], p[1])); got != w {
+			t.Errorf("cell %v read back: %s, want %s", p, got, w)
 		}
 	}
 	reread := NewCalc(again, formula.Options{})
@@ -147,7 +146,7 @@ func TestSpillRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := string(json.RawMessage(third.Node(firstSheet(third).ID).Grid.Cell(1, 1))); got != stored.Replace(want[[2]int{1, 1}]) {
+	if got := string(json.RawMessage(third.Node(firstSheet(third).ID).Grid.Cell(1, 1))); got != want[[2]int{1, 1}] {
 		t.Errorf("A1 after two saves: %s", got)
 	}
 }

@@ -363,7 +363,7 @@ func (c *sheetWriter) cell(r, col int, raw json.RawMessage) {
 			c.attr("ca", "1")
 		}
 		c.buf.WriteByte('>')
-		c.buf.Write(escapeText(formula.Stored(f.F)))
+		c.buf.Write(escapeText(f.F))
 		c.end("f")
 	}
 	if value != nil {
