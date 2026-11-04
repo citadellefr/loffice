@@ -30,18 +30,40 @@ class GradientSpec {
   final List<double> stops;
 }
 
-/// The gradients of the shaders made by [gradient], and the files of the
-/// pictures decoded: what an export writes in place of pixels.
+/// A tile as it was asked of the engine, which does not tell it back:
+/// [matrix] places it, as the shader was given it.
+sealed class TileSpec {
+  const TileSpec(this.matrix);
+
+  final Float64List matrix;
+}
+
+/// A picture repeated.
+class ImageTile extends TileSpec {
+  const ImageTile(this.image, super.matrix);
+
+  final ui.Image image;
+}
+
+/// A pattern fill of DrawingML: [bits] are the rows of eight pixels, set
+/// ones in [fg] and the others in [bg].
+class PatternTile extends TileSpec {
+  const PatternTile(this.bits, this.fg, this.bg, super.matrix);
+
+  final List<int> bits;
+  final Color fg, bg;
+}
+
+/// The gradients of the shaders made by [gradient], the tiles of those that
+/// repeat, and the files of the pictures decoded: what an export writes in
+/// place of pixels.
 final _gradients = Expando<GradientSpec>();
+final _tiles = Expando<TileSpec>();
 final pictureFiles = Expando<Uint8List>();
 
-/// The color that stands on an export for a shader it cannot write: the
-/// tile of a pattern.
-final _flats = Expando<Color>();
-
-/// Remembers the color an export fills with in place of [shader].
-T flat<T extends ui.Shader>(T shader, Color color) {
-  _flats[shader] = color;
+/// Remembers the tile an export fills with for [shader].
+T tiled<T extends ui.Shader>(T shader, TileSpec tile) {
+  _tiles[shader] = tile;
   return shader;
 }
 
@@ -53,8 +75,8 @@ ui.Gradient gradient(GradientSpec spec) {
 }
 
 /// A document exported as a PDF: each page is painted on a canvas as it is
-/// on screen, and written as lines, curves and text set in the fonts of
-/// [OfficeFonts].
+/// on screen, and written as lines, curves, pictures and text set in the
+/// fonts of [OfficeFonts].
 class PdfExport {
   PdfExport() {
     if (OfficeFonts.file('Carlito') == null) {
@@ -69,9 +91,14 @@ class PdfExport {
   /// The characters no font of the export draws, left blank on its pages.
   final missing = <String>{};
 
+  /// What painters asked of their canvas and the export leaves aside: the
+  /// vertices, atlases, paragraphs and pictures of the engine, filters and
+  /// blend modes. Each is drawn as nothing, or as its plainest form.
+  final ignored = <String>{};
+
   /// Adds a page of [size], in points, painted by [paint].
   Future<void> page(Size size, void Function(Canvas canvas) paint) async {
-    final canvas = PdfCanvas._(this);
+    final canvas = PdfCanvas._(this, size);
     paint(canvas);
     _doc.addPage(size.width, size.height, await canvas._finish());
   }
@@ -90,6 +117,7 @@ class PdfExport {
     final file = pictureFiles[image];
     if (file != null) {
       if (_jpegFrame(file) case final frame?) return _doc.jpeg(frame.width, frame.height, frame.components, file);
+      if (_pngFrame(file) case final frame?) return _doc.png(frame.width, frame.height, frame.space, frame.depth, frame.colors, frame.data);
     }
     final data = await image.toByteData(format: ui.ImageByteFormat.rawStraightRgba);
     if (data == null) return null;
@@ -126,28 +154,107 @@ class PdfExport {
   return null;
 }
 
+/// The size, color space and zlib stream of an opaque PNG file that a PDF
+/// reads as it is: not interlaced, in gray or palette colors of up to eight
+/// bits or in eight-bit RGB, without a transparent color. Null for another.
+({int width, int height, String space, int depth, int colors, Uint8List data})? _pngFrame(Uint8List file) {
+  const signature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+  if (file.length < 33 || !signature.indexed.every((e) => file[e.$1] == e.$2)) return null;
+  final bytes = ByteData.sublistView(file);
+  var width = 0, height = 0, depth = 0, type = -1;
+  Uint8List? palette;
+  final data = BytesBuilder(copy: false);
+  for (var at = 8; at + 12 <= file.length;) {
+    final length = bytes.getUint32(at), end = at + 12 + length;
+    if (end > file.length) return null;
+    final body = Uint8List.sublistView(file, at + 8, at + 8 + length);
+    switch (String.fromCharCodes(file, at + 4, at + 8)) {
+      case 'IHDR':
+        if (length < 13 || body[10] != 0 || body[11] != 0 || body[12] != 0) return null;
+        width = bytes.getUint32(at + 8);
+        height = bytes.getUint32(at + 12);
+        depth = body[8];
+        type = body[9];
+      case 'PLTE':
+        palette = body;
+      case 'tRNS':
+        return null;
+      case 'IDAT':
+        data.add(body);
+      case 'IEND':
+        final space = switch (type) {
+          0 => '/DeviceGray',
+          2 => '/DeviceRGB',
+          3 when palette != null && palette.length >= 3 => '[/Indexed /DeviceRGB ${palette.length ~/ 3 - 1} <${palette.map((b) => b.toRadixString(16).padLeft(2, '0')).join()}>]',
+          _ => null,
+        };
+        if (space == null || width == 0 || height == 0 || data.isEmpty) return null;
+        if (type == 2 ? depth != 8 : !const [1, 2, 4, 8].contains(depth)) return null;
+        return (width: width, height: height, space: space, depth: depth, colors: type == 2 ? 3 : 1, data: data.takeBytes());
+    }
+    at = end;
+  }
+  return null;
+}
+
+/// An affine transform of the plane: a point goes to
+/// (a x + c y + e, b x + d y + f).
+class _Affine {
+  const _Affine(this.a, this.b, this.c, this.d, this.e, this.f);
+
+  /// The transform of a shader or a canvas, given as the engine has them.
+  _Affine.of(Float64List m) : this(m[0], m[1], m[4], m[5], m[12], m[13]);
+
+  static const identity = _Affine(1, 0, 0, 1, 0, 0);
+
+  final double a, b, c, d, e, f;
+
+  /// This transform followed by [next].
+  _Affine then(_Affine next) =>
+      _Affine(a * next.a + b * next.c, a * next.b + b * next.d, c * next.a + d * next.c, c * next.b + d * next.d, e * next.a + f * next.c + next.e, e * next.b + f * next.d + next.f);
+
+  _Affine? get inverse {
+    final det = a * d - b * c;
+    if (det == 0) return null;
+    return _Affine(d / det, -b / det, -c / det, a / det, (c * f - d * e) / det, (b * e - a * f) / det);
+  }
+
+  Rect bounds(Rect r) {
+    final corners = [r.topLeft, r.topRight, r.bottomLeft, r.bottomRight].map((p) => Offset(a * p.dx + c * p.dy + e, b * p.dx + d * p.dy + f));
+    return Rect.fromLTRB(corners.map((p) => p.dx).reduce(math.min), corners.map((p) => p.dy).reduce(math.min), corners.map((p) => p.dx).reduce(math.max), corners.map((p) => p.dy).reduce(math.max));
+  }
+
+  List<double> get list => [a, b, c, d, e, f];
+}
+
 /// What the operators of a page last set, which the next ones need not
 /// set again.
 class _State {
-  _State({this.fill, this.stroke, this.gs, this.width, this.cap, this.join, this.opacity = 1});
+  _State({this.fill, this.stroke, this.gs, this.width, this.cap, this.join, this.opacity = 1, this.transform = _Affine.identity});
 
   String? fill, stroke, gs, width, cap, join;
 
   /// The opacity of the layers the drawing is in.
   double opacity;
 
-  _State copy() => _State(fill: fill, stroke: stroke, gs: gs, width: width, cap: cap, join: join, opacity: opacity);
+  /// Where the drawing is on the page.
+  _Affine transform;
+
+  _State copy() => _State(fill: fill, stroke: stroke, gs: gs, width: width, cap: cap, join: join, opacity: opacity, transform: transform);
 }
 
-/// The canvas of a page of a [PdfExport]. It takes what the painters of
-/// the package ask of a canvas, and refuses the rest.
+/// The canvas of a page of a [PdfExport]. It writes what the painters of the
+/// package ask of a canvas; what a PDF has no word for is left aside, and
+/// told in [PdfExport.ignored].
 class PdfCanvas implements Canvas {
-  PdfCanvas._(this._export);
+  PdfCanvas._(this._export, this._size);
 
   final PdfExport _export;
+  final Size _size;
   final _out = StringBuffer();
   final _states = [_State()];
   final _pictures = <(String, ui.Image)>[];
+  final _patterns = <(Object, String), ({String mark, TileSpec spec, _Affine matrix})>{};
 
   _State get _state => _states.last;
   PdfDocument get _doc => _export._doc;
@@ -164,11 +271,46 @@ class PdfCanvas implements Canvas {
       final name = await _export._image(image);
       content = content.replaceAll(mark, name == null ? 'n' : '/$name Do');
     }
+    for (final (:mark, :spec, :matrix) in _patterns.values) {
+      content = content.replaceAll(mark, '/${await _pattern(spec, matrix)}');
+    }
     return content;
   }
 
+  /// The pattern of a tile placed by [matrix] on the page.
+  Future<String> _pattern(TileSpec spec, _Affine matrix) async {
+    switch (spec) {
+      case ImageTile(:final image):
+        final name = await _export._image(image);
+        final w = image.width.toDouble(), h = image.height.toDouble();
+        return _doc.tiling(matrix.list, w, h, name == null ? '' : '${pdfNumber(w)} 0 0 ${pdfNumber(-h)} 0 ${pdfNumber(h)} cm /$name Do', [?name]);
+      case PatternTile(:final bits, :final fg, :final bg):
+        final out = StringBuffer();
+        if (bg.a > 0) out.write('${_rgb(bg)} rg 0 0 8 8 re f ');
+        var any = false;
+        out.write('${_rgb(fg)} rg ');
+        for (var y = 0; y < 8; y++) {
+          for (var x = 0; x < 8; x++) {
+            if (bits[y] & (0x80 >> x) == 0) continue;
+            var length = 1;
+            while (x + length < 8 && bits[y] & (0x80 >> (x + length)) != 0) {
+              length++;
+            }
+            out.write('$x $y $length 1 re ');
+            x += length;
+            any = true;
+          }
+        }
+        if (any) out.write('f');
+        return _doc.tiling(matrix.list, 8, 8, '$out');
+    }
+  }
+
   @override
-  dynamic noSuchMethod(Invocation invocation) => throw UnsupportedError('${invocation.memberName} is not exported to PDF');
+  dynamic noSuchMethod(Invocation invocation) {
+    _export.ignored.add(RegExp(r'"(.*)"').firstMatch('${invocation.memberName}')?.group(1) ?? 'canvas');
+    return null;
+  }
 
   // state
 
@@ -180,6 +322,7 @@ class PdfCanvas implements Canvas {
 
   @override
   void saveLayer(Rect? bounds, Paint paint) {
+    _leftAside(paint, 'saveLayer');
     save();
     _state.opacity *= paint.color.a;
   }
@@ -192,9 +335,19 @@ class PdfCanvas implements Canvas {
   }
 
   @override
+  void restoreToCount(int count) {
+    while (_states.length > math.max(count, 1)) {
+      restore();
+    }
+  }
+
+  @override
   int getSaveCount() => _states.length;
 
-  void _matrix(double a, double b, double c, double d, double e, double f) => _out.writeln('${[a, b, c, d, e, f].map(pdfNumber).join(' ')} cm');
+  void _matrix(double a, double b, double c, double d, double e, double f) {
+    _out.writeln('${[a, b, c, d, e, f].map(pdfNumber).join(' ')} cm');
+    _state.transform = _Affine(a, b, c, d, e, f).then(_state.transform);
+  }
 
   @override
   void translate(double dx, double dy) => _matrix(1, 0, 0, 1, dx, dy);
@@ -212,13 +365,29 @@ class PdfCanvas implements Canvas {
   void transform(Float64List matrix4) => _matrix(matrix4[0], matrix4[1], matrix4[4], matrix4[5], matrix4[12], matrix4[13]);
 
   @override
+  Float64List getTransform() {
+    final t = _state.transform;
+    return Float64List.fromList([t.a, t.b, 0, 0, t.c, t.d, 0, 0, 0, 0, 1, 0, t.e, t.f, 0, 1]);
+  }
+
+  @override
   void clipRect(Rect rect, {ui.ClipOp clipOp = ui.ClipOp.intersect, bool doAntiAlias = true}) => _out.writeln('${_rect(rect)} W n');
 
   @override
   void clipRRect(RRect rrect, {bool doAntiAlias = true}) => _out.writeln('${_rrect(rrect)} W n');
 
   @override
+  void clipRSuperellipse(ui.RSuperellipse rsuperellipse, {bool doAntiAlias = true}) => clipPath(Path()..addRSuperellipse(rsuperellipse));
+
+  @override
   void clipPath(Path path, {bool doAntiAlias = true}) => _out.writeln('${_path(path)} ${path.fillType == PathFillType.evenOdd ? 'W*' : 'W'} n');
+
+  /// The clip is not followed: the bounds are those of the page.
+  @override
+  Rect getDestinationClipBounds() => Offset.zero & _size;
+
+  @override
+  Rect getLocalClipBounds() => (_state.transform.inverse ?? _Affine.identity).bounds(getDestinationClipBounds());
 
   // shapes
 
@@ -306,42 +475,106 @@ class PdfCanvas implements Canvas {
     _set((s) => s.gs, (s, v) => s.gs = v, '/${_doc.alpha(a, a)}', 'gs');
   }
 
+  /// Notes what [paint] asks beyond what an export writes: a color filter,
+  /// an image filter or a blend mode.
+  void _leftAside(Paint paint, String drawing) {
+    if (paint.colorFilter != null) _export.ignored.add('$drawing with a color filter');
+    if (paint.imageFilter != null) _export.ignored.add('$drawing with an image filter');
+    if (paint.blendMode != BlendMode.srcOver) _export.ignored.add('$drawing in blend mode ${paint.blendMode.name}');
+  }
+
+  /// The tile that stands in a page for a repeated picture or pattern drawn
+  /// from the origin of the canvas as it is now: the pattern is written
+  /// once the pictures are encoded, and is marked until then.
+  String _tile(TileSpec spec) {
+    final matrix = _Affine.of(spec.matrix).then(_state.transform).then(_Affine(1, 0, 0, -1, 0, _size.height));
+    final key = (spec is ImageTile ? spec.image : spec, matrix.list.join(' '));
+    return (_patterns[key] ??= (mark: '%pattern${_patterns.length}%', spec: spec, matrix: matrix)).mark;
+  }
+
   /// Fills or strokes [shape], the operators of a path, as [paint] says.
-  /// What a PDF has no simple word for is left out: blurs, tiled pictures;
-  /// a pattern is filled with the color between its two.
+  /// A blur is written as shapes that fade out; the filters and blend modes
+  /// of a paint are left aside.
   void _draw(String shape, Paint paint, {bool evenOdd = false, bool? stroke}) {
-    if (paint.maskFilter != null || shape.isEmpty) return;
-    if (stroke ?? paint.style == PaintingStyle.stroke) {
-      _opacity(paint.color.a);
-      _set((s) => s.stroke, (s, v) => s.stroke = v, _rgb(paint.color), 'RG');
-      _set((s) => s.width, (s, v) => s.width = v, pdfNumber(math.max(paint.strokeWidth, 0.1)), 'w');
-      _set((s) => s.cap, (s, v) => s.cap = v, '${paint.strokeCap.index}', 'J');
-      _set((s) => s.join, (s, v) => s.join = v, '${paint.strokeJoin.index}', 'j');
-      _out.writeln('$shape S');
+    if (shape.isEmpty) return;
+    _leftAside(paint, 'a shape');
+    final outline = stroke ?? paint.style == PaintingStyle.stroke;
+    if (paint.maskFilter case final blur?) {
+      final sigma = RegExp(r', ([\d.]+)\)$').firstMatch('$blur')?.group(1);
+      if (sigma == null) {
+        _export.ignored.add('a mask filter');
+        return;
+      }
+      _blur(shape, paint, double.parse(sigma), evenOdd: evenOdd, stroke: outline);
+      return;
+    }
+    if (outline) {
+      _stroke(shape, paint, paint.strokeWidth);
       return;
     }
     final shader = paint.shader;
     if (shader == null) {
-      _opacity(paint.color.a);
-      _set((s) => s.fill, (s, v) => s.fill = v, _rgb(paint.color), 'rg');
+      _fill(shape, paint.color, paint.color.a, evenOdd);
+    } else if (_gradients[shader] case final spec?) {
+      final coords = spec.center == null ? [spec.from!.dx, spec.from!.dy, spec.to!.dx, spec.to!.dy] : [spec.center!.dx, spec.center!.dy, 0.0, spec.center!.dx, spec.center!.dy, spec.radius];
+      final name = _doc.shading(coords, [
+        for (final c in spec.colors) [c.r, c.g, c.b],
+      ], spec.stops);
+      _opacity(spec.colors.map((c) => c.a).reduce(math.max) * paint.color.a);
+      _out.writeln('q $shape ${evenOdd ? 'W*' : 'W'} n /$name sh Q');
+    } else if (_tiles[shader] case final tile?) {
+      _opacity(paint.color.a * (tile is PatternTile ? tile.fg.a : 1));
+      _set((s) => s.fill, (s, v) => s.fill = v, '/Pattern cs ${_tile(tile)}', 'scn');
       _out.writeln('$shape ${evenOdd ? 'f*' : 'f'}');
-      return;
+    } else {
+      _export.ignored.add('a shader');
     }
-    final spec = _gradients[shader];
-    if (spec == null) {
-      final color = _flats[shader];
-      if (color == null) return;
-      _opacity(color.a * paint.color.a);
-      _set((s) => s.fill, (s, v) => s.fill = v, _rgb(color), 'rg');
-      _out.writeln('$shape ${evenOdd ? 'f*' : 'f'}');
-      return;
+  }
+
+  void _fill(String shape, Color color, double opacity, bool evenOdd) {
+    _opacity(opacity);
+    _set((s) => s.fill, (s, v) => s.fill = v, _rgb(color), 'rg');
+    _out.writeln('$shape ${evenOdd ? 'f*' : 'f'}');
+  }
+
+  void _stroke(String shape, Paint paint, double width, {String operator = 'S'}) {
+    _opacity(paint.color.a);
+    _set((s) => s.stroke, (s, v) => s.stroke = v, _rgb(paint.color), 'RG');
+    _set((s) => s.width, (s, v) => s.width = v, pdfNumber(math.max(width, 0.1)), 'w');
+    _set((s) => s.cap, (s, v) => s.cap = v, '${paint.strokeCap.index}', 'J');
+    _set((s) => s.join, (s, v) => s.join = v, '${paint.strokeJoin.index}', 'j');
+    _out.writeln('$shape $operator');
+  }
+
+  /// How many shapes a blur is written as: the first widest and faintest,
+  /// the last the shape itself.
+  static const _blurLayers = 8;
+
+  /// Writes [shape] blurred by a Gaussian of [sigma], as shapes grown by
+  /// wider and wider strokes, each fainter than the one it covers. The
+  /// shape only grows: the blur stays outside of it.
+  void _blur(String shape, Paint paint, double sigma, {required bool evenOdd, required bool stroke}) {
+    double normal(double x) => 1 / (1 + math.exp(-1.702 * x));
+    final opacity = paint.color.a;
+    var covered = 0.0;
+    for (var i = 0; i <= _blurLayers; i++) {
+      final grow = 3 * sigma * (_blurLayers - i) / _blurLayers;
+      final target = i == _blurLayers ? opacity : opacity * (1 - normal((grow - 1.5 * sigma) / sigma));
+      final layer = covered >= 1 ? 0.0 : 1 - (1 - target) / (1 - covered);
+      covered = target;
+      final faint = Paint()
+        ..color = paint.color.withValues(alpha: layer)
+        ..strokeCap = paint.strokeCap
+        ..strokeJoin = i == _blurLayers ? paint.strokeJoin : StrokeJoin.round;
+      if (stroke) {
+        _stroke(shape, faint, paint.strokeWidth + 2 * grow);
+      } else if (grow == 0) {
+        _fill(shape, faint.color, layer, evenOdd);
+      } else {
+        _set((s) => s.fill, (s, v) => s.fill = v, _rgb(paint.color), 'rg');
+        _stroke(shape, faint, 2 * grow, operator: evenOdd ? 'B*' : 'B');
+      }
     }
-    final coords = spec.center == null ? [spec.from!.dx, spec.from!.dy, spec.to!.dx, spec.to!.dy] : [spec.center!.dx, spec.center!.dy, 0.0, spec.center!.dx, spec.center!.dy, spec.radius];
-    final name = _doc.shading(coords, [
-      for (final c in spec.colors) [c.r, c.g, c.b],
-    ], spec.stops);
-    _opacity(spec.colors.map((c) => c.a).reduce(math.max) * paint.color.a);
-    _out.writeln('q $shape ${evenOdd ? 'W*' : 'W'} n /$name sh Q');
   }
 
   @override
@@ -349,6 +582,12 @@ class PdfCanvas implements Canvas {
 
   @override
   void drawRRect(RRect rrect, Paint paint) => _draw(_rrect(rrect), paint);
+
+  @override
+  void drawDRRect(RRect outer, RRect inner, Paint paint) => _draw('${_rrect(outer)} ${_rrect(inner)}', paint, evenOdd: true);
+
+  @override
+  void drawRSuperellipse(ui.RSuperellipse rsuperellipse, Paint paint) => drawPath(Path()..addRSuperellipse(rsuperellipse), paint);
 
   @override
   void drawOval(Rect rect, Paint paint) => _draw(_rrect(RRect.fromRectAndRadius(rect, Radius.elliptical(rect.width / 2, rect.height / 2))), paint);
@@ -372,20 +611,113 @@ class PdfCanvas implements Canvas {
   void drawPath(Path path, Paint paint) => _draw(_path(path), paint, evenOdd: path.fillType == PathFillType.evenOdd);
 
   @override
+  void drawPaint(Paint paint) => drawRect(getLocalClipBounds(), paint);
+
+  @override
+  void drawColor(Color color, BlendMode blendMode) {
+    if (blendMode == BlendMode.srcOver || blendMode == BlendMode.src) {
+      drawPaint(Paint()..color = color);
+    } else {
+      _export.ignored.add('a color in blend mode ${blendMode.name}');
+    }
+  }
+
+  /// Points are drawn as the squares or the discs of the width of the
+  /// stroke, lines and polygons as strokes.
+  @override
+  void drawPoints(ui.PointMode pointMode, List<Offset> points, Paint paint) {
+    switch (pointMode) {
+      case ui.PointMode.points:
+        final dot = Paint()..color = paint.color;
+        for (final p in points) {
+          final box = Rect.fromCenter(center: p, width: paint.strokeWidth, height: paint.strokeWidth);
+          if (paint.strokeCap == StrokeCap.round) {
+            drawOval(box, dot);
+          } else {
+            drawRect(box, dot);
+          }
+        }
+      case ui.PointMode.lines:
+        for (var i = 0; i + 1 < points.length; i += 2) {
+          drawLine(points[i], points[i + 1], paint);
+        }
+      case ui.PointMode.polygon:
+        for (var i = 0; i + 1 < points.length; i++) {
+          drawLine(points[i], points[i + 1], paint);
+        }
+    }
+  }
+
+  @override
+  void drawRawPoints(ui.PointMode pointMode, Float32List points, Paint paint) => drawPoints(pointMode, [for (var i = 0; i + 1 < points.length; i += 2) Offset(points[i], points[i + 1])], paint);
+
+  /// A shadow as Material draws them: the shape lowered, blurred and faint.
+  @override
+  void drawShadow(Path path, Color color, double elevation, bool transparentOccluder) {
+    save();
+    translate(0, elevation / 2);
+    _blur(_path(path), Paint()..color = color.withValues(alpha: color.a * 0.3), elevation / 2, evenOdd: path.fillType == PathFillType.evenOdd, stroke: false);
+    restore();
+  }
+
+  @override
+  void drawImage(ui.Image image, Offset offset, Paint paint) {
+    final size = Size(image.width.toDouble(), image.height.toDouble());
+    drawImageRect(image, Offset.zero & size, offset & size, paint);
+  }
+
+  @override
   void drawImageRect(ui.Image image, Rect src, Rect dst, Paint paint) {
     if (src.isEmpty || dst.isEmpty) return;
+    _leftAside(paint, 'a picture');
     final mark = '%picture${_pictures.length}%';
     _pictures.add((mark, image));
-    _out.writeln('q');
-    final previous = _state.gs;
+    save();
     _opacity(paint.color.a);
     _out.writeln('${_rect(dst)} W n');
     // the whole picture is placed so that src falls on dst
     final sx = dst.width / src.width, sy = dst.height / src.height;
     _matrix(image.width * sx, 0, 0, -image.height * sy, dst.left - src.left * sx, dst.top - src.top * sy + image.height * sy);
-    _out.writeln('$mark\nQ');
-    _state.gs = previous;
+    _out.writeln(mark);
+    restore();
   }
+
+  /// A picture in nine parts: the corners as they are, the sides stretched
+  /// along themselves and the center both ways.
+  @override
+  void drawImageNine(ui.Image image, Rect center, Rect dst, Paint paint) {
+    final xs = [0.0, center.left, center.right, image.width.toDouble()];
+    final ys = [0.0, center.top, center.bottom, image.height.toDouble()];
+    // the corners keep their size, unless dst is smaller than both of them
+    final left = math.min(center.left, dst.width * center.left / (center.left + image.width - center.right));
+    final right = math.min(image.width - center.right, dst.width - left);
+    final top = math.min(center.top, dst.height * center.top / (center.top + image.height - center.bottom));
+    final bottom = math.min(image.height - center.bottom, dst.height - top);
+    final dx = [dst.left, dst.left + left, dst.right - right, dst.right];
+    final dy = [dst.top, dst.top + top, dst.bottom - bottom, dst.bottom];
+    for (var row = 0; row < 3; row++) {
+      for (var column = 0; column < 3; column++) {
+        drawImageRect(image, Rect.fromLTRB(xs[column], ys[row], xs[column + 1], ys[row + 1]), Rect.fromLTRB(dx[column], dy[row], dx[column + 1], dy[row + 1]), paint);
+      }
+    }
+  }
+
+  // what a PDF cannot be told of
+
+  @override
+  void drawPicture(ui.Picture picture) => _export.ignored.add('a picture of the engine');
+
+  @override
+  void drawParagraph(ui.Paragraph paragraph, Offset offset) => _export.ignored.add('a paragraph of the engine');
+
+  @override
+  void drawVertices(ui.Vertices vertices, BlendMode blendMode, Paint paint) => _export.ignored.add('vertices');
+
+  @override
+  void drawAtlas(ui.Image atlas, List<ui.RSTransform> transforms, List<Rect> rects, List<Color>? colors, BlendMode? blendMode, Rect? cullRect, Paint paint) => _export.ignored.add('an atlas');
+
+  @override
+  void drawRawAtlas(ui.Image atlas, Float32List rstTransforms, Float32List rects, Int32List? colors, BlendMode? blendMode, Rect? cullRect, Paint paint) => _export.ignored.add('an atlas');
 
   // text
 

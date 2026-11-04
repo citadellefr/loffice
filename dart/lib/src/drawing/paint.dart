@@ -92,7 +92,7 @@ class DrawingPainter {
     if (patt is Map<String, Object?>) {
       final fg = colors.resolve(patt['fg']) ?? const Color(0xFF000000);
       final bg = colors.resolve(patt['bg']) ?? const Color(0xFFFFFFFF);
-      return Paint()..shader = flat(_pattern(patt['prst'] as String? ?? '', shade(fg), shade(bg)), Color.lerp(shade(bg), shade(fg), 0.5)!);
+      return Paint()..shader = _pattern(patt['prst'] as String? ?? '', shade(fg), shade(bg));
     }
     return null;
   }
@@ -120,7 +120,8 @@ class DrawingPainter {
     final alpha = blip['alpha'];
     if (alpha is num) paint.color = Color.fromRGBO(0, 0, 0, (alpha / 100000).clamp(0, 1));
     if (blip['tile'] == true) {
-      paint.shader = ImageShader(image, TileMode.repeated, TileMode.repeated, Float64List.fromList([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]));
+      final matrix = Float64List.fromList([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+      paint.shader = tiled(ImageShader(image, TileMode.repeated, TileMode.repeated, matrix), ImageTile(image, matrix));
       canvas.drawRect(box, paint);
       return;
     }
@@ -269,7 +270,8 @@ Shader _pattern(String preset, Color fg, Color bg) => _patterns.putIfAbsent('$pr
   }
   final image = recorder.endRecording().toImageSync(8, 8);
   // a pixel of the pattern is a point of the slide at 100 %
-  return ImageShader(image, TileMode.repeated, TileMode.repeated, Float64List.fromList([0.75, 0, 0, 0, 0, 0.75, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]));
+  final matrix = Float64List.fromList([0.75, 0, 0, 0, 0, 0.75, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+  return tiled(ImageShader(image, TileMode.repeated, TileMode.repeated, matrix), PatternTile(bits, fg, bg, matrix));
 });
 
 /// The patterns, row by row.
