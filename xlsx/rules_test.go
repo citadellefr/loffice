@@ -56,6 +56,12 @@ const (
 // extension of Excel 2010, and validations, one in an extension too.
 func rulesBook(t *testing.T) (*Document, *ot.Tree, []byte) {
 	t.Helper()
+	return rulesBookWith(t, "", "")
+}
+
+// rulesBookWith has the validations given in its two lists.
+func rulesBookWith(t *testing.T, listed, extended string) (*Document, *ot.Tree, []byte) {
+	t.Helper()
 	const rels = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 	data := zipOf(t, map[string][]byte{
 		"[Content_Types].xml": []byte(xmlHeader + `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
@@ -83,14 +89,14 @@ func rulesBook(t *testing.T) (*Document, *ot.Tree, []byte) {
 			`<conditionalFormatting sqref="B1:B5">` + rulesBar + `</conditionalFormatting>` +
 			`<conditionalFormatting sqref="C1:C5">` + rulesText + `</conditionalFormatting>` +
 			`<dataValidations count="1"><dataValidation type="whole" operator="greaterThan" allowBlank="1" showErrorMessage="1" sqref="A1:A5">` +
-			`<formula1>0</formula1></dataValidation></dataValidations>` +
+			`<formula1>0</formula1></dataValidation>` + listed + `</dataValidations>` +
 			`<extLst><ext uri="{78C0D931-6437-407d-A8EE-F0AAD7539E65}" xmlns:x14="` + x14NS + `" xmlns:xm="` + xmNS + `">` +
 			`<x14:conditionalFormattings><x14:conditionalFormatting><x14:cfRule type="dataBar" id="{AAAA}"><x14:dataBar minLength="0" maxLength="100">` +
 			`<x14:cfvo type="autoMin"/><x14:cfvo type="autoMax"/></x14:dataBar></x14:cfRule><xm:sqref>B1:B5</xm:sqref></x14:conditionalFormatting>` +
 			`</x14:conditionalFormattings></ext>` +
 			`<ext uri="{CCE6A557-97BC-4b89-ADB6-D9C93CAAB3DF}" xmlns:x14="` + x14NS + `" xmlns:xm="` + xmNS + `">` +
 			`<x14:dataValidations count="1"><x14:dataValidation type="list" allowBlank="1" showInputMessage="1" promptTitle="Choix" prompt="Un nom">` +
-			`<x14:formula1><xm:f>Feuil2!$A$1:$A$3</xm:f></x14:formula1><xm:sqref>D1:D5</xm:sqref></x14:dataValidation></x14:dataValidations></ext>` +
+			`<x14:formula1><xm:f>Feuil2!$A$1:$A$3</xm:f></x14:formula1><xm:sqref>D1:D5</xm:sqref></x14:dataValidation>` + extended + `</x14:dataValidations></ext>` +
 			`</extLst></worksheet>`),
 	})
 	d, tree, err := Open(data, Limits{})
@@ -229,6 +235,50 @@ func TestValidationWrite(t *testing.T) {
 	_, read, sheet, _, _ = saved(t, d, read)
 	if read.Node("S1").Attrs[validKey] != nil || strings.Contains(sheet, "dataValidation") {
 		t.Errorf("validations left in %s", sheet)
+	}
+}
+
+const (
+	keptListed   = `<dataValidation type="whole" sqref="F2:F4"><formula1>1</formula1></dataValidation>`
+	keptExtended = `<x14:dataValidation type="whole"><x14:formula1><xm:f>1</xm:f></x14:formula1><xm:sqref>G2:G4</xm:sqref></x14:dataValidation>`
+)
+
+// The validations the model cannot show stay as they are when another is
+// edited, move with the rows, and go with the cells they covered.
+func TestValidationKept(t *testing.T) {
+	d, tree, _ := rulesBookWith(t, keptListed, keptExtended)
+	var valid []Validation
+	_ = json.Unmarshal(tree.Node("S1").Attrs[validKey], &valid)
+	if len(valid) != 2 {
+		t.Fatalf("read as %s", tree.Node("S1").Attrs[validKey])
+	}
+	setRules(t, d, tree, ot.Values{validKey: mustJSON(append(valid[:1:1], Validation{Ref: "J1", Type: "list", F1: "$A$1:$A$3", Err: "stop"}))})
+	d, tree, sheet, _, _ := saved(t, d, tree)
+	for _, want := range []string{keptListed, keptExtended, `<dataValidations count="3">`, `<x14:dataValidations count="1">`, `sqref="J1"`} {
+		if !strings.Contains(sheet, want) {
+			t.Errorf("no %s in %s", want, sheet)
+		}
+	}
+	if strings.Contains(sheet, "Feuil2") {
+		t.Errorf("validation edited left in %s", sheet)
+	}
+
+	if err := moveRows(t, d, tree, ot.Edit{{Op: ot.OpIns, ID: "S1", Dim: ot.DimRows, At: 1, N: 2}}); err != nil {
+		t.Fatal(err)
+	}
+	_, _, sheet, _, _ = saved(t, d, tree)
+	for _, want := range []string{`sqref="F4:F6"`, `<xm:sqref>G4:G6</xm:sqref>`} {
+		if !strings.Contains(sheet, want) {
+			t.Errorf("no %s in %s", want, sheet)
+		}
+	}
+
+	if err := moveRows(t, d, tree, ot.Edit{{Op: ot.OpRem, ID: "S1", Dim: ot.DimRows, At: 4, N: 3}}); err != nil {
+		t.Fatal(err)
+	}
+	_, _, sheet, _, _ = saved(t, d, tree)
+	if strings.Contains(sheet, "F4") || strings.Contains(sheet, "G4") || strings.Contains(sheet, "x14:dataValidation") || !strings.Contains(sheet, `<dataValidations count="2">`) {
+		t.Errorf("validations of removed cells left in %s", sheet)
 	}
 }
 
