@@ -124,8 +124,17 @@ func Open(data []byte, limits Limits) (*Package, error) {
 		p.index[key] = pt
 	}
 	raw, err := p.read(contentTypesName)
+	if errors.Is(err, ErrNotFound) {
+		if mime, err := p.read("mimetype"); err == nil && bytes.HasPrefix(mime, []byte("application/vnd.oasis.opendocument.")) {
+			return nil, fmt.Errorf("%w: an OpenDocument file, not Open XML", ErrInvalid)
+		}
+		return nil, fmt.Errorf("%w: %s is missing", ErrInvalid, contentTypesName)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalid, err)
+	}
+	if raw, err = utf8XML(contentTypesName, raw); err != nil {
+		return nil, err
 	}
 	if p.types, err = parseContentTypes(raw); err != nil {
 		return nil, err
@@ -176,6 +185,11 @@ func (p *Package) Read(name string) ([]byte, error) {
 	data, err := p.read(name)
 	if err != nil {
 		return nil, err
+	}
+	if strings.HasSuffix(p.ContentType(name), "xml") {
+		if data, err = utf8XML(name, data); err != nil {
+			return nil, err
+		}
 	}
 	return p.translate(p.ContentType(name), data, toTransitional), nil
 }
