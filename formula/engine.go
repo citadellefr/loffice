@@ -224,7 +224,7 @@ func (e *Engine) set(p Pos, f string, array *Area, dynamic bool) {
 		e.spills[p] = cf
 		e.spreads(cf)
 	}
-	e.reads(x, p.Sheet, 0, func(a Area3) { cf.reads = append(cf.reads, a) }, func(name string) {
+	e.reads(x, p, 0, func(a Area3) { cf.reads = append(cf.reads, a) }, func(name string) {
 		if f := functions[name]; f != nil && f.volatile {
 			e.volatile[p] = true
 		}
@@ -314,7 +314,8 @@ func (e *Engine) unindex(p Pos, cf *cellFormula) {
 // reads calls f with the areas a formula reads, those of the names it
 // uses included but not those only placing a result, and calls calls with
 // the functions it calls.
-func (e *Engine) reads(x Expr, sheet, depth int, f func(Area3), calls func(name string)) {
+func (e *Engine) reads(x Expr, p Pos, depth int, f func(Area3), calls func(name string)) {
+	sheet := p.Sheet
 	switch x := x.(type) {
 	case refExpr:
 		r := x.ref
@@ -338,29 +339,43 @@ func (e *Engine) reads(x Expr, sheet, depth int, f func(Area3), calls func(name 
 				s = ss[0]
 			}
 		}
-		if text, ok := e.src.Name(x.name, s); ok && depth < maxDepth {
-			if y, err := Parse(text); err == nil {
-				e.reads(y, s, depth+1, f, calls)
+		if text, ok := e.src.Name(x.name, s); ok {
+			if y, err := Parse(text); err == nil && depth < maxDepth {
+				e.reads(y, Pos{s, p.Row, p.Col}, depth+1, f, calls)
 			}
+		} else if tb, ok := e.src.(Tables); ok {
+			e.readsTable(tb, Structured{Table: x.name}, p, f)
+		}
+	case structExpr:
+		if tb, ok := e.src.(Tables); ok {
+			e.readsTable(tb, x.s, p, f)
 		}
 	case unaryExpr:
-		e.reads(x.x, sheet, depth, f, calls)
+		e.reads(x.x, p, depth, f, calls)
 	case percentExpr:
-		e.reads(x.x, sheet, depth, f, calls)
+		e.reads(x.x, p, depth, f, calls)
 	case spillExpr:
-		e.reads(x.x, sheet, depth, f, calls)
+		e.reads(x.x, p, depth, f, calls)
 	case binaryExpr:
-		e.reads(x.x, sheet, depth, f, calls)
-		e.reads(x.y, sheet, depth, f, calls)
+		e.reads(x.x, p, depth, f, calls)
+		e.reads(x.y, p, depth, f, calls)
 	case callExpr:
 		calls(x.name)
 		for i, a := range x.args {
 			if placing(x.name, i) {
-				e.reads(a, sheet, depth, func(Area3) {}, calls)
+				e.reads(a, p, depth, func(Area3) {}, calls)
 			} else {
-				e.reads(a, sheet, depth, f, calls)
+				e.reads(a, p, depth, f, calls)
 			}
 		}
+	}
+}
+
+// readsTable calls f with the area a structured reference stands for in the
+// formula of a cell, if it stands for one.
+func (e *Engine) readsTable(tb Tables, s Structured, p Pos, f func(Area3)) {
+	if a, err := resolve(tb, s, p); err == nil {
+		f(a)
 	}
 }
 
@@ -1273,6 +1288,22 @@ func (b *engineBook) Name(name string, sheet int) (Expr, bool) {
 	}
 	b.names[key] = x
 	return x, x != nil
+}
+
+// Table finds a table of the source, when it has some.
+func (b *engineBook) Table(name string) (TableDef, bool) {
+	if tb, ok := b.src.(Tables); ok {
+		return tb.Table(name)
+	}
+	return TableDef{}, false
+}
+
+// TableAt finds the table of the source that holds a cell.
+func (b *engineBook) TableAt(sheet, row, col int) (TableDef, bool) {
+	if tb, ok := b.src.(Tables); ok {
+		return tb.TableAt(sheet, row, col)
+	}
+	return TableDef{}, false
 }
 
 // Hidden tells whether a row is hidden, and whether by a filter, when the

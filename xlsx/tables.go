@@ -175,16 +175,16 @@ func (t Table) shifted(sheet string, rows bool, at, n int) (Table, bool) {
 // freeColumn is a name for a new column, Colonne and a number no column
 // of a table or of those taken has.
 func freeColumn(cols, taken []TableColumn) string {
-	return freeName("Colonne", func(name string) bool {
+	return numbered("Colonne", 1, func(name string) bool {
 		has := func(c TableColumn) bool { return strings.EqualFold(c.Name, name) }
 		return slices.ContainsFunc(cols, has) || slices.ContainsFunc(taken, has)
 	})
 }
 
-// freeName is base and the first number from 1 that makes a name taken
-// does not hold.
-func freeName(base string, taken func(string) bool) string {
-	for i := 1; ; i++ {
+// numbered is base and the first number from that makes a name taken does
+// not hold.
+func numbered(base string, from int, taken func(string) bool) string {
+	for i := from; ; i++ {
 		if name := base + strconv.Itoa(i); !taken(name) {
 			return name
 		}

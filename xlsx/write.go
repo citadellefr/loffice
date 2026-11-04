@@ -40,7 +40,7 @@ func (d *Document) save(tree *ot.Tree, force bool) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	w := &writer{d: d, pkg: pkg, tree: tree, force: force, rels: slices.Clone(d.bookRels), stringRefs: map[*sheetPart]int{}, moves: d.movesOf(tree), dates: map[string]bool{}}
+	w := &writer{d: d, pkg: pkg, tree: tree, force: force, rels: slices.Clone(d.bookRels), stringRefs: map[*sheetPart]int{}, moves: d.movesOf(tree), dates: map[string]bool{}, tableNames: map[string]bool{}}
 	_ = json.Unmarshal(tree.Node("book").Attrs["date1904"], &w.date1904)
 	if err := w.save(); err != nil {
 		return nil, err
@@ -70,6 +70,13 @@ type writer struct {
 	// the 1904 date system or not.
 	dates    map[string]bool
 	date1904 bool
+	// tableNames are the parts of the tables written from the tree, which
+	// no move replays.
+	tableNames map[string]bool
+	// tableIDs are the ids the tables of the workbook have, once a new
+	// table needs one, and lastTableID the greatest.
+	tableIDs    map[int]bool
+	lastTableID int
 }
 
 // sheet is a sheet of the workbook as written.
@@ -119,9 +126,10 @@ func (w *writer) save() error {
 		}
 	}
 	removed := false
-	for _, p := range w.d.sheets {
+	for id, p := range w.d.sheets {
 		if !used[p] {
 			w.remove(p)
+			w.dropTables(id)
 			removed = true
 		}
 	}
@@ -224,14 +232,7 @@ func (w *writer) freeName(pattern string) string {
 
 // addRel adds a relationship from the workbook, and returns its id.
 func (w *writer) addRel(typ, target string) string {
-	ids := map[string]bool{}
-	for _, x := range w.rels {
-		ids[x.ID] = true
-	}
-	id := ""
-	for n := 1; id == "" || ids[id]; n++ {
-		id = "rId" + strconv.Itoa(n)
-	}
+	id := freeRel(w.rels)
 	w.rels = append(w.rels, opc.Relationship{ID: id, Type: typ, Target: target})
 	w.relsChanged = true
 	return id

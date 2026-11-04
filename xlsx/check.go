@@ -25,7 +25,7 @@ const (
 // editable are the attributes a change may set, by node type.
 var editable = map[string]map[string]bool{
 	"book":  {"names": true, "iterate": true},
-	"sheet": {"name": true, "state": true, "frozen": true, "grid": true, "rtl": true, "zoom": true, "tab": true, "dw": true, "dh": true, "filter": true, "print": true},
+	"sheet": {"name": true, "state": true, "frozen": true, "grid": true, "rtl": true, "zoom": true, "tab": true, "dw": true, "dh": true, "filter": true, "print": true, "tables": true},
 	"kept":  {"name": true, "state": true},
 }
 
@@ -46,6 +46,19 @@ func (d *Document) Check(tree *ot.Tree, e ot.Edit, _ string) error {
 		}
 		return ""
 	}
+	var view *tableView
+	tables := func(c ot.Change) bool {
+		if _, ok := c.Attrs[tablesKey]; !ok {
+			return true
+		}
+		if view == nil {
+			var ok bool
+			if view, ok = viewTables(tree, e); !ok {
+				return false
+			}
+		}
+		return d.checkTableList(c.ID, view)
+	}
 	shifts := 0
 	for _, c := range e {
 		if c.Op == ot.OpIns || c.Op == ot.OpRem {
@@ -61,7 +74,7 @@ func (d *Document) Check(tree *ot.Tree, e ot.Edit, _ string) error {
 		case ot.OpNew:
 			switch {
 			case c.Type == "sheet" && c.Parent == "book":
-				if c.Cells == nil || !d.checkAttrs("sheet", c.Attrs) || !d.checkCells(typeOf, c.Cells) {
+				if c.Cells == nil || !d.checkAttrs("sheet", c.Attrs) || !tables(c) || !d.checkCells(typeOf, c.Cells) {
 					return ErrReadOnly
 				}
 			case c.Type == "xf" && c.Parent == "":
@@ -83,7 +96,7 @@ func (d *Document) Check(tree *ot.Tree, e ot.Edit, _ string) error {
 			if c.Key != "" && t != "sheet" && t != "kept" || !d.checkAttrs(t, c.Attrs) {
 				return ErrReadOnly
 			}
-			if names, ok := c.Attrs["names"]; ok && !checkNames(typeOf, names) {
+			if names, ok := c.Attrs["names"]; ok && !checkNames(typeOf, names) || !tables(c) {
 				return ErrReadOnly
 			}
 		case ot.OpCel:
@@ -147,6 +160,8 @@ func (d *Document) checkAttrs(typ string, attrs ot.Values) bool {
 			ok = checkFilter(v)
 		case printKey:
 			ok = checkPrint(v)
+		case tablesKey:
+			ok = true
 		}
 		if !ok {
 			return false

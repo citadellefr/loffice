@@ -221,8 +221,8 @@ func (m *mover) sheet(e *xmldom.Element, own string) bool {
 var vmlAnchor = regexp.MustCompile(`<x:(Row|Column)>(\d+)</x:(?:Row|Column)>`)
 
 // moveParts moves what the parts around the sheets written hold: the anchors
-// of drawings, the areas of tables, comments and pivot tables, and the
-// formulas of charts and pivot caches.
+// of drawings, the areas of the tables the tree does not hold, of comments
+// and of pivot tables, and the formulas of charts and pivot caches.
 func (w *writer) moveParts(sheets []sheet) error {
 	m := w.mover()
 	edit := func(name string, change func(root *xmldom.Element) bool) error {
@@ -260,7 +260,9 @@ func (w *writer) moveParts(sheets []sheet) error {
 			case relDrawing:
 				err = edit(name, func(root *xmldom.Element) bool { return m.anchors(root, own) })
 			case relTable:
-				err = edit(name, func(root *xmldom.Element) bool { return m.areas(root, own) })
+				if !w.tableNames[name] {
+					err = edit(name, func(root *xmldom.Element) bool { return m.areas(root, own) })
+				}
 			case relComments, relPivotTable:
 				err = edit(name, func(root *xmldom.Element) bool { return m.areas(root, own) })
 			case relVML:

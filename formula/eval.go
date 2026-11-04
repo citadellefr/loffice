@@ -72,6 +72,8 @@ func (c *Context) Eval(e Expr) Value {
 		return Value{Type: TypeRange, Refs: e.refs}
 	case nameExpr:
 		return c.name(e)
+	case structExpr:
+		return c.structured(e.s)
 	case unaryExpr:
 		x := c.Eval(e.x)
 		switch e.op {
@@ -170,7 +172,24 @@ func (c *Context) spill(v Value) Value {
 	return ErrRef
 }
 
+// structured is the area a structured reference stands for in the cell of
+// the formula, when the book has tables.
+func (c *Context) structured(s Structured) Value {
+	tb, ok := c.Book.(Tables)
+	if !ok {
+		return ErrUnsupported
+	}
+	a, err := resolve(tb, s, Pos{c.Sheet, c.Row, c.Col})
+	if err != nil {
+		return *err
+	}
+	return Value{Type: TypeRange, Refs: []Area3{a}}
+}
+
 func (c *Context) name(e nameExpr) Value {
+	if s, ok := ParseStructured(e.name); ok && e.sheet == "" {
+		return c.structured(s)
+	}
 	sheet := c.Sheet
 	if e.sheet != "" {
 		s, ok := c.Book.Sheets(e.sheet, "")
@@ -183,6 +202,11 @@ func (c *Context) name(e nameExpr) Value {
 	if !ok {
 		if strings.ContainsRune(e.name, '[') {
 			return ErrUnsupported
+		}
+		if tb, ok := c.Book.(Tables); ok {
+			if _, ok := tb.Table(e.name); ok {
+				return c.structured(Structured{Table: e.name})
+			}
 		}
 		return ErrName
 	}
