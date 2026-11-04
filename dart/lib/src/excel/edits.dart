@@ -3,13 +3,25 @@ import 'dart:convert';
 import 'package:trame/trame.dart';
 
 import 'print.dart';
+import 'sheet_comments.dart';
 import 'workbook.dart';
 
 /// A change made to the format of a cell, at [row] and [col] of the area
 /// formatted: its style as the Go package writes it, changed.
 typedef StyleChange = Map<String, Object?> Function(Map<String, Object?> style, int row, int col);
 
+const _linkColor = {'rgb': '0563C1'};
+
 const _cleared = {'v': null, 'f': null, 'e': null, 'rich': null};
+
+/// The address a link goes to for what someone typed: the web for a name,
+/// mail for an address, null for nothing.
+String? linkAddress(String text) {
+  text = text.trim();
+  if (text.isEmpty) return null;
+  if (RegExp('^[a-zA-Z][a-zA-Z0-9+.-]*:').hasMatch(text)) return text;
+  return text.contains('@') && !text.contains('/') ? 'mailto:$text' : 'https://$text';
+}
 
 /// The edits a spreadsheet editor makes, as the Go package takes them.
 class SheetEdits {
@@ -177,23 +189,31 @@ class SheetEdits {
   }
 
   /// Merges an area into its first cell, which keeps its value; the others
-  /// are cleared, as Excel does.
-  Edit merge(Node sheet, CellArea area, {bool center = true}) {
+  /// are cleared, as Excel does. With [across] each row of the area is
+  /// merged on its own.
+  Edit merge(Node sheet, CellArea area, {bool center = true, bool across = false}) {
     final grid = sheet.grid ?? const Grid.empty();
+    final firsts = [
+      if (across)
+        for (var r = area.top; r <= area.bottom; r++) CellArea(r, area.left, r, area.right)
+      else
+        area,
+    ];
     final cells = <Cell>[
-      Cell(area.top, area.left, {
-        'm': [area.rows, area.cols],
-      }),
+      for (final a in firsts)
+        Cell(a.top, a.left, {
+          'm': [a.rows, a.cols],
+        }),
     ];
     for (final c in grid.rows(area.top, area.bottom)) {
-      if (c.col == 0 || !area.contains(c.row, c.col) || c.row == area.top && c.col == area.left) continue;
-      cells.add(Cell(c.row, c.col, {..._cleared, 'm': null}));
+      if (c.col == 0 || !area.contains(c.row, c.col) || c.col == area.left && (across || c.row == area.top)) continue;
+      cells.add(Cell(c.row, c.col, {..._cleared, 'link': null, 'm': null}));
     }
     final edit = Edit([Change.cells(sheet.id, cells)]);
     if (!center) return edit;
     final aligned = format(
       sheet,
-      CellArea.cell(area.top, area.left),
+      across ? CellArea(area.top, area.left, area.bottom, area.left) : CellArea.cell(area.top, area.left),
       (s, _, _) => {
         ...s,
         'align': {...?(s['align'] as Map<String, Object?>?), 'h': 'center'},
@@ -209,6 +229,39 @@ class SheetEdits {
         if (m.intersects(area)) Cell(m.top, m.left, const {'m': null}),
     ];
     return cells.isEmpty ? Edit() : Edit([Change.cells(sheet.id, cells)]);
+  }
+
+  // links
+
+  /// Makes a cell lead to [link], a Link of the Go package, or no longer
+  /// lead anywhere for null. A cell with no value shows where the link
+  /// goes, in the format of links; one that had a link and loses it loses
+  /// that format.
+  Edit setLink(Node sheet, int row, int col, Map<String, Object?>? link) {
+    final fields = sheet.grid?.cell(row, col);
+    final had = fields?['link'] != null;
+    final value = <String, Object?>{'link': link};
+    if (link != null && fields?['v'] == null && fields?['f'] == null) value['v'] = link['url'] ?? link['loc'];
+    final edit = Edit([
+      Change.cells(sheet.id, [Cell(row, col, value)]),
+    ]);
+    final current = {...?(styleOf(styleAt(sheet, row, col))['font'] as Map<String, Object?>?)};
+    final looks = jsonEquals(current['color'], _linkColor) && current['u'] == 'single';
+    if (link != null ? had : !had || !looks) return edit;
+    final looked = format(sheet, CellArea.cell(row, col), (s, _, _) {
+      final font = {...?(s['font'] as Map<String, Object?>?)};
+      if (link != null) {
+        font
+          ..['color'] = _linkColor
+          ..['u'] = 'single';
+      } else {
+        font
+          ..remove('color')
+          ..remove('u');
+      }
+      return {...s, 'font': font};
+    });
+    return edit.compose(looked);
   }
 
   // printing
@@ -251,6 +304,88 @@ class SheetEdits {
           ..sort();
     return printSetup(sheet, {'rows': changed(setup.rowBreaks, row), 'cols': changed(setup.colBreaks, col)});
   }
+
+  // conditional formats and validations
+
+  /// The conditional formats of a sheet, the first the one that counts.
+  List<Map<String, Object?>> conditionals(Node sheet) => _rules(sheet, 'cf');
+
+  /// Sets the conditional formats of a sheet, numbering them as they come.
+  Edit setConditionals(Node sheet, List<Map<String, Object?>> rules) {
+    final numbered = [
+      for (var i = 0; i < rules.length; i++) {...rules[i], 'pri': i + 1},
+    ];
+    return Edit([
+      Change.set(sheet.id, attributes: {'cf': numbered.isEmpty ? null : numbered}),
+    ]);
+  }
+
+  /// Adds a conditional format for the cells of an area, before the others.
+  Edit addConditional(Node sheet, CellArea area, Map<String, Object?> rule) => setConditionals(sheet, [
+    {...rule, 'ref': area.name},
+    ...conditionals(sheet),
+  ]);
+
+  /// Takes the conditional formats off the cells of an area, or off the
+  /// whole sheet for null: a rule that holds for other cells stays for them.
+  Edit clearConditionals(Node sheet, CellArea? area) => setConditionals(sheet, area == null ? const [] : _cut(conditionals(sheet), area, _moveRule));
+
+  /// Sets what the cells of an area take, in place of what they took, no
+  /// rule for any value for null.
+  Edit validate(Node sheet, CellArea area, Map<String, Object?>? rule) {
+    final all = [
+      ..._cut(_rules(sheet, 'valid'), area, _moveValidation),
+      if (rule != null) {...rule, 'ref': area.name},
+    ];
+    return Edit([
+      Change.set(sheet.id, attributes: {'valid': all.isEmpty ? null : all}),
+    ]);
+  }
+
+  static List<Map<String, Object?>> _rules(Node sheet, String key) {
+    final all = sheet.attributes[key];
+    return [
+      for (final r in all is List<Object?> ? all : const <Object?>[])
+        if (r is Map<String, Object?>) r,
+    ];
+  }
+
+  /// The rules without the cells of [hole]: a rule loses the part of its
+  /// areas in the hole, and goes when none is left. Their formulas are
+  /// written for the first cell of the areas, so [move] follows it when
+  /// it changes.
+  static List<Map<String, Object?>> _cut(List<Map<String, Object?>> rules, CellArea hole, Map<String, Object?> Function(Map<String, Object?> rule, int rows, int cols) move) {
+    final out = <Map<String, Object?>>[];
+    for (final rule in rules) {
+      final before = '${rule['ref']}'.split(' ')..removeWhere((t) => t.isEmpty);
+      final kept = <String>[];
+      for (final token in before) {
+        final area = parseArea(token);
+        kept.addAll(area == null ? [token] : [for (final a in area.minus(hole)) a.name]);
+      }
+      if (kept.isEmpty) continue;
+      final (was, now) = (parseArea(before.first), parseArea(kept.first));
+      final moved = was == null || now == null ? rule : move(rule, now.top - was.top, now.left - was.left);
+      out.add({...moved, 'ref': kept.join(' ')});
+    }
+    return out;
+  }
+
+  static Map<String, Object?> _moveRule(Map<String, Object?> rule, int rows, int cols) {
+    final f = rule['f'];
+    return f is! List<Object?>
+        ? rule
+        : {
+            ...rule,
+            'f': [for (final x in f) x is String ? moveFormula(x, rows, cols) : x],
+          };
+  }
+
+  static Map<String, Object?> _moveValidation(Map<String, Object?> rule, int rows, int cols) => {
+    ...rule,
+    for (final k in ['f1', 'f2'])
+      if (rule[k] is String) k: moveFormula(rule[k]! as String, rows, cols),
+  };
 
   // sheets
 
@@ -354,7 +489,8 @@ class SheetEdits {
             c.col - area.left,
             {...c.fields}
               ..remove('m')
-              ..remove('src'),
+              ..remove('src')
+              ..removeWhere((k, _) => commentFields.contains(k)),
           ),
     ]);
   }
@@ -403,7 +539,9 @@ class SheetEdits {
       final (from, fields) = rows[i];
       final r = area.top + i;
       for (var j = 0; j < fields.length; j++) {
-        final f = {..._cleared, 's': null, ...fields[j]}..remove('m');
+        final f = {..._cleared, 's': null, ...fields[j]}
+          ..remove('m')
+          ..removeWhere((k, _) => commentFields.contains(k));
         if (f['f'] is String) f['f'] = moveFormula(f['f']! as String, r - from, 0);
         cells.add(Cell(r, area.left + j, f));
       }

@@ -104,26 +104,57 @@ const _yellow = Color(0xFFF2C12E);
 const _green = Color(0xFF3E9E4A);
 const _gray = Color(0xFF8C8C8C);
 const _black = Color(0xFF3A3A3A);
+const _blue = Color(0xFF4472C4);
+const _gold = Color(0xFFF0B400);
+
+/// The color of the icon [i] of a set of [n]: red, yellow and green from
+/// the lowest, black before red in the sets of traffic lights.
+Color _levelColor(String set, int n, int i) {
+  if (set.contains('Gray')) return _gray;
+  if (set.contains('RedToBlack')) return Color.lerp(_black, _red, i / (n - 1))!;
+  return switch (n) {
+    4 when set.contains('Arrows') => [_red, _yellow, _yellow, _green][i],
+    4 => [_black, _red, _yellow, _green][i],
+    5 => [_red, _yellow, _yellow, _yellow, _green][i],
+    _ => [_red, _yellow, _green][i],
+  };
+}
+
+/// The direction of the arrow [i] of a set of [n], in degrees from the
+/// right, clockwise.
+double _arrowAngle(int n, int i) => switch (n) {
+  4 => [90.0, 45.0, -45.0, -90.0][i],
+  5 => [90.0, 45.0, 0.0, -45.0, -90.0][i],
+  _ => [90.0, 0.0, -90.0][i],
+};
+
+Path _star(Offset c, double radius) {
+  final p = Path();
+  for (var k = 0; k < 10; k++) {
+    final a = -math.pi / 2 + k * math.pi / 5;
+    final d = k.isEven ? radius : radius * 0.42;
+    final at = c + Offset(math.cos(a), math.sin(a)) * d;
+    k == 0 ? p.moveTo(at.dx, at.dy) : p.lineTo(at.dx, at.dy);
+  }
+  return p..close();
+}
 
 /// Paints the icon [index] of a set of Excel's in [r].
 void paintIcon(Canvas canvas, Rect r, String set, int index) {
   final n = int.tryParse(set.substring(0, 1)) ?? 3;
-  final level = n > 1 ? index / (n - 1) : 1.0;
-  final fill = Paint()..isAntiAlias = true;
-  Color traffic() => switch (n) {
-    4 => [_black, _red, _yellow, _green][index.clamp(0, 3)],
-    _ => [_red, _yellow, _green][(level * 2).round().clamp(0, 2)],
-  };
+  final i = index.clamp(0, n - 1);
+  final level = i / (n - 1);
+  final color = _levelColor(set, n, i);
+  final fill = Paint()
+    ..isAntiAlias = true
+    ..color = color;
   final c = r.center;
   final radius = r.shortestSide / 2;
   if (set.contains('Arrows')) {
-    final gray = set.contains('Gray');
-    fill.color = gray ? _gray : traffic();
-    final angle = -math.pi / 2 * (level * 2 - 1);
+    final s = radius;
     canvas.save();
     canvas.translate(c.dx, c.dy);
-    canvas.rotate(angle);
-    final s = radius;
+    canvas.rotate(_arrowAngle(n, i) * math.pi / 180);
     canvas.drawPath(
       Path()
         ..moveTo(s, 0)
@@ -138,12 +169,11 @@ void paintIcon(Canvas canvas, Rect r, String set, int index) {
     );
     canvas.restore();
   } else if (set.contains('Triangles')) {
-    fill.color = traffic();
     final s = radius * 0.8;
-    if (index == 1) {
+    if (i == 1) {
       canvas.drawRect(Rect.fromCenter(center: c, width: s * 2, height: s * 0.5), fill);
     } else {
-      final up = index == 2;
+      final up = i == 2;
       canvas.drawPath(
         Path()
           ..moveTo(c.dx - s, c.dy + (up ? s * 0.6 : -s * 0.6))
@@ -154,56 +184,95 @@ void paintIcon(Canvas canvas, Rect r, String set, int index) {
       );
     }
   } else if (set.contains('Flags')) {
-    fill.color = traffic();
     final s = radius;
     canvas.drawRect(Rect.fromLTWH(c.dx - s * 0.6, c.dy - s, s * 0.15, s * 2), Paint()..color = _black);
     canvas.drawRect(Rect.fromLTWH(c.dx - s * 0.45, c.dy - s, s * 1.2, s * 0.9), fill);
-  } else if (set.contains('Stars') || set.contains('Quarters') || set.contains('Rating') || set.contains('Boxes')) {
-    final color = set.contains('Stars') ? const Color(0xFFF0B400) : const Color(0xFF4472C4);
+  } else if (set.contains('Stars')) {
+    fill.color = _gold;
+    final star = _star(c, radius);
+    // empty, half and full
+    canvas.save();
+    canvas.clipRect(Rect.fromLTRB(r.left, r.top, i == 1 ? c.dx : r.right, r.bottom));
+    if (i > 0) canvas.drawPath(star, fill);
+    canvas.restore();
+    canvas.drawPath(
+      star,
+      Paint()
+        ..color = _gold
+        ..style = PaintingStyle.stroke,
+    );
+  } else if (set.contains('Quarters')) {
     final outline = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    fill.color = color;
-    if (set.contains('Rating') || set.contains('Boxes')) {
-      final bars = n - 1;
-      final w = r.width / (bars * 1.5);
-      for (var k = 0; k < bars; k++) {
-        final h = r.height * (k + 1) / bars;
-        final bar = Rect.fromLTWH(r.left + k * w * 1.5, r.bottom - h, w, h);
-        canvas.drawRect(bar, k < index ? fill : outline);
-      }
-    } else {
-      final circle = Rect.fromCircle(center: c, radius: radius * 0.9);
-      canvas.drawOval(circle, outline);
-      canvas.drawArc(circle, -math.pi / 2, 2 * math.pi * level, true, fill);
+      ..color = _black
+      ..style = PaintingStyle.stroke;
+    fill.color = _black;
+    final circle = Rect.fromCircle(center: c, radius: radius * 0.9);
+    canvas.drawOval(circle, outline);
+    canvas.drawArc(circle, -math.pi / 2, 2 * math.pi * level, true, fill);
+  } else if (set.contains('Rating')) {
+    fill.color = _blue;
+    final outline = Paint()
+      ..color = _blue
+      ..style = PaintingStyle.stroke;
+    final bars = n - 1;
+    final w = r.width / (bars * 1.5);
+    for (var k = 0; k < bars; k++) {
+      final h = r.height * (k + 1) / bars;
+      canvas.drawRect(Rect.fromLTWH(r.left + k * w * 1.5, r.bottom - h, w, h), k < i ? fill : outline);
+    }
+  } else if (set.contains('Boxes')) {
+    fill.color = _blue;
+    final box = Rect.fromCenter(center: c, width: radius * 1.8, height: radius * 1.8);
+    // the quarters of the box fill one after the other, clockwise
+    for (var k = 0; k < i; k++) {
+      canvas.drawRect(Rect.fromLTWH(k == 0 || k == 3 ? box.left : c.dx, k < 2 ? box.top : c.dy, box.width / 2, box.height / 2), fill);
+    }
+    canvas.drawRect(
+      box,
+      Paint()
+        ..color = _blue
+        ..style = PaintingStyle.stroke,
+    );
+  } else if (set.contains('Signs')) {
+    final s = radius * 0.9;
+    final shape = switch (i) {
+      0 => (Path()..addPolygon([c + Offset(0, -s), c + Offset(s, 0), c + Offset(0, s), c + Offset(-s, 0)], true)),
+      1 => (Path()..addPolygon([c + Offset(0, -s), c + Offset(s, s * 0.8), c + Offset(-s, s * 0.8)], true)),
+      _ => (Path()..addOval(Rect.fromCircle(center: c, radius: s))),
+    };
+    canvas.drawPath(shape, fill);
+  } else if (set.contains('Symbols')) {
+    final circled = !set.endsWith('2');
+    final s = radius * (circled ? 0.4 : 0.6);
+    final mark = Paint()
+      ..color = circled ? const Color(0xFFFFFFFF) : color
+      ..strokeWidth = math.max(1.5, radius / (circled ? 4 : 3))
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+    if (circled) canvas.drawCircle(c, radius * 0.9, fill);
+    switch (i) {
+      case 0:
+        canvas.drawLine(c + Offset(-s, -s), c + Offset(s, s), mark);
+        canvas.drawLine(c + Offset(-s, s), c + Offset(s, -s), mark);
+      case 1:
+        canvas.drawLine(c + Offset(0, -s * 1.2), c + Offset(0, s * 0.3), mark);
+        canvas.drawCircle(c + Offset(0, s * 1.1), mark.strokeWidth / 2, mark..style = PaintingStyle.fill);
+      default:
+        canvas.drawPath(
+          Path()
+            ..moveTo(c.dx - s, c.dy)
+            ..lineTo(c.dx - s * 0.2, c.dy + s * 0.8)
+            ..lineTo(c.dx + s, c.dy - s * 0.8),
+          mark,
+        );
     }
   } else {
-    // traffic lights, signs, symbols and red to black: discs
-    fill.color = set.contains('RedToBlack') ? Color.lerp(_black, _red, level)! : traffic();
-    canvas.drawCircle(c, radius * 0.9, fill);
-    if (set.contains('Symbols')) {
-      final mark = Paint()
-        ..color = const Color(0xFFFFFFFF)
-        ..strokeWidth = math.max(1.5, radius / 4)
-        ..style = PaintingStyle.stroke;
-      final s = radius * 0.4;
-      switch ((level * 2).round()) {
-        case 0:
-          canvas.drawLine(c + Offset(-s, -s), c + Offset(s, s), mark);
-          canvas.drawLine(c + Offset(-s, s), c + Offset(s, -s), mark);
-        case 1:
-          canvas.drawLine(c + Offset(0, -s * 1.2), c + Offset(0, s * 0.3), mark);
-          canvas.drawCircle(c + Offset(0, s * 1.1), mark.strokeWidth / 2, mark..style = PaintingStyle.fill);
-        default:
-          canvas.drawPath(
-            Path()
-              ..moveTo(c.dx - s, c.dy)
-              ..lineTo(c.dx - s * 0.2, c.dy + s * 0.8)
-              ..lineTo(c.dx + s, c.dy - s * 0.8),
-            mark,
-          );
-      }
+    // traffic lights and the circles from red to black
+    if (set.endsWith('2')) {
+      canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromCircle(center: c, radius: radius), Radius.circular(radius * 0.4)), Paint()..color = _black);
+      canvas.drawCircle(c, radius * 0.65, fill);
+    } else {
+      canvas.drawCircle(c, radius * 0.9, fill);
     }
   }
 }

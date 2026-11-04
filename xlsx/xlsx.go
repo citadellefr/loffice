@@ -9,7 +9,9 @@
 //	                formula.Iteration of circles), circular (the cells of
 //	                circles found, by sheet)
 //	  sheet "S1"    name, state, frozen, grid, zoom, tab, dw, dh, tail,
-//	                print (a Print); its cells in a grid (see below)
+//	                print (a Print), cf (the Conditional formats) and valid
+//	                (the Validations of data), editable; its cells in a grid
+//	                (see below)
 //	  kept "S4"     a chart, macro or dialog sheet, kept: name, state, and
 //	                the chart a chart sheet shows (package chart)
 //	xf "x0"         a Style
@@ -17,9 +19,14 @@
 // A cell has the fields: v its value (number, string or boolean), e its
 // error ("#DIV/0!"), f its formula without "=", s its format (an xf node
 // id, none for the default), m the rows and columns it is merged over
-// ([2,3]), fa the area of the array formula it holds, ca when it is always
-// recalculated, cm its metadata index (dynamic arrays), rich its rich text
-// and fx a data table formula, both XML the workbook carried. Column 0
+// ([2,3]), link where it leads (a Link: {"url":"https://…"} an address of
+// the web, of mail or a name "urn:", {"loc":"Sheet2!A1"} a place of the
+// workbook, "tip" the text shown over the cell), fa the area of the array
+// formula it holds, ca when it is always recalculated, cm its metadata
+// index (dynamic arrays), rich its rich text and fx a data table formula,
+// both XML the workbook carried, note its note (Note: author, text) and
+// thread its threaded comments (ThreadItem: id, author, date, text), never
+// both. Column 0
 // holds the fields of rows: h their height in points, ch when it was set
 // by hand, hide, s, ol their outline level, cl when collapsed; row 0 those
 // of columns: w their width in characters, cw, bf, hide, s, ol, cl.
@@ -125,6 +132,11 @@ type Document struct {
 	// csv is set for the workbook of a CSV file, whose cells may keep the
 	// text they were read from.
 	csv bool
+	// persons are the authors of threaded comments as read, and the part
+	// that lists them.
+	persons     []person
+	personsName string
+	personsDoc  *xmldom.Document
 }
 
 type sheetPart struct {
@@ -137,6 +149,8 @@ type sheetPart struct {
 	doc *xmldom.Document
 	// strings counts its cells that point to shared strings.
 	strings int
+	// cm are its notes and threaded comments as read.
+	cm *sheetComments
 }
 
 // Open reads a workbook.
@@ -248,6 +262,7 @@ func (r *reader) workbook() error {
 	if d.styles == nil {
 		d.styles = readStyles("", &xmldom.Document{Root: xmldom.New(mainNS, "styleSheet")})
 	}
+	r.persons()
 	if name := target(d.bookName, d.bookRels, relSharedStrings); name != "" {
 		data, err := d.pkg.Read(name)
 		if err != nil {

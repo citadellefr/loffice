@@ -254,7 +254,7 @@ class _CommentsPaneState<T extends CommentThread> extends State<CommentsPane<T>>
                 style: theme.textTheme.bodySmall?.copyWith(fontStyle: FontStyle.italic, color: theme.colorScheme.outline),
               ),
             ),
-          if (active && editable && !t.done) ...[
+          if (active && editable && !t.done && t.repliable) ...[
             const SizedBox(height: 10),
             Row(
               children: [
@@ -278,7 +278,7 @@ class _CommentsPaneState<T extends CommentThread> extends State<CommentsPane<T>>
 
   Widget _comment(ThemeData theme, DocComment c, T t, {required bool first, required bool collapsed}) {
     final editable = !widget.readOnly;
-    final mine = c.author == widget.me && widget.me.isNotEmpty;
+    final mine = t.editableBy(c, widget.me);
     final text = _edited == c.id
         ? Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -313,7 +313,7 @@ class _CommentsPaneState<T extends CommentThread> extends State<CommentsPane<T>>
                 icon: const Icon(Icons.more_horiz),
                 itemBuilder: (context) => [
                   if (mine) PopupMenuItem(value: 'edit', child: Text(_s.editComment)),
-                  if (first && widget.resolvable) PopupMenuItem(value: 'resolve', child: Text(t.done ? _s.reopen : _s.resolveThread)),
+                  if (first && widget.resolvable && t.resolvable) PopupMenuItem(value: 'resolve', child: Text(t.done ? _s.reopen : _s.resolveThread)),
                   PopupMenuItem(value: 'delete', child: Text(first ? _s.deleteThread : _s.deleteComment)),
                 ],
                 onSelected: (v) => switch (v) {

@@ -33,7 +33,9 @@ func (w *writer) sheet(n *ot.Node, p *sheetPart) error {
 	if loaded := w.d.loaded.Node(n.ID); loaded != nil && loaded.Type == "sheet" {
 		old = loaded.Attrs
 	}
-	w.settings(root, old, n.Attrs)
+	if err := w.settings(root, old, n.Attrs); err != nil {
+		return err
+	}
 
 	data := root.Child(mainNS, "sheetData")
 	if data == nil {
@@ -69,6 +71,12 @@ func (w *writer) sheet(n *ot.Node, p *sheetPart) error {
 			merges.Append(xmldom.New(mainNS, prefixOf(merges)+"mergeCell", "ref", ref))
 		}
 	}
+	if err := w.comments(root, n, p); err != nil {
+		return err
+	}
+	if err := w.writeLinks(root, p.name, c.links); err != nil {
+		return err
+	}
 	w.stringRefs[p] = c.strings
 	doc := &xmldom.Document{Prolog: p.doc.Prolog, Root: root, Tail: p.doc.Tail}
 	return w.put(p.name, typeWorksheet, doc.Bytes())
@@ -83,7 +91,7 @@ func tail(attrs ot.Values) *Tail {
 }
 
 // settings writes the settings of a sheet that differ from those read.
-func (w *writer) settings(root *xmldom.Element, old, attrs ot.Values) {
+func (w *writer) settings(root *xmldom.Element, old, attrs ot.Values) error {
 	changed := func(key string) bool { return !bytes.Equal(old[key], attrs[key]) }
 	view := func() *xmldom.Element {
 		views := child(root, "sheetViews", worksheetOrder)
@@ -135,6 +143,14 @@ func (w *writer) settings(root *xmldom.Element, old, attrs ot.Values) {
 	if changed(filterKey) {
 		writeFilter(root, old[filterKey], attrs[filterKey])
 	}
+	if changed(validKey) {
+		writeValidations(root, attrs[validKey])
+	}
+	if changed(conditionalKey) {
+		if err := w.writeConditionals(root, attrs[conditionalKey]); err != nil {
+			return err
+		}
+	}
 	if changed(printKey) {
 		writePrint(root, attrs[printKey])
 	}
@@ -155,6 +171,7 @@ func (w *writer) settings(root *xmldom.Element, old, attrs ot.Values) {
 		}
 		f.Set("defaultRowHeight", formatFloat(dh))
 	}
+	return nil
 }
 
 // freeze keeps the first rows and columns of a sheet in view. The
@@ -227,6 +244,7 @@ type sheetWriter struct {
 	// cols are the fields of whole columns, row 0 of the grid.
 	cols   []ot.Cell
 	merges []string
+	links  []link
 	// the corners of the cells written
 	minRow, minCol, maxRow, maxCol int
 	strings                        int
@@ -322,6 +340,10 @@ func (c *sheetWriter) cell(r, col int, raw json.RawMessage) {
 	if f.M != nil && f.M[0] >= 1 && f.M[1] >= 1 && (f.M[0] > 1 || f.M[1] > 1) &&
 		r+f.M[0]-1 <= formula.MaxRows && col+f.M[1]-1 <= formula.MaxCols {
 		c.merges = append(c.merges, formula.CellName(r, col)+":"+formula.CellName(r+f.M[0]-1, col+f.M[1]-1))
+	}
+
+	if len(f.Link) > 0 {
+		c.link(r, col, &f)
 	}
 
 	typ, value := c.value(&f)

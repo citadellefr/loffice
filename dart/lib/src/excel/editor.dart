@@ -6,28 +6,34 @@ import 'package:flutter/services.dart';
 import 'package:trame/trame.dart';
 
 import '../chart/chart.dart';
+import '../chrome/comments.dart';
+import '../chrome/comments_pane.dart';
 import '../chrome/ribbon.dart';
 import '../chrome/strings.dart';
 import '../clipboard.dart';
 import '../fonts.dart';
 import '../pdf/document.dart' show pdfName;
 import 'charts.dart';
+import 'conditional_menu.dart';
 import 'edits.dart';
 import 'export.dart';
 import 'filter.dart';
 import 'filter_panel.dart';
 import 'formula_text.dart';
 import 'input.dart';
-import 'lists.dart';
 import 'number_format.dart';
 import 'print.dart';
+import 'rules.dart';
+import 'sheet_comments.dart';
 import 'sheet_view.dart';
+import 'validation.dart';
+import 'validation_dialog.dart';
 import 'workbook.dart';
 
 /// An Excel editor on a session whose document is a workbook: the ribbon,
 /// the formula bar, the cells of a sheet, its tabs and the status bar.
 class SpreadsheetEditor extends StatefulWidget {
-  const SpreadsheetEditor({super.key, required this.session, this.title = '', this.onClose, this.onExport, this.strings = const LofficeStrings(), this.fonts, this.hosted = false});
+  const SpreadsheetEditor({super.key, required this.session, this.title = '', this.onClose, this.onExport, this.onOpenLink, this.strings = const LofficeStrings(), this.fonts, this.hosted = false});
 
   final DocSession session;
   final String title;
@@ -37,6 +43,10 @@ class SpreadsheetEditor extends StatefulWidget {
   /// host saves it where its documents are. File > Export is left out
   /// without it.
   final Future<void> Function(Uint8List pdf, String name)? onExport;
+
+  /// Opens the address of a link of a cell, clicked with Ctrl or, in a
+  /// workbook only read, alone. Without it links to an address do not open.
+  final void Function(Uri uri)? onOpenLink;
   final LofficeStrings strings;
 
   /// The package bundling the free fonts standing in for Office's.
@@ -71,6 +81,10 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
   var _backstage = false;
   var _exporting = false;
   Clip? _clip;
+  var _commentsShown = false;
+
+  /// The comment being written: where, and whether it is a note.
+  (int, int, bool)? _draft;
 
   static const _locale = NumberLocale.fr;
   static const _peerColors = [
@@ -194,17 +208,16 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     _gridFocus.requestFocus();
   }
 
-  /// Ends editing: what was typed goes into its cell once the list that
-  /// validates the cell takes it. Tells whether it went in.
+  /// Ends editing: what was typed goes into its cell once the validation
+  /// of the cell takes it. Tells whether it went in.
   bool _commit() {
     final sheet = _sheet;
     if (!_editing || sheet == null) return true;
     _editing = false;
     final (r, c) = _editCell;
     final typed = _text.text;
-    final rule = _wb.layout(sheet).listAt(r, c);
-    final items = rule?.error == null || typed.startsWith('=') ? null : rule!.items(_wb, sheet, _locale);
-    if (items != null && !rule!.takes(typed, items)) {
+    final rule = _wb.layout(sheet).validationAt(r, c);
+    if (rule != null && rule.error != null && !typed.startsWith('=') && !rule.takes(typed, _wb, sheet, _locale)) {
       unawaited(_refuse(rule, sheet, r, c, typed));
       setState(() {});
       return false;
@@ -221,11 +234,14 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     if (changed) _edit(_edits.setCells(sheet, [(r, c, input.fields)], format: input.format));
   }
 
-  /// Says, as Excel does, that a value is not one of the list's, and
-  /// writes it, edits it again or lets it go as the list and the user say.
-  Future<void> _refuse(ListRule rule, Node sheet, int r, int c, String typed) async {
+  /// Says, as Excel does, that a value is not what the cell takes, and
+  /// writes it, edits it again or lets it go as the validation and the
+  /// user say.
+  Future<void> _refuse(Validation rule, Node sheet, int r, int c, String typed) async {
     final warning = rule.error == 'warning';
-    final text = rule.errorText.isEmpty ? _s.notInList : rule.errorText;
+    final type = rule.type;
+    String bound(String f) => boundText(f, type: type, date1904: _wb.date1904);
+    final text = rule.errorText.isEmpty ? _s.invalidValue(type ?? '', rule.op, bound(rule.first), bound(rule.second)) : rule.errorText;
     final choice = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -267,11 +283,11 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
   }
 
   /// The list validating the active cell, when it has values to offer.
-  (ListRule, List<String>)? get _activeList {
+  (Validation, List<String>)? get _activeList {
     final sheet = _sheet;
     if (sheet == null || _session.readOnly) return null;
     final (r, c) = _selection.active;
-    final rule = _wb.layout(sheet).listAt(r, c);
+    final rule = _wb.layout(sheet).validationAt(r, c);
     final items = rule != null && rule.arrow ? rule.items(_wb, sheet, _locale) : null;
     return items == null ? null : (rule!, items);
   }
@@ -295,13 +311,13 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     _gridFocus.requestFocus();
   }
 
-  /// What the list of the active cell asks to be typed, as Excel shows it
-  /// beside the cell.
+  /// What the validation of the active cell asks to be typed, as Excel
+  /// shows it beside the cell.
   Widget? get _prompt {
     final sheet = _sheet;
     if (sheet == null) return null;
     final (r, c) = _selection.active;
-    final rule = _wb.layout(sheet).listAt(r, c);
+    final rule = _wb.layout(sheet).validationAt(r, c);
     if (rule == null || rule.prompt.isEmpty && rule.promptTitle.isEmpty) return null;
     return IgnorePointer(
       child: Container(
@@ -618,16 +634,85 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     }, key: (r, c) => (r == a.top, r == a.bottom, c == a.left, c == a.right));
   }
 
-  void _mergeCenter() {
+  bool get _merged {
+    final sheet = _sheet;
+    return sheet != null && _wb.layout(sheet).merges.any((m) => m.intersects(_selection.area));
+  }
+
+  bool get _mergeable {
+    final a = _selection.area;
+    return !a.single && !a.wholeCols && !a.wholeRows;
+  }
+
+  void _merge(String how) {
     final sheet = _sheet;
     if (sheet == null) return;
     final a = _selection.area;
-    final merged = _wb.layout(sheet).merges.any((m) => m.intersects(a));
-    if (merged) {
-      _edit(_edits.unmerge(sheet, a));
-    } else if (!a.single && !a.wholeCols && !a.wholeRows) {
-      _edit(_edits.merge(sheet, a));
+    _edit(switch (how) {
+      'unmerge' => _edits.unmerge(sheet, a),
+      'across' => _edits.merge(sheet, a, across: true, center: false),
+      'cells' => _edits.merge(sheet, a, center: false),
+      _ => _edits.merge(sheet, a),
+    });
+  }
+
+  // links
+
+  /// The cell holding the link a cell leads to: the first of its merged
+  /// area.
+  (int, int) _linkCell(int row, int col) {
+    final sheet = _sheet;
+    final merged = sheet == null ? null : _wb.layout(sheet).mergeAt(row, col);
+    return (merged?.top ?? row, merged?.left ?? col);
+  }
+
+  Map<String, Object?>? _linkAt(int row, int col) {
+    final (r, c) = _linkCell(row, col);
+    final link = _fields(r, c)['link'];
+    return link is Map<String, Object?> ? link : null;
+  }
+
+  void _cellDown(int row, int col, {required bool ctrl}) {
+    final link = _linkAt(row, col);
+    if (link != null && (ctrl || _session.readOnly)) _openLink(link);
+  }
+
+  void _openLink(Map<String, Object?> link) {
+    final address = link['url'];
+    final place = link['loc'];
+    if (address is String) {
+      final uri = Uri.tryParse(address);
+      if (uri != null) widget.onOpenLink?.call(uri);
+    } else if (place is String) {
+      _goToPlace(place);
     }
+  }
+
+  /// Goes to a place of the workbook, as "Feuil2!B3" names it.
+  void _goToPlace(String place) {
+    final bang = place.lastIndexOf('!');
+    if (bang > 0) {
+      var name = place.substring(0, bang);
+      if (name.length > 1 && name.startsWith("'") && name.endsWith("'")) name = name.substring(1, name.length - 1).replaceAll("''", "'");
+      final sheet = _wb.sheets.where((s) => s.attributes['name'] == name).firstOrNull;
+      if (sheet == null) return;
+      _goToSheet(sheet);
+    }
+    final area = parseArea(place.substring(bang + 1).replaceAll(r'$', '').toUpperCase());
+    if (area != null) _selection.selectArea(area);
+  }
+
+  Future<void> _editLink() async {
+    final sheet = _sheet;
+    if (sheet == null) return;
+    final (row, col) = _linkCell(_selection.active.$1, _selection.active.$2);
+    final link = await showDialog<Map<String, Object?>>(
+      context: context,
+      builder: (context) => _LinkDialog(strings: _s, link: _linkAt(row, col)),
+    );
+    if (link == null) return;
+    _edit(_edits.setLink(sheet, row, col, link.isEmpty ? null : link));
+    _gridFocus.requestFocus();
   }
 
   // rows, columns and sheets
@@ -838,6 +923,69 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     _edit(_edits.setCells(sheet, values));
   }
 
+  // comments
+
+  bool get _canComment => !_session.readOnly && _session.name.isNotEmpty && _sheet?.grid != null;
+
+  CommentEdits get _commentEdits => CommentEdits(_sheet!, _session.name);
+
+  CellThread? get _activeThread {
+    final (r, c) = _selection.active;
+    return threadAt(_fields(r, c), r, c);
+  }
+
+  void _newComment({bool note = false}) {
+    final (r, c) = _selection.active;
+    if (_activeThread != null) return;
+    setState(() {
+      _commentsShown = true;
+      _draft = (r, c, note);
+    });
+  }
+
+  void _postComment(String text) {
+    final sheet = _sheet;
+    final draft = _draft;
+    if (sheet == null || draft == null) return;
+    final (r, c, note) = draft;
+    setState(() => _draft = null);
+    if (hasComments(_fields(r, c))) return;
+    _edit(note ? _commentEdits.startNote(r, c, text) : _commentEdits.startThread(r, c, text, DateTime.now()));
+  }
+
+  void _deleteComment(DocComment comment) {
+    final thread = _threads.where((t) => t.all.any((c) => c.id == comment.id)).firstOrNull;
+    if (thread != null) _edit(_commentEdits.delete(thread, comment));
+  }
+
+  void _editComment(DocComment comment, String text) {
+    final thread = _threads.where((t) => t.all.any((c) => c.id == comment.id)).firstOrNull;
+    if (thread != null) _edit(_commentEdits.say(thread, comment, text));
+  }
+
+  List<CellThread> get _threads => _sheet == null ? const [] : sheetThreads(_sheet!);
+
+  Widget _commentsPane() => CommentsPane<CellThread>(
+    threads: _threads,
+    active: _activeThread?.id,
+    me: _session.name,
+    readOnly: _session.readOnly || _session.name.isEmpty,
+    drafting: _draft != null,
+    emptyHint: _s.noSheetCommentsHint,
+    strings: _s,
+    onSelect: (t) => _selection.select(t.row, t.col),
+    onPost: _postComment,
+    onCancelDraft: () => setState(() => _draft = null),
+    onReply: (t, text) => _edit(_commentEdits.reply(t, text, DateTime.now())),
+    onResolve: (t, done) => _edit(_commentEdits.resolve(t, done)),
+    onDelete: _deleteComment,
+    onEdit: _editComment,
+    onClose: () => setState(() {
+      _commentsShown = false;
+      _draft = null;
+    }),
+  );
+
   // editing commands
 
   void _autoSum() {
@@ -940,6 +1088,51 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     _gridFocus.requestFocus();
   }
 
+  // conditional formats and validation
+
+  Future<void> _highlight(String kind) async {
+    final sheet = _sheet;
+    if (sheet == null) return;
+    final a = _selection.area;
+    final title = [..._s.highlightKinds, ..._s.topBottomKinds].firstWhere((k) => k.$1 == kind).$2;
+    final rule = await showDialog<Map<String, Object?>>(
+      context: context,
+      builder: (context) => HighlightRuleDialog(strings: _s, kind: kind, title: title, anchor: cellName(a.top, a.left)),
+    );
+    if (rule != null && mounted) _edit(_edits.addConditional(sheet, a, rule));
+  }
+
+  void _addConditional(Map<String, Object?> rule) {
+    final sheet = _sheet;
+    if (sheet != null) _edit(_edits.addConditional(sheet, _selection.area, rule));
+  }
+
+  void _clearConditionals({required bool sheetWide}) {
+    final sheet = _sheet;
+    if (sheet != null) _edit(_edits.clearConditionals(sheet, sheetWide ? null : _selection.area));
+  }
+
+  Future<void> _manageConditionals() async {
+    final sheet = _sheet;
+    if (sheet == null) return;
+    final rules = await showDialog<List<Map<String, Object?>>>(
+      context: context,
+      builder: (context) => RulesManagerDialog(strings: _s, rules: _edits.conditionals(sheet), area: _selection.area),
+    );
+    if (rules != null && mounted) _edit(_edits.setConditionals(sheet, rules));
+  }
+
+  Future<void> _validate() async {
+    final sheet = _sheet;
+    if (sheet == null) return;
+    final (r, c) = _selection.active;
+    final rule = await showDialog<Map<String, Object?>>(
+      context: context,
+      builder: (context) => ValidationDialog(strings: _s, current: _wb.layout(sheet).validationAt(r, c), date1904: _wb.date1904),
+    );
+    if (rule != null && mounted) _edit(_edits.validate(sheet, _selection.area, rule.isEmpty ? null : rule));
+  }
+
   void _goToName() {
     final area = parseArea(_nameBox.text.trim().toUpperCase());
     if (area != null) _selection.selectArea(area);
@@ -1036,41 +1229,12 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
             ..._banners(context),
             _formulaBar(context),
             Expanded(
-              child: sheet == null
-                  ? const SizedBox.expand()
-                  : sheet.grid == null
-                  ? _chartSheet(sheet)
-                  : Focus(
-                      focusNode: _gridFocus,
-                      autofocus: true,
-                      onKeyEvent: _gridKey,
-                      child: GestureDetector(
-                        onTapDown: (_) {
-                          if (!_editing) _gridFocus.requestFocus();
-                        },
-                        child: SheetView(
-                          key: _view,
-                          book: _wb,
-                          sheet: sheet,
-                          selection: _selection,
-                          locale: _locale,
-                          zoom: _zoom,
-                          peers: _peers,
-                          fonts: widget.fonts,
-                          editing: _editing,
-                          editor: _cellEditor(),
-                          onEdit: _session.readOnly ? null : _startEdit,
-                          onResize: _session.readOnly ? null : _resize,
-                          onZoom: (z) => setState(() => _zoom = z),
-                          onMenu: (at, {rows = false, cols = false}) => _cellsMenu(at, rows: rows, cols: cols),
-                          onFill: _session.readOnly ? null : (from, to) => _edit(_edits.fill(sheet, from, to)),
-                          onList: _activeList == null ? null : _openList,
-                          prompt: _prompt,
-                          filter: SheetFilter.of(sheet),
-                          onFilter: _session.readOnly ? null : _openFilter,
-                        ),
-                      ),
-                    ),
+              child: Row(
+                children: [
+                  Expanded(child: _body(sheet)),
+                  if (_commentsShown && sheet?.grid != null) ...[const VerticalDivider(width: 1), SizedBox(width: 320, child: _commentsPane())],
+                ],
+              ),
             ),
             _tabs(context),
             _statusBar(context),
@@ -1080,6 +1244,44 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
       ],
     );
   }
+
+  Widget _body(Node? sheet) => sheet == null
+      ? const SizedBox.expand()
+      : sheet.grid == null
+      ? _chartSheet(sheet)
+      : Focus(
+          focusNode: _gridFocus,
+          autofocus: true,
+          onKeyEvent: _gridKey,
+          child: GestureDetector(
+            onTapDown: (_) {
+              if (!_editing) _gridFocus.requestFocus();
+            },
+            child: SheetView(
+              key: _view,
+              book: _wb,
+              sheet: sheet,
+              selection: _selection,
+              locale: _locale,
+              zoom: _zoom,
+              peers: _peers,
+              fonts: widget.fonts,
+              strings: _s,
+              editing: _editing,
+              editor: _cellEditor(),
+              onEdit: _session.readOnly ? null : _startEdit,
+              onResize: _session.readOnly ? null : _resize,
+              onZoom: (z) => setState(() => _zoom = z),
+              onMenu: (at, {rows = false, cols = false}) => _cellsMenu(at, rows: rows, cols: cols),
+              onCellDown: _cellDown,
+              onFill: _session.readOnly ? null : (from, to) => _edit(_edits.fill(sheet, from, to)),
+              onList: _activeList == null ? null : _openList,
+              prompt: _prompt,
+              filter: SheetFilter.of(sheet),
+              onFilter: _session.readOnly ? null : _openFilter,
+            ),
+          ),
+        );
 
   Widget _cellEditor() {
     final f = _activeStyle.font;
@@ -1231,6 +1433,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     final h = style.horizontal;
     final v = style.vertical;
     final frozen = _sheet == null ? null : _wb.layout(_sheet!);
+    final remark = _sheet?.grid == null ? null : _activeThread;
     return Ribbon(
       fileLabel: _s.file,
       onFile: () => setState(() => _backstage = true),
@@ -1338,7 +1541,18 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
                 RibbonButton(icon: const Icon(Icons.format_align_left), label: _s.alignLeft, selected: h == 'left', onPressed: editable ? () => _align('h', h == 'left' ? null : 'left') : null),
                 RibbonButton(icon: const Icon(Icons.format_align_center), label: _s.center, selected: h == 'center', onPressed: editable ? () => _align('h', h == 'center' ? null : 'center') : null),
                 RibbonButton(icon: const Icon(Icons.format_align_right), label: _s.alignRight, selected: h == 'right', onPressed: editable ? () => _align('h', h == 'right' ? null : 'right') : null),
-                RibbonButton(icon: const Icon(Icons.merge_type), label: _s.mergeAndCenter, onPressed: editable ? _mergeCenter : null),
+                RibbonMenu<String>(
+                  icon: const Icon(Icons.merge_type),
+                  label: _s.mergeAndCenter,
+                  enabled: editable,
+                  items: [
+                    PopupMenuItem(value: 'center', enabled: _mergeable, child: Text(_s.mergeAndCenter)),
+                    PopupMenuItem(value: 'across', enabled: _mergeable, child: Text(_s.mergeAcross)),
+                    PopupMenuItem(value: 'cells', enabled: _mergeable, child: Text(_s.mergeCells)),
+                    PopupMenuItem(value: 'unmerge', enabled: _merged, child: Text(_s.unmerge)),
+                  ],
+                  onSelected: _merge,
+                ),
               ],
             ),
           ]),
@@ -1359,6 +1573,19 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
                 RibbonButton(icon: const Icon(Icons.add), label: _s.increaseDecimal, onPressed: editable ? () => _decimals(1) : null),
                 RibbonButton(icon: const Icon(Icons.remove), label: _s.decreaseDecimal, onPressed: editable ? () => _decimals(-1) : null),
               ],
+            ),
+          ]),
+          RibbonGroup(_s.styles, [
+            ConditionalMenu(
+              strings: _s,
+              enabled: editable,
+              onHighlight: (k) => unawaited(_highlight(k)),
+              onTopBottom: (k) => unawaited(_highlight(k)),
+              onDataBar: (c) => _addConditional(dataBarRule(c)),
+              onColorScale: (c) => _addConditional(colorScaleRule(c)),
+              onIconSet: (i) => _addConditional(iconSetRule(i)),
+              onClear: (sheetWide) => _clearConditionals(sheetWide: sheetWide),
+              onManage: () => unawaited(_manageConditionals()),
             ),
           ]),
           RibbonGroup(_s.cells, [
@@ -1415,6 +1642,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
                 final a = _selection.area;
                 if (v != 'formats') _edit(_edits.clear(sheet, a));
                 if (v != 'contents') _edit(_edits.clearFormats(sheet, a));
+                if (v == 'all') _edit(CommentEdits(sheet, _session.name).clear(a.top, a.left, a.bottom, a.right));
               },
             ),
           ]),
@@ -1425,6 +1653,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
             RibbonButton(icon: const Icon(Icons.table_rows_outlined), label: _s.insertRows, onPressed: editable ? () => _insert(rows: true) : null),
             RibbonButton(icon: const Icon(Icons.view_column_outlined), label: _s.insertColumns, onPressed: editable ? () => _insert(rows: false) : null),
           ]),
+          RibbonGroup(_s.links, [RibbonButton(icon: const Icon(Icons.link), label: _s.insertLink, large: true, onPressed: editable ? _editLink : null)]),
         ]),
         if (!_wb.csv) _printTab(editable),
         RibbonTab(_s.formulas, [
@@ -1437,6 +1666,37 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
             RibbonButton(icon: const Icon(Icons.filter_alt_outlined), label: _s.filter, large: true, shortcut: 'Ctrl+Maj+L', selected: hasFilter, onPressed: editable ? _toggleFilter : null),
             RibbonButton(icon: const Icon(Icons.filter_alt_off_outlined), label: _s.clearFilters, onPressed: editable && hasFilter ? () => _refilter(clear: true) : null),
             RibbonButton(icon: const Icon(Icons.refresh), label: _s.reapply, onPressed: editable && hasFilter ? _refilter : null),
+          ]),
+          RibbonGroup(_s.dataTools, [RibbonButton(icon: const Icon(Icons.fact_check_outlined), label: _s.dataValidation, large: true, onPressed: editable ? _validate : null)]),
+        ]),
+        RibbonTab(_s.review, [
+          RibbonGroup(_s.comments, [
+            RibbonButton(icon: const Icon(Icons.add_comment_outlined), label: _s.newComment, large: true, onPressed: _canComment && remark == null ? _newComment : null),
+            RibbonButton(icon: const Icon(Icons.delete_outline), label: _s.delete, large: true, onPressed: editable && remark != null ? () => _edit(_commentEdits.discard(remark)) : null),
+            RibbonButton(
+              icon: const Icon(Icons.forum_outlined),
+              label: _s.showComments,
+              large: true,
+              selected: _commentsShown,
+              onPressed: () => setState(() {
+                _commentsShown = !_commentsShown;
+                _draft = null;
+              }),
+            ),
+          ]),
+          RibbonGroup(_s.notes, [
+            RibbonButton(icon: const Icon(Icons.sticky_note_2_outlined), label: _s.newNote, large: true, onPressed: _canComment && remark == null ? () => _newComment(note: true) : null),
+            RibbonButton(
+              icon: const Icon(Icons.edit_note),
+              label: _s.editNote,
+              large: true,
+              onPressed: remark == null
+                  ? null
+                  : () => setState(() {
+                      _commentsShown = true;
+                      _draft = null;
+                    }),
+            ),
           ]),
         ]),
         RibbonTab(_s.view, [
@@ -1871,4 +2131,63 @@ class _ChartSheetPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_ChartSheetPainter old) => old.spec != spec || old.book != book || old.sheet != sheet;
+}
+
+/// Asks where a link leads to. It pops the link to set, an empty map to take
+/// the link away, or null.
+class _LinkDialog extends StatefulWidget {
+  const _LinkDialog({required this.strings, required this.link});
+
+  final LofficeStrings strings;
+  final Map<String, Object?>? link;
+
+  @override
+  State<_LinkDialog> createState() => _LinkDialogState();
+}
+
+class _LinkDialogState extends State<_LinkDialog> {
+  late final _address = TextEditingController(text: '${widget.link?['url'] ?? ''}');
+  late final _place = TextEditingController(text: '${widget.link?['loc'] ?? ''}');
+  late final _tip = TextEditingController(text: '${widget.link?['tip'] ?? ''}');
+
+  @override
+  void dispose() {
+    _address.dispose();
+    _place.dispose();
+    _tip.dispose();
+    super.dispose();
+  }
+
+  void _done() {
+    final url = linkAddress(_address.text);
+    final loc = _place.text.trim();
+    final tip = _tip.text.trim();
+    final link = {'url': ?url, if (loc.isNotEmpty) 'loc': loc, if (tip.isNotEmpty) 'tip': tip};
+    Navigator.of(context).pop(link.isEmpty ? null : link);
+  }
+
+  Widget _field(TextEditingController controller, String label, {bool first = false}) => TextField(
+    controller: controller,
+    autofocus: first,
+    maxLength: first ? null : 255,
+    decoration: InputDecoration(labelText: label),
+    onSubmitted: (_) => _done(),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.strings;
+    return AlertDialog(
+      title: Text(s.insertLink),
+      content: SizedBox(
+        width: 360,
+        child: Column(mainAxisSize: MainAxisSize.min, children: [_field(_address, s.linkAddress, first: true), _field(_place, s.linkPlace), _field(_tip, s.linkTip)]),
+      ),
+      actions: [
+        if (widget.link != null) TextButton(onPressed: () => Navigator.of(context).pop(const <String, Object?>{}), child: Text(s.removeLink)),
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(s.cancel)),
+        FilledButton(onPressed: _done, child: Text(s.ok)),
+      ],
+    );
+  }
 }

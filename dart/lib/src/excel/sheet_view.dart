@@ -5,10 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:trame/trame.dart';
 
+import '../chrome/strings.dart';
 import 'cell_painter.dart';
 import 'charts.dart';
+import 'comment_bubble.dart';
 import 'filter.dart';
 import 'number_format.dart';
+import 'sheet_comments.dart';
 import 'workbook.dart';
 
 /// Where a sheet is selected: the active cell and the area around it.
@@ -100,6 +103,7 @@ class SheetView extends StatefulWidget {
     this.zoom = 1,
     this.peers = const [],
     this.fonts,
+    this.strings = const LofficeStrings(),
     this.editing = false,
     this.editor,
     this.onEdit,
@@ -107,6 +111,7 @@ class SheetView extends StatefulWidget {
     this.onZoom,
     this.onMenu,
     this.onFill,
+    this.onCellDown,
     this.onList,
     this.prompt,
     this.filter,
@@ -120,6 +125,7 @@ class SheetView extends StatefulWidget {
   final double zoom;
   final List<PeerSelection> peers;
   final String? fonts;
+  final LofficeStrings strings;
 
   /// Whether the active cell is being edited, [editor] drawn over it.
   final bool editing;
@@ -135,6 +141,9 @@ class SheetView extends StatefulWidget {
 
   /// Opens the menu of the cells, at a point of the screen.
   final void Function(Offset at, {bool rows, bool cols})? onMenu;
+
+  /// Tells a cell was pressed with the mouse, with Ctrl or not.
+  final void Function(int row, int col, {required bool ctrl})? onCellDown;
 
   /// Fills from the selection to an area, as the fill handle does.
   final void Function(CellArea from, CellArea to)? onFill;
@@ -409,6 +418,7 @@ class SheetViewState extends State<SheetView> {
           }
         }
         _drag = _Drag.cells();
+        widget.onCellDown?.call(t.row, t.col, ctrl: HardwareKeyboard.instance.isControlPressed || HardwareKeyboard.instance.isMetaPressed);
     }
   }
 
@@ -489,8 +499,27 @@ class SheetViewState extends State<SheetView> {
   }
 
   MouseCursor _cursor = SystemMouseCursors.basic;
+  Offset? _pointer;
+
+  /// The thread or note of the cell under the pointer, shown beside it.
+  CellThread? get _hovered {
+    final p = _pointer;
+    if (p == null || widget.editing || _size.isEmpty || _target(p).kind != _Kind.cell) return null;
+    var (row, col) = cellAt(p);
+    final merged = _layout.mergeAt(row, col);
+    if (merged != null) (row, col) = (merged.top, merged.left);
+    return threadAt(widget.sheet.grid?.cell(row, col), row, col);
+  }
+
+  /// Where the bubble of a thread goes: right of its cell, kept in view.
+  Offset _bubbleAt(CellThread t) {
+    final r = areaRect(CellArea.cell(t.row, t.col));
+    return Offset(math.min(r.right + 4, math.max(0, _size.width - 270)), math.min(r.top, math.max(0, _size.height - 120)));
+  }
 
   void _hover(PointerHoverEvent e) {
+    final was = _hovered?.id;
+    _pointer = e.localPosition;
     final t = _target(e.localPosition);
     final c = switch (t.kind) {
       _Kind.colEdge => SystemMouseCursors.resizeColumn,
@@ -499,7 +528,11 @@ class SheetViewState extends State<SheetView> {
       _Kind.cell => SystemMouseCursors.cell,
       _ => SystemMouseCursors.basic,
     };
-    if (c != _cursor) setState(() => _cursor = c);
+    if (c != _cursor || _hovered?.id != was) setState(() => _cursor = c);
+  }
+
+  void _leave(PointerExitEvent e) {
+    if (_pointer != null) setState(() => _pointer = null);
   }
 
   @override
@@ -508,9 +541,11 @@ class SheetViewState extends State<SheetView> {
       builder: (context, box) {
         _size = box.biggest;
         final d = _drag;
+        final hovered = _hovered;
         return MouseRegion(
           cursor: _cursor,
           onHover: _hover,
+          onExit: _leave,
           child: Listener(
             onPointerSignal: _signal,
             onPointerDown: _down,
@@ -556,6 +591,12 @@ class SheetViewState extends State<SheetView> {
                     Positioned.fromRect(
                       rect: r,
                       child: _Arrow(icon: widget.filter!.filters(col) ? Icons.filter_alt : Icons.arrow_drop_down, onDown: widget.onFilter == null ? null : () => widget.onFilter!(col, _onScreen(r))),
+                    ),
+                  if (hovered != null)
+                    Positioned(
+                      left: _bubbleAt(hovered).dx,
+                      top: _bubbleAt(hovered).dy,
+                      child: CommentBubble(thread: hovered, strings: widget.strings),
                     ),
                   if (widget.prompt != null) Positioned(left: activeRect.left + 12, top: activeRect.bottom + 6, child: widget.prompt!),
                 ],
@@ -677,6 +718,7 @@ class _SheetPainter extends CustomPainter {
     zoom: z,
     fonts: fonts,
     gridlines: layout.gridlines,
+    markers: true,
     width: width,
     height: height,
     texts: texts,

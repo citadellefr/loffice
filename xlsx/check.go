@@ -25,7 +25,7 @@ const (
 // editable are the attributes a change may set, by node type.
 var editable = map[string]map[string]bool{
 	"book":  {"names": true, "iterate": true},
-	"sheet": {"name": true, "state": true, "frozen": true, "grid": true, "rtl": true, "zoom": true, "tab": true, "dw": true, "dh": true, "filter": true, "print": true},
+	"sheet": {"name": true, "state": true, "frozen": true, "grid": true, "rtl": true, "zoom": true, "tab": true, "dw": true, "dh": true, "filter": true, "print": true, "cf": true, "valid": true},
 	"kept":  {"name": true, "state": true},
 }
 
@@ -33,9 +33,9 @@ var editable = map[string]map[string]bool{
 // their settings and cells, and cell formats added to those of the
 // workbook. An edit that inserts or removes rows or columns does nothing
 // else, so that the formulas it moves are those of the workbook before it.
-// The author is the editor's, as docx and pptx take it: a workbook has no
-// use for it.
-func (d *Document) Check(tree *ot.Tree, e ot.Edit, _ string) error {
+// The notes and threaded comments it adds are signed by author, and only
+// those of author are edited.
+func (d *Document) Check(tree *ot.Tree, e ot.Edit, author string) error {
 	created := map[string]string{}
 	typeOf := func(id string) string {
 		if t, ok := created[id]; ok {
@@ -46,6 +46,7 @@ func (d *Document) Check(tree *ot.Tree, e ot.Edit, _ string) error {
 		}
 		return ""
 	}
+	merged := merges{}
 	shifts := 0
 	for _, c := range e {
 		if c.Op == ot.OpIns || c.Op == ot.OpRem {
@@ -61,7 +62,7 @@ func (d *Document) Check(tree *ot.Tree, e ot.Edit, _ string) error {
 		case ot.OpNew:
 			switch {
 			case c.Type == "sheet" && c.Parent == "book":
-				if c.Cells == nil || !d.checkAttrs("sheet", c.Attrs) || !d.checkCells(typeOf, c.Cells) {
+				if c.Cells == nil || !d.checkAttrs("sheet", c.Attrs) || !d.checkCells(typeOf, c.Cells, nil, author) || !merged.apply(tree, c.ID, c.Cells) {
 					return ErrReadOnly
 				}
 			case c.Type == "xf" && c.Parent == "":
@@ -87,7 +88,7 @@ func (d *Document) Check(tree *ot.Tree, e ot.Edit, _ string) error {
 				return ErrReadOnly
 			}
 		case ot.OpCel:
-			if t != "" && (t != "sheet" || !d.checkCells(typeOf, c.Cells)) {
+			if t != "" && (t != "sheet" || !d.checkCells(typeOf, c.Cells, tree.Node(c.ID), author) || !merged.apply(tree, c.ID, c.Cells)) {
 				return ErrReadOnly
 			}
 		case ot.OpIns, ot.OpRem:
@@ -147,6 +148,10 @@ func (d *Document) checkAttrs(typ string, attrs ot.Values) bool {
 			ok = checkFilter(v)
 		case printKey:
 			ok = checkPrint(v)
+		case conditionalKey:
+			ok = checkConditionals(v)
+		case validKey:
+			ok = checkValidations(v)
 		}
 		if !ok {
 			return false
@@ -190,8 +195,9 @@ func validName(s string) bool {
 }
 
 // checkCells tells whether cells hold only what a workbook can: in row 0
-// the fields of columns, in column 0 those of rows.
-func (d *Document) checkCells(typeOf func(string) string, cells []ot.Cell) bool {
+// the fields of columns, in column 0 those of rows. sheet is the sheet they
+// are set in, nil when it is new.
+func (d *Document) checkCells(typeOf func(string) string, cells []ot.Cell, sheet *ot.Node, author string) bool {
 	for _, c := range cells {
 		var f map[string]json.RawMessage
 		if json.Unmarshal(c.Fields, &f) != nil {
@@ -209,6 +215,9 @@ func (d *Document) checkCells(typeOf func(string) string, cells []ot.Cell) bool 
 			case c.Row == 0 && c.Col == 0:
 			case c.Row == 0 || c.Col == 0:
 				ok = checkLine(k, v, c.Row == 0, typeOf)
+			case k == "note" || k == "thread":
+				old := oldFields(sheet, c.Row, c.Col)
+				ok = !d.csv && checkComment(k, v, old.fields[k], author) && checkExclusive(f, old.raw)
 			default:
 				ok = d.checkCell(k, v, typeOf)
 			}
@@ -220,8 +229,23 @@ func (d *Document) checkCells(typeOf func(string) string, cells []ot.Cell) bool 
 	return true
 }
 
+// cellWas are the fields a cell has in a sheet.
+type cellWas struct {
+	raw    json.RawMessage
+	fields map[string]json.RawMessage
+}
+
+func oldFields(sheet *ot.Node, row, col int) cellWas {
+	var was cellWas
+	if sheet != nil && sheet.Grid != nil {
+		was.raw = sheet.Grid.Cell(row, col)
+		_ = json.Unmarshal(was.raw, &was.fields)
+	}
+	return was
+}
+
 var (
-	cellKeys = []string{"ca", "cm", "e", "f", "fa", "fx", "m", "rich", "s", "v", "vm"}
+	cellKeys = []string{"ca", "cm", "e", "f", "fa", "fx", "link", "m", "note", "rich", "s", "thread", "v", "vm"}
 	lineKeys = []string{"bf", "ch", "cl", "cw", "h", "hide", "ol", "s", "w"}
 )
 
@@ -280,6 +304,9 @@ func (d *Document) checkCell(k string, v json.RawMessage, typeOf func(string) st
 		return json.Unmarshal(v, &b) == nil
 	case "cm":
 		return string(v) == "1"
+	case "link":
+		_, ok := parseLink(v)
+		return ok
 	case "m":
 		var m [2]int
 		return json.Unmarshal(v, &m) == nil && m[0] >= 1 && m[1] >= 1 && m[0] <= formula.MaxRows && m[1] <= formula.MaxCols

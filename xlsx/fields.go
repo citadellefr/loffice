@@ -14,11 +14,15 @@ type cellFields struct {
 	F    string          `json:"f,omitempty"`
 	FA   string          `json:"fa,omitempty"`
 	FX   string          `json:"fx,omitempty"`
+	Link json.RawMessage `json:"link,omitempty"`
 	M    *[2]int         `json:"m,omitempty"`
+	Note json.RawMessage `json:"note,omitempty"`
 	Rich string          `json:"rich,omitempty"`
 	S    string          `json:"s,omitempty"`
-	V    json.RawMessage `json:"v,omitempty"`
-	VM   int             `json:"vm,omitempty"`
+	// Thread is the threaded comment of the cell, a list of ThreadItem.
+	Thread json.RawMessage `json:"thread,omitempty"`
+	V      json.RawMessage `json:"v,omitempty"`
+	VM     int             `json:"vm,omitempty"`
 }
 
 // lineFields are the fields of a whole row or column.
@@ -71,6 +75,10 @@ func (f *cellFields) marshal() json.RawMessage {
 		field("fx")
 		b = appendString(b, f.FX)
 	}
+	if len(f.Link) > 0 {
+		field("link")
+		b = append(b, f.Link...)
+	}
 	if f.M != nil {
 		field("m")
 		b = append(b, '[')
@@ -79,6 +87,10 @@ func (f *cellFields) marshal() json.RawMessage {
 		b = strconv.AppendInt(b, int64(f.M[1]), 10)
 		b = append(b, ']')
 	}
+	if len(f.Note) > 0 {
+		field("note")
+		b = append(b, f.Note...)
+	}
 	if f.Rich != "" {
 		field("rich")
 		b = appendString(b, f.Rich)
@@ -86,6 +98,10 @@ func (f *cellFields) marshal() json.RawMessage {
 	if f.S != "" {
 		field("s")
 		b = appendString(b, f.S)
+	}
+	if len(f.Thread) > 0 {
+		field("thread")
+		b = append(b, f.Thread...)
 	}
 	if len(f.V) > 0 {
 		field("v")

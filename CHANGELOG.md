@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- `xlsx` edits merged cells and links: a cell's `m` is refused when its area
+  overlaps another, and a new field `link` (`{"url":"https://…"}`,
+  `{"loc":"Sheet2!A1"}`, `"tip"`) is written as Excel writes it, a
+  `hyperlink` element and an external relationship of the sheet. The Dart
+  workbook editor has Merge & Center on the Home tab and Link on the Insert
+  tab, and opens links with `onOpenLink`.
+- `xlsx` edits conditional formatting and data validation: the "cf" and
+  "valid" fields of a sheet (cell value, formula, top/bottom, duplicates, data
+  bars, color scales and icon sets with their dxf formats; list, whole,
+  decimal, date, time, text length and custom validations with their input and
+  error messages). `Check` verifies their formulas and ranges; unchanged rules
+  keep their XML. The "lists" field becomes "valid". The Dart editor draws
+  every rule type, refuses an invalid entry, offers the values of a list in
+  the cell, and has Home > Conditional formatting and Data > Data validation.
 - Size limits are options, no longer global variables: `loffice.NewHub` and
   `loffice.Convert` take `Limits`, and `docx.Open`, `pptx.Open`, `xlsx.Open`
   and `legacy.Workbook` take theirs as an argument. The hub refuses a file
@@ -22,6 +36,17 @@
   checking or writing a file, or of the calculation following an edit, is
   an error returned, its stack logged. A calculation that failed starts
   over from the sheets and sends the formula cells as they are.
+- `xlsx` reads the notes and the threaded comments of a sheet into the
+  "note" and "thread" fields of their cell, so that they follow the rows and
+  columns inserted or removed. Clients add, change and delete a note, reply
+  to a thread, resolve it and delete it; the hub signs the author as for
+  `docx` and `pptx`. They are written as Excel does: comments, the shape of
+  each note, the threaded comments with their persons and the note that
+  stands in for them in versions that do not know them.
+- Dart: the spreadsheet editor shows a red triangle in the corner of a cell
+  that holds a note and a violet one for a thread, a bubble over it under
+  the pointer, a Review tab (New Comment, New Note, Edit Note, Delete, Show
+  Comments) and the comments pane on the right.
 - The hub serves `.dotm`, `.xltm`, `.potx` and `.potm`.
 
 ## 0.11.1 — 2026-10-15
