@@ -81,12 +81,10 @@ func (w *writer) definitions() error {
 		name := w.d.mainRels.OfType(w.d.main, relStyles)
 		var doc *xmldom.Document
 		if name != "" {
-			data, err := w.pkg.Read(name)
-			if err != nil {
-				return err
-			}
-			if parsed, err := xmldom.Parse(data); err == nil {
-				doc = parsed
+			if data, err := w.pkg.Read(name); err == nil {
+				if parsed, err := xmldom.Parse(data); err == nil {
+					doc = parsed
+				}
 			}
 		} else {
 			name = "word/styles.xml"

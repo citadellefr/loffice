@@ -1,6 +1,9 @@
 package pptx
 
 import (
+	"archive/zip"
+	"bytes"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -32,6 +35,19 @@ const (
 		`<p:grpSp><p:nvGrpSpPr><p:cNvPr id="6" name="Groupe"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/><p:cxnSp><p:nvCxnSpPr><p:cNvPr id="7" name="Lien"/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr><p:spPr><a:prstGeom prst="line"/></p:spPr></p:cxnSp></p:grpSp>` +
 		`</p:spTree></p:cSld><p:transition spd="med"><p:fade/></p:transition></p:sld>`
 
+	fuzzMaster = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` + "\n" +
+		`<p:sldMaster ` + fuzzNS + `><p:cSld><p:spTree>` + group +
+		`<p:sp><p:nvSpPr><p:cNvPr id="2" name="Titre"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr><p:spPr><a:xfrm><a:off x="504000" y="226080"/><a:ext cx="9071640" cy="946440"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>` +
+		`<p:txBody><a:bodyPr anchor="ctr"><a:noAutofit/></a:bodyPr><a:p><a:pPr algn="ctr"/><a:r><a:rPr lang="en-US" sz="4400"/><a:t>Titre</a:t></a:r></a:p></p:txBody></p:sp>` +
+		`<p:sp><p:nvSpPr><p:cNvPr id="3" name="Corps"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr><p:ph type="body"/></p:nvPr></p:nvSpPr><p:spPr><a:xfrm><a:off x="504000" y="1326600"/><a:ext cx="9071640" cy="3288240"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>` +
+		`<p:txBody><a:bodyPr/><a:p><a:pPr marL="432000" indent="-324000"><a:buChar char="•"/></a:pPr><a:r><a:rPr lang="en-US" sz="3200"/><a:t>Texte</a:t></a:r></a:p></p:txBody></p:sp>` +
+		`</p:spTree></p:cSld><p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/><p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId2"/></p:sldLayoutIdLst></p:sldMaster>`
+
+	fuzzLayout = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` + "\n" +
+		`<p:sldLayout ` + fuzzNS + ` type="title" preserve="1"><p:cSld name="Default"><p:spTree>` + group +
+		`<p:sp><p:nvSpPr><p:cNvPr id="7" name="Titre"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:p><a:endParaRPr lang="en-US"/></a:p></p:txBody></p:sp>` +
+		`</p:spTree></p:cSld></p:sldLayout>`
+
 	fuzzAuthors  = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` + "\n" + `<p:cmAuthorLst ` + fuzzNS + `><p:cmAuthor id="0" name="Alice" initials="A" lastIdx="2" clrIdx="0"/></p:cmAuthorLst>`
 	fuzzComments = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` + "\n" + `<p:cmLst ` + fuzzNS + `><p:cm authorId="0" dt="2026-09-01T10:00:00.000" idx="1"><p:pos x="10" y="20"/><p:text>Pourquoi ?</p:text></p:cm></p:cmLst>`
 	fuzzStyles   = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` + "\n" + `<a:tblStyleLst ` + fuzzNS + ` def="{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}"><a:tblStyle styleId="{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}" styleName="Medium Style 2 - Accent 1"><a:wholeTbl><a:tcTxStyle><a:fontRef idx="minor"/></a:tcTxStyle><a:tcStyle><a:tcBdr/></a:tcStyle></a:wholeTbl></a:tblStyle></a:tblStyleLst>`
@@ -46,7 +62,8 @@ func blankPptx(t testing.TB) []byte {
 	return data
 }
 
-// fuzzSkeleton is the blank presentation with a slide that has shapes, a table,
+// fuzzSkeleton is the blank presentation, with a master and a layout cut to
+// what the slide inherits, and a slide that has shapes, a table,
 // comments and every part FuzzOpen puts its input in.
 func fuzzSkeleton(t testing.TB) *opc.Package {
 	t.Helper()
@@ -63,6 +80,8 @@ func fuzzSkeleton(t testing.TB) *opc.Package {
 	for _, err := range []error{
 		pkg.Set("ppt/_rels/presentation.xml.rels", rels),
 		pkg.Set("ppt/slides/_rels/slide1.xml.rels", slideRels),
+		pkg.Set("ppt/slideMasters/slideMaster1.xml", []byte(fuzzMaster)),
+		pkg.Set("ppt/slideLayouts/slideLayout1.xml", []byte(fuzzLayout)),
 		pkg.Set("ppt/slides/slide1.xml", []byte(fuzzSlide)),
 		pkg.Add("ppt/commentAuthors.xml", typeAuthors, []byte(fuzzAuthors)),
 		pkg.Add("ppt/comments/comment1.xml", typeComments, []byte(fuzzComments)),
@@ -85,50 +104,99 @@ func FuzzOpen(f *testing.F) {
 		}
 		f.Add(uint8(i), data)
 	}
-	base, err := fuzzSkeleton(f).Bytes()
+	base := stored(f, fuzzSkeleton(f))
+	f.Fuzz(func(t *testing.T, which uint8, data []byte) { fuzzOpen(t, base, which, data) })
+}
+
+// stored is the package with its parts uncompressed, which parts replaced
+// later stay: FuzzOpen compresses nothing.
+func stored(t testing.TB, pkg *opc.Package) []byte {
+	t.Helper()
+	data, err := pkg.Bytes()
 	if err != nil {
-		f.Fatal(err)
+		t.Fatal(err)
 	}
-	f.Fuzz(func(t *testing.T, which uint8, data []byte) {
-		pkg, err := opc.Open(base, opc.Limits{})
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	zw := zip.NewWriter(&out)
+	for _, f := range zr.File {
+		w, err := zw.CreateHeader(&zip.FileHeader{Name: f.Name, Method: zip.Store})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := pkg.Set(fuzzed[int(which)%len(fuzzed)], data); err != nil {
-			t.Fatal(err)
-		}
-		in, err := pkg.Bytes()
+		r, err := f.Open()
 		if err != nil {
 			t.Fatal(err)
 		}
-		d, tree, err := Open(in, opc.Limits{})
+		_, err = io.Copy(w, r)
+		r.Close()
 		if err != nil {
-			return
+			t.Fatal(err)
 		}
-		saved, err := save(d, tree, true)
-		if err != nil {
-			t.Fatalf("rewrite: %v", err)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return out.Bytes()
+}
+
+func fuzzOpen(t testing.TB, base []byte, which uint8, data []byte) {
+	pkg, err := opc.Open(base, opc.Limits{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pkg.Set(fuzzed[int(which)%len(fuzzed)], data); err != nil {
+		t.Fatal(err)
+	}
+	in, err := pkg.Bytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, tree, err := Open(in, opc.Limits{})
+	if err != nil {
+		return
+	}
+	saved, err := save(d, tree, true)
+	if err != nil {
+		t.Fatalf("rewrite: %v", err)
+	}
+	if _, _, err := Open(saved, opc.Limits{}); err != nil {
+		t.Fatalf("rewritten package does not open: %v", err)
+	}
+	slides := slidesOf(tree)
+	if len(slides) == 0 {
+		return
+	}
+	e := ot.Edit{commentAdded("fuzz", slides[0].ID, "Bob", "", "Commentaire")}
+	if n := firstText(tree, slides[0].ID); n != nil {
+		e = append(e, ot.Change{Op: ot.OpTxt, ID: n.ID, Text: ot.Delta{{Insert: "Bref ", Attrs: ot.Attrs{"b": "1"}}}})
+	}
+	if d.Check(tree, e, "Bob") != nil || tree.Apply(e) != nil {
+		return
+	}
+	saved, err = d.Save(tree)
+	if err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	if _, _, err := Open(saved, opc.Limits{}); err != nil {
+		t.Fatalf("edited package does not open: %v", err)
+	}
+}
+
+func BenchmarkFuzzOpen(b *testing.B) {
+	pkg := fuzzSkeleton(b)
+	base := stored(b, pkg)
+	seeds := make([][]byte, len(fuzzed))
+	for i, name := range fuzzed {
+		var err error
+		if seeds[i], err = pkg.Read(name); err != nil {
+			b.Fatal(err)
 		}
-		if _, _, err := Open(saved, opc.Limits{}); err != nil {
-			t.Fatalf("rewritten package does not open: %v", err)
-		}
-		slides := slidesOf(tree)
-		if len(slides) == 0 {
-			return
-		}
-		e := ot.Edit{commentAdded("fuzz", slides[0].ID, "Bob", "", "Commentaire")}
-		if n := firstText(tree, slides[0].ID); n != nil {
-			e = append(e, ot.Change{Op: ot.OpTxt, ID: n.ID, Text: ot.Delta{{Insert: "Bref ", Attrs: ot.Attrs{"b": "1"}}}})
-		}
-		if d.Check(tree, e, "Bob") != nil || tree.Apply(e) != nil {
-			return
-		}
-		saved, err = d.Save(tree)
-		if err != nil {
-			t.Fatalf("save: %v", err)
-		}
-		if _, _, err := Open(saved, opc.Limits{}); err != nil {
-			t.Fatalf("edited package does not open: %v", err)
-		}
-	})
+	}
+	for i := 0; b.Loop(); i++ {
+		fuzzOpen(b, base, uint8(i%len(fuzzed)), seeds[i%len(fuzzed)])
+	}
 }
