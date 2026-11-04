@@ -189,6 +189,11 @@ func (c *Calc) Follow(e ot.Edit, since []ot.Edit) ot.Edit {
 		f.sheetsChanged()
 	}
 	for _, ch := range e {
+		if (ch.Op == ot.OpSet || ch.Op == ot.OpNew) && ch.Attrs[chartsKey] != nil {
+			f.placeCharts(ch.ID)
+		}
+	}
+	for _, ch := range e {
 		if ch.Op == ot.OpIns || ch.Op == ot.OpRem {
 			f.shift(ch)
 			f.flush()
