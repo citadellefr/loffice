@@ -134,3 +134,55 @@ func TestLambdaStored(t *testing.T) {
 		}
 	}
 }
+
+func TestLambdaReferences(t *testing.T) {
+	b := book(map[string]any{"A1": 1, "A2": "x", "A3": 3, "B1": 10, "B2": 20, "B3": 30, "C1": 5, "C2": 6})
+	for f, want := range map[string]string{
+		`MAP(A1:A3,LAMBDA(c,ROW(c)))`:                      "1;2;3",
+		`MAP(A1:A3,LAMBDA(c,ISREF(c)))`:                    "TRUE;TRUE;TRUE",
+		`MAP(A1:B2,LAMBDA(c,COLUMN(c)))`:                   "1,2;1,2",
+		`MAP(A1:A2,B1:B2,LAMBDA(a,b,ROW(a)+COLUMN(b)))`:    "3;4",
+		`MAP(A1:A3,B1:B2,LAMBDA(a,b,ISREF(b)))`:            "TRUE;TRUE;FALSE",
+		`MAP(A1:A3,LAMBDA(c,OFFSET(c,0,1)))`:               "10;20;30",
+		`MAP(A1:A3,LAMBDA(c,ROWS(c)*10+COLUMNS(c)))`:       "11;11;11",
+		`MAP(A1:A3,LAMBDA(c,c))`:                           `1;"x";3`,
+		`MAP({1;2;3},LAMBDA(c,ISREF(c)))`:                  "FALSE;FALSE;FALSE",
+		`MAP(TRANSPOSE(A1:A3),LAMBDA(c,ISREF(c)))`:         "FALSE,FALSE,FALSE",
+		`BYROW(A1:C2,LAMBDA(r,ROW(r)))`:                    "1;2",
+		`BYROW(A1:C2,LAMBDA(r,COLUMN(r)))`:                 "1;1",
+		`BYROW(A1:C2,LAMBDA(r,ROWS(r)*10+COLUMNS(r)))`:     "13;13",
+		`BYROW(A1:C2,LAMBDA(r,ISREF(r)))`:                  "TRUE;TRUE",
+		`BYROW(A1:C2,LAMBDA(r,SUM(OFFSET(r,1,0))))`:        "26;33",
+		`BYROW(A1:C3,LAMBDA(r,INDEX(r,2)))`:                "10;20;30",
+		`BYCOL(A1:C2,LAMBDA(c,COLUMN(c)))`:                 "1,2,3",
+		`BYCOL(A1:C2,LAMBDA(c,ROW(c)))`:                    "1,1,1",
+		`BYCOL(A1:C2,LAMBDA(c,ROWS(c)*10+COLUMNS(c)))`:     "21,21,21",
+		`BYCOL(A1:C2,LAMBDA(c,ISREF(c)))`:                  "TRUE,TRUE,TRUE",
+		`BYCOL(A1:C2,LAMBDA(c,SUM(OFFSET(c,0,1))))`:        "30,11,0",
+		`BYROW({1,2;3,4},LAMBDA(r,ISREF(r)))`:              "FALSE;FALSE",
+		`BYCOL({1,2;3,4},LAMBDA(c,ISREF(c)))`:              "FALSE,FALSE",
+		`REDUCE(0,A1:A3,LAMBDA(a,v,a+IF(ISREF(v),100,1)))`: "3",
+		`SCAN(0,A1:A2,LAMBDA(a,v,a+IF(ISREF(v),100,1)))`:   "1;2",
+		`MAKEARRAY(1,1,LAMBDA(r,c,IF(ISREF(r),100,1)))`:    "1",
+		`ROWS(BYROW(A:A,LAMBDA(r,ROW(r))))`:                "3",
+	} {
+		if got := evalTable(t, b, f, nil); got != want {
+			t.Errorf("%s = %s, want %s", f, got, want)
+		}
+	}
+}
+
+func TestLambdaReferencesEngine(t *testing.T) {
+	s, e := newSource()
+	s.set(e, "A1", 1)
+	s.set(e, "A2", 2)
+	s.set(e, "B1", "=SUM(MAP(A1:A2,LAMBDA(c,ROW(c)*c)))")
+	s.set(e, "B2", "=SUM(BYROW(A1:A2,LAMBDA(r,SUM(r))))")
+	s.set(e, "B3", "=SUM(BYCOL(A1:A2,LAMBDA(c,SUM(c))))")
+	if got := s.show("B1") + " " + s.show("B2") + " " + s.show("B3"); got != "5 3 3" {
+		t.Fatal(got)
+	}
+	if got := results(s.set(e, "A2", 5)); got != "[B1=11 B2=6 B3=6]" {
+		t.Fatal(got)
+	}
+}
