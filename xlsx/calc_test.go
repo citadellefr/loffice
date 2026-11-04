@@ -437,3 +437,29 @@ func BenchmarkRenameSheet(b *testing.B) {
 		c.Follow(e, nil)
 	}
 }
+
+func TestCalcWorkbookInfo(t *testing.T) {
+	tree, c := calcTree(t)
+	edit(t, tree, c, ot.Edit{{Op: ot.OpNew, ID: "S3", Type: "sheet", Parent: "book", Key: "M", Attrs: ot.Values{"name": json.RawMessage(`"Trois"`)}}})
+	edit(t, tree, c, ot.Edit{{Op: ot.OpCel, ID: "S1", Cells: []ot.Cell{
+		cell(6, 1, `{"f":"SHEETS()"}`), cell(6, 2, `{"f":"INFO(\"numfile\")"}`), cell(6, 3, `{"f":"CELL(\"filename\",A1)"}`)}}})
+	for col, want := range map[int]string{1: `"v":3`, 2: `"v":3`, 3: `"v":""`} {
+		if got := fieldsAt(tree, "S1", 6, col); !strings.HasSuffix(got, want+"}") {
+			t.Fatalf("col %d: %s, want %s", col, got, want)
+		}
+	}
+}
+
+func TestCalcFileName(t *testing.T) {
+	tree, c := calcTree(t)
+	c.opt.FileName = "budget.xlsx"
+	c.rebuild()
+	edit(t, tree, c, ot.Edit{{Op: ot.OpCel, ID: "S1", Cells: []ot.Cell{cell(6, 3, `{"f":"CELL(\"filename\",A1)"}`)}}})
+	if got := fieldsAt(tree, "S1", 6, 3); got != `{"f":"CELL(\"filename\",A1)","v":"[budget.xlsx]Feuil1"}` {
+		t.Fatalf("got %s", got)
+	}
+	edit(t, tree, c, ot.Edit{{Op: ot.OpSet, ID: "S1", Attrs: ot.Values{"name": json.RawMessage(`"Autre"`)}}})
+	if got := fieldsAt(tree, "S1", 6, 3); got != `{"f":"CELL(\"filename\",A1)","v":"[budget.xlsx]Autre"}` {
+		t.Fatalf("after rename: %s", got)
+	}
+}
