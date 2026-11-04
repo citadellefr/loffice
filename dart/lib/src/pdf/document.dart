@@ -25,7 +25,7 @@ String pdfName(String title) {
 }
 
 /// A PDF being written: pages of drawing operators, and what they draw
-/// with — fonts, pictures, opacities and gradients — shared by all of them.
+/// with — fonts, pictures, opacities, gradients and tiled patterns — shared by all of them.
 class PdfDocument {
   final _objects = <Uint8List?>[];
   final _pages = <({double width, double height, int content})>[];
@@ -33,6 +33,8 @@ class PdfDocument {
   final _images = <int>[];
   final _alphas = <String, String>{};
   final _shadings = <int>[];
+  final _tilings = <String, String>{};
+  final _tilingIds = <int>[];
   late final int _resources = _reserve();
   late final int _pagesId = _reserve();
 
@@ -95,6 +97,21 @@ class PdfDocument {
     return 'Im${_images.length}';
   }
 
+  /// A PNG picture of [width] by [height] pixels, embedded as it is: [data]
+  /// is the zlib stream of its filtered rows, which the predictor of Flate
+  /// undoes. [space] is the color space of its [colors] components of
+  /// [depth] bits.
+  String png(int width, int height, String space, int depth, int colors, Uint8List data) {
+    _images.add(
+      _add(
+        '/Type /XObject /Subtype /Image /Width $width /Height $height /ColorSpace $space /BitsPerComponent $depth '
+        '/Filter /FlateDecode /DecodeParms << /Predictor 15 /Colors $colors /BitsPerComponent $depth /Columns $width >>',
+        data,
+      ),
+    );
+    return 'Im${_images.length}';
+  }
+
   /// The graphics state that fills and strokes at an opacity.
   String alpha(double fill, double stroke) => _alphas.putIfAbsent('<< /ca ${pdfNumber(fill)} /CA ${pdfNumber(stroke)} >>', () => 'G${_alphas.length + 1}');
 
@@ -118,13 +135,29 @@ class PdfDocument {
     return 'Sh${_shadings.length}';
   }
 
+  /// A pattern that repeats [content], drawn in a tile of [width] by [height]
+  /// and in the pictures named [images]. [matrix] places the tile on the page
+  /// as the default space of the page sees it.
+  String tiling(List<double> matrix, double width, double height, String content, [Iterable<String> images = const []]) {
+    final xobjects = [for (final name in images) '/$name ${_images[int.parse(name.substring(2)) - 1]} 0 R'].join(' ');
+    final dictionary =
+        '/Type /Pattern /PatternType 1 /PaintType 1 /TilingType 1 /BBox [0 0 ${pdfNumber(width)} ${pdfNumber(height)}] '
+        '/XStep ${pdfNumber(width)} /YStep ${pdfNumber(height)} /Matrix [${matrix.map(pdfNumber).join(' ')}] /Resources << /XObject << $xobjects >> >>';
+    final key = '$dictionary $content';
+    return _tilings.putIfAbsent(key, () {
+      _tilingIds.add(_packed(dictionary, latin1.encode(content)));
+      return 'P${_tilingIds.length}';
+    });
+  }
+
   /// The file, titled [title].
   Uint8List save({String title = ''}) {
     final fonts = [for (final f in _fonts.values) '/${f.name} ${_embed(f)} 0 R'].join(' ');
     final images = [for (final (i, id) in _images.indexed) '/Im${i + 1} $id 0 R'].join(' ');
     final shadings = [for (final (i, id) in _shadings.indexed) '/Sh${i + 1} $id 0 R'].join(' ');
+    final patterns = [for (final (i, id) in _tilingIds.indexed) '/P${i + 1} $id 0 R'].join(' ');
     final states = [for (final e in _alphas.entries) '/${e.value} ${e.key}'].join(' ');
-    _set(_resources, '<< /Font << $fonts >> /XObject << $images >> /Shading << $shadings >> /ExtGState << $states >> >>');
+    _set(_resources, '<< /Font << $fonts >> /XObject << $images >> /Shading << $shadings >> /Pattern << $patterns >> /ExtGState << $states >> >>');
     final kids = [
       for (final p in _pages)
         _add(

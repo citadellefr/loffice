@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- The PDF export of the Dart package writes what it left blank: pattern fills
+  as tiling patterns of the preset's pixels, tiled pictures as tiling
+  patterns of the picture, opaque PNG pictures as they are (Flate with its
+  predictor, palettes included) and the others, transparent ones, as colors
+  with their opacity as a soft mask, shadows (`drawShadow`) and blurs
+  (`MaskFilter.blur`) as the shape grown in fainter and fainter layers. No
+  method of a `Canvas` fails the export any more: the rest is written in
+  its plainest form or left aside, and `PdfExport.ignored` (the `ignored`
+  callback of `wordPdf`, `deckPdf` and `workbookPdf`) tells what, as
+  `missing` tells the characters.
 - `formula` calculates the array shaping functions of Excel 365: TAKE, DROP,
   CHOOSECOLS, CHOOSEROWS, EXPAND, VSTACK, HSTACK, TOCOL, TOROW, WRAPCOLS,
   WRAPROWS and TEXTSPLIT, with their French names in the Dart formula text,

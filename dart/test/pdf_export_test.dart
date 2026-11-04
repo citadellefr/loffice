@@ -42,10 +42,11 @@ void main() {
     File('$out/$name-screen.png').writeAsBytesSync(png!.buffer.asUint8List());
   }
 
-  void check(String name, Uint8List pdf, int pages, Set<String> missing) {
+  void check(String name, Uint8List pdf, int pages, Set<String> missing, Set<String> ignored) {
     expect(latin1.decode(pdf.sublist(0, 8)), '%PDF-1.7');
     expect(RegExp(r'/Type /Page ').allMatches(latin1.decode(pdf)).length, pages, reason: name);
     expect(missing, isEmpty, reason: name);
+    expect(ignored, isEmpty, reason: name);
     if (out != null) File('$out/$name.pdf').writeAsBytesSync(pdf);
   }
 
@@ -55,9 +56,9 @@ void main() {
       final context = WordContext(doc);
       final layout = WordLayout(doc, context, ParaCache());
       final painter = PagePainter(context: context);
-      var missing = <String>{};
-      final pdf = await wordPdf(layout, painter, title: name(file), missing: (m) => missing = m);
-      check(name(file), pdf, layout.pages.length, missing);
+      var missing = <String>{}, ignored = <String>{};
+      final pdf = await wordPdf(layout, painter, title: name(file), missing: (m) => missing = m, ignored: (i) => ignored = i);
+      check(name(file), pdf, layout.pages.length, missing, ignored);
       await screen(name(file), layout.pages.first.size, (c) => painter.paint(c, layout.pages.first));
     }
   });
@@ -66,9 +67,9 @@ void main() {
     for (final file in trees('pptx')) {
       final deck = Deck(tree(file));
       final painter = SlidePainter(deck);
-      var missing = <String>{};
-      final pdf = await deckPdf(deck, painter, title: name(file), missing: (m) => missing = m);
-      check(name(file), pdf, deck.slides.length, missing);
+      var missing = <String>{}, ignored = <String>{};
+      final pdf = await deckPdf(deck, painter, title: name(file), missing: (m) => missing = m, ignored: (i) => ignored = i);
+      check(name(file), pdf, deck.slides.length, missing, ignored);
       await screen(name(file), deck.size, (c) => painter.paint(c, deck.slides.first));
     }
   });
@@ -77,9 +78,9 @@ void main() {
     for (final file in trees('xlsx')) {
       final book = Workbook(tree(file));
       final pages = workbookPages(book, title: name(file));
-      var missing = <String>{};
-      final pdf = await workbookPdf(book, title: name(file), missing: (m) => missing = m);
-      check(name(file), pdf, pages.length, missing);
+      var missing = <String>{}, ignored = <String>{};
+      final pdf = await workbookPdf(book, title: name(file), missing: (m) => missing = m, ignored: (i) => ignored = i);
+      check(name(file), pdf, pages.length, missing, ignored);
       await screen(name(file), pages.first.size, pages.first.paint);
     }
   });
