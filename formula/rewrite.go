@@ -167,13 +167,13 @@ func Drop(f, sheet string) (string, error) {
 var newer = map[string]string{"FILTER": "_xlfn._xlws.", "SORT": "_xlfn._xlws."}
 
 func init() {
-	for _, name := range []string{"AGGREGATE", "ANCHORARRAY", "BETA.DIST", "BINOM.DIST", "CEILING.MATH",
+	for _, name := range []string{"AGGREGATE", "ANCHORARRAY", "BETA.DIST", "BINOM.DIST", "BYCOL", "BYROW", "CEILING.MATH",
 		"CEILING.PRECISE", "CHISQ.DIST", "CHISQ.DIST.RT", "CHISQ.TEST", "COMBINA", "CONCAT", "CONFIDENCE.NORM",
 		"CONFIDENCE.T", "COVARIANCE.P", "COVARIANCE.S", "DAYS", "EXPON.DIST", "F.DIST", "F.DIST.RT", "FLOOR.MATH",
-		"FLOOR.PRECISE", "FORECAST.LINEAR", "GAMMA.DIST", "IFNA", "IFS", "ISO.CEILING", "ISOWEEKNUM",
-		"LOGNORM.DIST", "MAXIFS", "MINIFS", "MODE.SNGL", "MUNIT", "NORM.DIST", "NORM.INV", "NORM.S.DIST",
+		"FLOOR.PRECISE", "FORECAST.LINEAR", "GAMMA.DIST", "IFNA", "IFS", "ISO.CEILING", "ISOMITTED", "ISOWEEKNUM",
+		"LAMBDA", "LET", "LOGNORM.DIST", "MAKEARRAY", "MAP", "MAXIFS", "MINIFS", "MODE.SNGL", "MUNIT", "NORM.DIST", "NORM.INV", "NORM.S.DIST",
 		"NORM.S.INV", "NUMBERVALUE", "PERCENTILE.EXC", "PERCENTILE.INC", "PERCENTRANK.INC", "POISSON.DIST",
-		"QUARTILE.EXC", "QUARTILE.INC", "RANDARRAY", "RANK.AVG", "RANK.EQ", "SEQUENCE", "SINGLE", "SORTBY",
+		"QUARTILE.EXC", "QUARTILE.INC", "RANDARRAY", "RANK.AVG", "RANK.EQ", "REDUCE", "SCAN", "SEQUENCE", "SINGLE", "SORTBY",
 		"STDEV.P", "STDEV.S", "SWITCH", "T.DIST", "T.DIST.2T", "T.DIST.RT", "T.INV", "T.INV.2T", "T.TEST",
 		"TEXTAFTER", "TEXTBEFORE", "TEXTJOIN", "UNICHAR", "UNICODE", "UNIQUE", "VAR.P", "VAR.S", "XLOOKUP",
 		"XMATCH", "XOR"} {
@@ -182,7 +182,8 @@ func init() {
 }
 
 // Stored is f as files store it: the functions newer than the format
-// with their prefix, _xlfn.SEQUENCE, and A1# as _xlfn.ANCHORARRAY(A1).
+// with their prefix, _xlfn.SEQUENCE, the names LET and LAMBDA declare with
+// theirs, _xlpm.x, and A1# as _xlfn.ANCHORARRAY(A1).
 func Stored(f string) string {
 	if !strings.ContainsAny(f, "(#") {
 		return f
@@ -191,10 +192,15 @@ func Stored(f string) string {
 	if err != nil {
 		return f
 	}
+	declared := params(tokens)
 	var b strings.Builder
 	for i, t := range tokens {
 		spill := i+1 < len(tokens) && tokens[i+1].Kind == Operator && tokens[i+1].Text == "#"
 		switch {
+		case declared[i]:
+			if !hasPrefixFold(t.Text, paramPrefix) {
+				b.WriteString(paramPrefix)
+			}
 		case t.Kind == Function && strings.ToUpper(t.Text) == FunctionName(t.Text):
 			b.WriteString(newer[strings.ToUpper(t.Text[:len(t.Text)-1])])
 		case (t.Kind == Reference || t.Kind == Name) && spill:
@@ -206,4 +212,77 @@ func Stored(f string) string {
 		b.WriteString(t.Text)
 	}
 	return b.String()
+}
+
+// params tells which tokens are names LET and LAMBDA declare, where they
+// declare them and within their scope.
+func params(tokens []Token) []bool {
+	type frame struct {
+		fn    string
+		arg   int
+		names []string
+	}
+	var stack []frame
+	scoped := func(name string) bool {
+		name = trimParam(name)
+		for _, fr := range stack {
+			for _, n := range fr.names {
+				if strings.EqualFold(n, name) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	// kind is the kind of the token next to i that is not a space, in the
+	// direction of step.
+	kind := func(i, step int) Kind {
+		for i += step; i >= 0 && i < len(tokens); i += step {
+			if tokens[i].Kind != Space {
+				return tokens[i].Kind
+			}
+		}
+		return 0
+	}
+	out := make([]bool, len(tokens))
+	for i, t := range tokens {
+		switch t.Kind {
+		case Function:
+			name := t.Text[:len(t.Text)-1]
+			out[i] = scoped(name)
+			stack = append(stack, frame{fn: FunctionName(name)})
+		case Open, OpenArray:
+			stack = append(stack, frame{})
+		case Close, CloseArray:
+			if len(stack) > 0 {
+				stack = stack[:len(stack)-1]
+			}
+		case Comma:
+			if len(stack) > 0 {
+				stack[len(stack)-1].arg++
+			}
+		case Name:
+			if strings.ContainsAny(t.Text, "![") {
+				continue
+			}
+			if len(stack) > 0 {
+				top := &stack[len(stack)-1]
+				declares := top.fn == "LAMBDA" || top.fn == "LET" && top.arg%2 == 0
+				if declares && (kind(i, -1) == Function || kind(i, -1) == Comma) && kind(i, 1) == Comma {
+					top.names = append(top.names, trimParam(t.Text))
+					out[i] = true
+					continue
+				}
+			}
+			out[i] = scoped(t.Text)
+		}
+	}
+	return out
+}
+
+func trimParam(name string) string {
+	if hasPrefixFold(name, paramPrefix) {
+		return name[len(paramPrefix):]
+	}
+	return name
 }

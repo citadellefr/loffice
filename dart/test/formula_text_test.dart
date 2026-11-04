@@ -37,6 +37,16 @@ void main() {
       ('XIRR(A1:A5,B1:B5)', 'TRI.PAIEMENTS(A1:A5;B1:B5)'),
       ('MIRR(A1:A5,0.1,0.12)', 'TRIM(A1:A5;0,1;0,12)'),
       ('TRIM(A1)', 'SUPPRESPACE(A1)'),
+      ('_xlfn.LET(_xlpm.x,1.5,_xlpm.x*2)', 'LET(x;1,5;x*2)'),
+      ('_xlfn.LAMBDA(_xlpm.x,_xlpm.y,_xlpm.x+_xlpm.y)(1,2)', 'LAMBDA(x;y;x+y)(1;2)'),
+      ('_xlfn.LET(_xlpm.f,_xlfn.LAMBDA(_xlpm.n,_xlpm.n+1),_xlpm.f(2))', 'LET(f;LAMBDA(n;n+1);f(2))'),
+      ('_xlfn.MAP(A1:A3,_xlfn.LAMBDA(_xlpm.v,IF(_xlfn.ISOMITTED(_xlpm.v),0,_xlpm.v)))', 'MAP(A1:A3;LAMBDA(v;SI(ESTOMIS(v);0;v)))'),
+      ('_xlfn.REDUCE(0,A1:A3,_xlfn.LAMBDA(_xlpm.a,_xlpm.b,_xlpm.a+_xlpm.b))', 'REDUCE(0;A1:A3;LAMBDA(a;b;a+b))'),
+      ('_xlfn.SCAN(0,A1:A3,_xlfn.LAMBDA(_xlpm.a,_xlpm.b,_xlpm.a+_xlpm.b))', 'SCAN(0;A1:A3;LAMBDA(a;b;a+b))'),
+      ('_xlfn.BYROW(A1:B2,_xlfn.LAMBDA(_xlpm.r,SUM(_xlpm.r)))', 'BYROW(A1:B2;LAMBDA(r;SOMME(r)))'),
+      ('_xlfn.BYCOL(A1:B2,_xlfn.LAMBDA(_xlpm.c,MAX(_xlpm.c)))', 'BYCOL(A1:B2;LAMBDA(c;MAX(c)))'),
+      ('_xlfn.MAKEARRAY(2,3,_xlfn.LAMBDA(_xlpm.r,_xlpm.c,_xlpm.r*_xlpm.c))', 'MAKEARRAY(2;3;LAMBDA(r;c;r*c))'),
+      ('Fact2(5)', 'Fact2(5)'),
     ]) {
       expect(formulaToFrench(file), shown, reason: file);
     }
@@ -69,6 +79,16 @@ void main() {
       ('prix.titre(A1;A2;A3;A4;100;2)', 'PRICE(A1,A2,A3,A4,100,2)'),
       ('taux.int.equiv(96;A1;A2)', '_xlfn.RRI(96,A1,A2)'),
       ('TRIM(A1:A5;0,1;0,12)', 'MIRR(A1:A5,0.1,0.12)'),
+      ('let(x;1,5;x*2)', '_xlfn.LET(x,1.5,x*2)'),
+      ('LAMBDA(x;x+1)(2)', '_xlfn.LAMBDA(x,x+1)(2)'),
+      ('MAP(A1:A3;LAMBDA(v;SI(ESTOMIS(v);0;v)))', '_xlfn.MAP(A1:A3,_xlfn.LAMBDA(v,IF(_xlfn.ISOMITTED(v),0,v)))'),
+      ('REDUCE(;A1:A3;LAMBDA(a;b;a+b))', '_xlfn.REDUCE(,A1:A3,_xlfn.LAMBDA(a,b,a+b))'),
+      ('SCAN(0;A1:A3;LAMBDA(a;b;a+b))', '_xlfn.SCAN(0,A1:A3,_xlfn.LAMBDA(a,b,a+b))'),
+      ('BYROW(A1:B2;LAMBDA(r;SOMME(r)))', '_xlfn.BYROW(A1:B2,_xlfn.LAMBDA(r,SUM(r)))'),
+      ('bycol(A1:B2;LAMBDA(c;MAX(c)))', '_xlfn.BYCOL(A1:B2,_xlfn.LAMBDA(c,MAX(c)))'),
+      ('MAKEARRAY(2;3;LAMBDA(r;c;r*c))', '_xlfn.MAKEARRAY(2,3,_xlfn.LAMBDA(r,c,r*c))'),
+      ('ISOMITTED(x)', '_xlfn.ISOMITTED(x)'),
+      ('Fact2(5)+f(1)', 'Fact2(5)+f(1)'),
     ]) {
       expect(formulaFromFrench(typed), file, reason: typed);
     }

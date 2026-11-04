@@ -224,7 +224,7 @@ func (e *Engine) set(p Pos, f string, array *Area, dynamic bool) {
 		e.spills[p] = cf
 		e.spreads(cf)
 	}
-	e.reads(x, p.Sheet, 0, func(a Area3) { cf.reads = append(cf.reads, a) }, func(name string) {
+	e.reads(x, p.Sheet, map[string]bool{}, func(a Area3) { cf.reads = append(cf.reads, a) }, func(name string) {
 		if f := functions[name]; f != nil && f.volatile {
 			e.volatile[p] = true
 		}
@@ -312,9 +312,10 @@ func (e *Engine) unindex(p Pos, cf *cellFormula) {
 }
 
 // reads calls f with the areas a formula reads, those of the names it
-// uses included but not those only placing a result, and calls calls with
-// the functions it calls.
-func (e *Engine) reads(x Expr, sheet, depth int, f func(Area3), calls func(name string)) {
+// uses or calls as a LAMBDA included but not those only placing a result,
+// and calls calls with the functions it calls. seen are the names already
+// followed.
+func (e *Engine) reads(x Expr, sheet int, seen map[string]bool, f func(Area3), calls func(name string)) {
 	switch x := x.(type) {
 	case refExpr:
 		r := x.ref
@@ -332,34 +333,52 @@ func (e *Engine) reads(x Expr, sheet, depth int, f func(Area3), calls func(name 
 			f(Area3{s, r.Area})
 		}
 	case nameExpr:
-		s := sheet
-		if x.sheet != "" {
-			if ss, ok := e.src.Sheets(x.sheet, ""); ok {
-				s = ss[0]
-			}
-		}
-		if text, ok := e.src.Name(x.name, s); ok && depth < maxDepth {
-			if y, err := Parse(text); err == nil {
-				e.reads(y, s, depth+1, f, calls)
-			}
-		}
+		e.readsName(x, sheet, seen, f, calls)
 	case unaryExpr:
-		e.reads(x.x, sheet, depth, f, calls)
+		e.reads(x.x, sheet, seen, f, calls)
 	case percentExpr:
-		e.reads(x.x, sheet, depth, f, calls)
+		e.reads(x.x, sheet, seen, f, calls)
 	case spillExpr:
-		e.reads(x.x, sheet, depth, f, calls)
+		e.reads(x.x, sheet, seen, f, calls)
 	case binaryExpr:
-		e.reads(x.x, sheet, depth, f, calls)
-		e.reads(x.y, sheet, depth, f, calls)
+		e.reads(x.x, sheet, seen, f, calls)
+		e.reads(x.y, sheet, seen, f, calls)
 	case callExpr:
 		calls(x.name)
+		if functions[x.name] == nil {
+			e.readsName(nameExpr{name: x.name}, sheet, seen, f, calls)
+		}
 		for i, a := range x.args {
 			if placing(x.name, i) {
-				e.reads(a, sheet, depth, func(Area3) {}, calls)
+				e.reads(a, sheet, map[string]bool{}, func(Area3) {}, calls)
 			} else {
-				e.reads(a, sheet, depth, f, calls)
+				e.reads(a, sheet, seen, f, calls)
 			}
+		}
+	case invokeExpr:
+		e.reads(x.fn, sheet, seen, f, calls)
+		for _, a := range x.args {
+			e.reads(a, sheet, seen, f, calls)
+		}
+	}
+}
+
+// readsName follows a defined name into its formula, once.
+func (e *Engine) readsName(x nameExpr, sheet int, seen map[string]bool, f func(Area3), calls func(name string)) {
+	s := sheet
+	if x.sheet != "" {
+		if ss, ok := e.src.Sheets(x.sheet, ""); ok {
+			s = ss[0]
+		}
+	}
+	key := strings.ToUpper(x.name) + "!" + strconv.Itoa(s)
+	if seen[key] {
+		return
+	}
+	seen[key] = true
+	if text, ok := e.src.Name(x.name, s); ok {
+		if y, err := Parse(text); err == nil {
+			e.reads(y, s, seen, f, calls)
 		}
 	}
 }
@@ -412,14 +431,21 @@ func (e *Engine) bind(x Expr, sheet int) Expr {
 		x.x, x.y = e.bind(x.x, sheet), e.bind(x.y, sheet)
 		return x
 	case callExpr:
-		args := make([]Expr, len(x.args))
-		for i, a := range x.args {
-			args[i] = e.bind(a, sheet)
-		}
-		x.args = args
+		x.args = e.bindAll(x.args, sheet)
+		return x
+	case invokeExpr:
+		x.fn, x.args = e.bind(x.fn, sheet), e.bindAll(x.args, sheet)
 		return x
 	}
 	return x
+}
+
+func (e *Engine) bindAll(args []Expr, sheet int) []Expr {
+	out := make([]Expr, len(args))
+	for i, a := range args {
+		out[i] = e.bind(a, sheet)
+	}
+	return out
 }
 
 // Result is a cell whose value a calculation changed.
@@ -1071,6 +1097,8 @@ func cellValue(v Value) Value {
 		return Num(0)
 	case TypeArray, TypeRange:
 		return ErrValue
+	case TypeLambda:
+		return ErrCalc
 	}
 	return v
 }
