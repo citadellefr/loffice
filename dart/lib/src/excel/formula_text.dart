@@ -37,6 +37,8 @@ const _functions = <String, String>{
   'BITOR': 'BITOU',
   'BITRSHIFT': 'BITDECALD',
   'BITXOR': 'BITOUEXCLUSIF',
+  'BYCOL': 'BYCOL',
+  'BYROW': 'BYROW',
   'CEILING': 'PLAFOND',
   'CEILING.MATH': 'PLAFOND.MATH',
   'CEILING.PRECISE': 'PLAFOND.PRECIS',
@@ -163,16 +165,19 @@ const _functions = <String, String>{
   'ISNUMBER': 'ESTNUM',
   'ISO.CEILING': 'ISO.PLAFOND',
   'ISODD': 'EST.IMPAIR',
+  'ISOMITTED': 'ESTOMIS',
   'ISOWEEKNUM': 'NO.SEMAINE.ISO',
   'ISREF': 'ESTREF',
   'ISTEXT': 'ESTTEXTE',
   'KURT': 'KURTOSIS',
+  'LAMBDA': 'LAMBDA',
   'LARGE': 'GRANDE.VALEUR',
   'LCM': 'PPCM',
   'LEFT': 'GAUCHE',
   'LEFTB': 'GAUCHEB',
   'LEN': 'NBCAR',
   'LENB': 'LENB',
+  'LET': 'LET',
   'LINEST': 'DROITEREG',
   'LN': 'LN',
   'LOG': 'LOG',
@@ -182,6 +187,8 @@ const _functions = <String, String>{
   'LOGNORMDIST': 'LOI.LOGNORMALE',
   'LOOKUP': 'RECHERCHE',
   'LOWER': 'MINUSCULE',
+  'MAKEARRAY': 'MAKEARRAY',
+  'MAP': 'MAP',
   'MATCH': 'EQUIV',
   'MAX': 'MAX',
   'MAXA': 'MAXA',
@@ -260,6 +267,7 @@ const _functions = <String, String>{
   'RANK.EQ': 'EQUATION.RANG',
   'RATE': 'TAUX',
   'RECEIVED': 'VALEUR.ENCAISSEMENT',
+  'REDUCE': 'REDUCE',
   'REPLACE': 'REMPLACER',
   'REPT': 'REPT',
   'RIGHT': 'DROITE',
@@ -272,6 +280,7 @@ const _functions = <String, String>{
   'ROWS': 'LIGNES',
   'RRI': 'TAUX.INT.EQUIV',
   'RSQ': 'COEFFICIENT.DETERMINATION',
+  'SCAN': 'SCAN',
   'SEARCH': 'CHERCHE',
   'SECOND': 'SECONDE',
   'SEQUENCE': 'SEQUENCE',
@@ -379,6 +388,8 @@ const _newer = {
   'BITOR',
   'BITRSHIFT',
   'BITXOR',
+  'BYCOL',
+  'BYROW',
   'CEILING.MATH',
   'CEILING.PRECISE',
   'CHISQ.DIST',
@@ -402,8 +413,13 @@ const _newer = {
   'IFNA',
   'IFS',
   'ISO.CEILING',
+  'ISOMITTED',
   'ISOWEEKNUM',
+  'LAMBDA',
+  'LET',
   'LOGNORM.DIST',
+  'MAKEARRAY',
+  'MAP',
   'MAXIFS',
   'MINIFS',
   'MODE.SNGL',
@@ -422,7 +438,9 @@ const _newer = {
   'RANDARRAY',
   'RANK.AVG',
   'RANK.EQ',
+  'REDUCE',
   'RRI',
+  'SCAN',
   'SEQUENCE',
   'SHEET',
   'SHEETS',
@@ -563,6 +581,12 @@ String _translate(String f, {required bool toFrench}) {
         continue;
       }
       if (i == 0 || f[i - 1] != '!') operand = b.length;
+      // the names LET and LAMBDA declare, which files write _xlpm.x
+      if (toFrench && upper.startsWith('_XLPM.')) {
+        b.write(word.substring(6));
+        i = k;
+        continue;
+      }
       if (!toFrench && !call && k < f.length && f[k] == '#' && !word.endsWith('!')) {
         final before = b.toString();
         b
@@ -575,7 +599,7 @@ String _translate(String f, {required bool toFrench}) {
         continue;
       }
       if (call) {
-        b.write(toFrench ? _toFrench(upper) : _fromFrench(upper, word));
+        b.write(toFrench ? _toFrench(upper, word) : _fromFrench(upper, word));
       } else if (upper == 'TRUE' || upper == 'FALSE' || upper == 'VRAI' || upper == 'FAUX') {
         final isTrue = upper == 'TRUE' || upper == 'VRAI';
         b.write(toFrench ? (isTrue ? 'VRAI' : 'FAUX') : (isTrue ? 'TRUE' : 'FALSE'));
@@ -623,17 +647,17 @@ int _nameEnd(String f, int i) {
   return k;
 }
 
-String _toFrench(String name) {
-  var bare = name;
+String _toFrench(String upper, String word) {
+  var bare = upper;
   for (final p in ['_XLFN._XLWS.', '_XLFN.', '_XLWS.']) {
     if (bare.startsWith(p)) bare = bare.substring(p.length);
   }
-  return _functions[bare] ?? name;
+  return _functions[bare] ?? word;
 }
 
 String _fromFrench(String upper, String word) {
   final english = _english[upper] ?? (_functions.containsKey(upper) ? upper : null);
-  if (english == null) return upper.startsWith('_XLFN.') ? word : upper;
+  if (english == null) return word;
   if (_windowed.contains(english)) return '_xlfn._xlws.$english';
   return _newer.contains(english) ? '_xlfn.$english' : english;
 }
