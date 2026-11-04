@@ -15,7 +15,8 @@ import (
 )
 
 // mine is a batch the agent applied to a document that has no revisions,
-// with the edits that take it back, rebased over all that came since.
+// with the edits that take it back after those of the user's later
+// batches, rebased over what everyone else did since.
 type mine struct {
 	user    string
 	version uint64
@@ -44,20 +45,30 @@ func (a *Agent) direct() bool {
 }
 
 // rebaseMine moves what takes back the agent's batches over an edit the
-// hub applied, before the agent applies it. The batches of other users
-// than user whose content the edit changes can no longer be taken back.
+// hub applied, before the agent applies it. The batches of a user are
+// taken back the last first, each after the next: an edit made for user
+// leaves them, it goes down those of the others from the last one. A batch
+// whose content it changes can no longer be taken back.
 func (a *Agent) rebaseMine(e ot.Edit, user string, server bool) {
-	for _, m := range a.mine {
-		if !server && m.user != user && m.changed == "" {
-			m.changed = a.s.overlap(e, m.undo)
+	over := map[string]ot.Edit{}
+	for _, m := range slices.Backward(a.mine) {
+		if m.user == user {
+			continue
 		}
-		m.undo = rebase(m.undo, e)
+		h, ok := over[m.user]
+		if !ok {
+			h = e
+		}
+		if !server && m.changed == "" {
+			m.changed = a.s.overlap(h, m.undo)
+		}
+		m.undo, over[m.user] = rebase(m.undo, h)
 	}
 }
 
 // rebase transforms edits applied one after the other over e, which they
-// win over.
-func rebase(edits []ot.Edit, e ot.Edit) []ot.Edit {
+// win over, and gives what e becomes once they are applied.
+func rebase(edits []ot.Edit, e ot.Edit) ([]ot.Edit, ot.Edit) {
 	out := make([]ot.Edit, 0, len(edits))
 	for _, u := range edits {
 		next := ot.TransformEdit(u, e, false)
@@ -66,7 +77,7 @@ func rebase(edits []ot.Edit, e ot.Edit) []ot.Edit {
 		}
 		e = next
 	}
-	return out
+	return out, e
 }
 
 // appliedMine applies a batch of the agent as revision v, and keeps what
@@ -485,21 +496,13 @@ func (a *Agent) previewDirect(b Batch) (Preview, error) {
 }
 
 // undone follows an edit of the agent that took back part of a batch:
-// what is left to take back of it, and of the others rebased over it.
+// what is left to take back of it, and of the batches of other users.
 func (a *Agent) undone(e ot.Edit, v uint64, f *flight) {
 	m := f.undoing
 	if len(m.undo) > 0 {
 		m.undo = m.undo[1:]
 	}
-	for _, o := range a.mine {
-		if o == m {
-			continue
-		}
-		if o.user != f.owner && o.changed == "" {
-			o.changed = a.s.overlap(e, o.undo)
-		}
-		o.undo = rebase(o.undo, e)
-	}
+	a.rebaseMine(e, f.owner, false)
 	if len(m.undo) == 0 {
 		a.mine = slices.DeleteFunc(a.mine, func(o *mine) bool { return o == m })
 	}
@@ -573,7 +576,10 @@ func (a *Agent) undoDirect(ctx context.Context, user string) (Record, error) {
 			return rec, err
 		}
 		rec.Version = a.versionOf(f.version)
-		if len(last.undo) == 0 {
+		a.mu.Lock()
+		taken := len(last.undo) == 0
+		a.mu.Unlock()
+		if taken {
 			rec.Edits = append(rec.Edits, last.edits...)
 			batches++
 		}
