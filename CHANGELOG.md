@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- `formula` no longer refuses large ranges: a range, explicit or whole, holds
+  only the rows its sheet fills, and the arrays calculated from it keep the
+  shape Excel gives them (`A1:D1048576+1` has 1048576 rows), so whole columns
+  no longer lose their blank rows and `A:A*2` below the first row is
+  `#SPILL!`. An area that is at least half filled is read whatever its size,
+  VLOOKUP and HLOOKUP read only their keys and the cell found, and `#NUM!`
+  stays for arrays made from a size (MUNIT, SEQUENCE, MAKEARRAY) or a sheet of
+  a few cells far apart.
 - The PDF export of the Dart package writes what it left blank: pattern fills
   as tiling patterns of the preset's pixels, tiled pictures as tiling
   patterns of the picture, opaque PNG pictures as they are (Flate with its

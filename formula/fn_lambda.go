@@ -101,7 +101,7 @@ func (c *Context) lambdaOf(arg Expr, n int) (*lambda, *Value) {
 func (c *Context) element(v Value) Value {
 	switch v.Type {
 	case TypeArray:
-		if len(v.Arr.Cells) == 1 {
+		if v.Arr.Rows*v.Arr.Cols == 1 {
 			return v.Arr.Cells[0]
 		}
 		return ErrCalc
@@ -155,9 +155,11 @@ func (c *Context) lines(args []Expr, rows bool) Value {
 	if err != nil {
 		return *err
 	}
-	t := c.array(c.Eval(args[0]))
-	n, size := t.Rows, t.Cols
+	v := c.Eval(args[0])
+	t := c.grid(v)
+	n, size := t.held(), t.Cols
 	if !rows {
+		t = c.array(v)
 		n, size = t.Cols, t.Rows
 	}
 	cells := make([]Value, n)
@@ -172,7 +174,7 @@ func (c *Context) lines(args []Expr, rows bool) Value {
 		cells[i] = c.element(c.call(l, []Value{{Type: TypeArray, Arr: line}}, nil))
 	}
 	if rows {
-		return Value{Type: TypeArray, Arr: &Table{Rows: n, Cols: 1, Cells: cells}}
+		return Value{Type: TypeArray, Arr: &Table{Rows: t.Rows, Cols: 1, Cells: cells}}
 	}
 	return Value{Type: TypeArray, Arr: &Table{Rows: 1, Cols: n, Cells: cells}}
 }
@@ -227,15 +229,20 @@ func init() {
 			tables := make([]*Table, n)
 			rows, cols := 0, 0
 			for i, a := range args[:n] {
-				tables[i] = c.array(c.Eval(a))
+				tables[i] = c.grid(c.Eval(a))
 				rows, cols = max(rows, tables[i].Rows), max(cols, tables[i].Cols)
 			}
-			if rows*cols > maxCells {
+			held := 0
+			for _, t := range tables {
+				held = max(held, changing(t, rows))
+			}
+			held = min(held, rows)
+			if held*cols > maxCells {
 				return ErrNum
 			}
-			out := &Table{Rows: rows, Cols: cols, Cells: make([]Value, rows*cols)}
+			out := &Table{Rows: rows, Cols: cols, Cells: make([]Value, held*cols)}
 			values := make([]Value, n)
-			for i := range rows {
+			for i := range held {
 				for j := range cols {
 					for k, t := range tables {
 						values[k] = stretched(t, i, j)

@@ -105,9 +105,12 @@ func (c *Context) eachOf(v Value, f func(v Value, direct bool) bool) bool {
 		}
 		return true
 	case TypeArray:
-		for _, x := range v.Arr.Cells {
-			if !f(x, false) {
-				return false
+		t := v.Arr
+		for i := range t.Rows {
+			for j := range t.Cols {
+				if !f(t.At(i, j), false) {
+					return false
+				}
 			}
 		}
 		return true

@@ -457,7 +457,7 @@ func (c *Context) tables(areas []Area3) []*Table {
 	out := make([]*Table, len(areas))
 	for i, a := range areas {
 		a.R2, a.C2 = a.R1+rows-1, a.C1+cols-1
-		out[i] = c.table(a)
+		out[i] = c.array(Value{Type: TypeRange, Refs: []Area3{a}})
 	}
 	return out
 }
@@ -658,7 +658,7 @@ func percentileExc(xs []float64, k float64) Value {
 // pairs is a function of two ranges of numbers, taken where both hold one.
 func pairs(f func(ys, xs []float64) Value) *function {
 	return fn(2, 2, func(c *Context, v []Value) Value {
-		a, b := c.array(v[0]), c.array(v[1])
+		a, b := c.pair(v[0], v[1])
 		if len(a.Cells) != len(b.Cells) {
 			return ErrNA
 		}

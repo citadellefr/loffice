@@ -139,7 +139,7 @@ func span(n, k int, take bool) (int, int) {
 
 // cut is TAKE, or DROP when take is false.
 func (c *Context) cut(v []Value, take bool) Value {
-	t, err := c.arrayArg(v[0])
+	t, err := c.gridArg(v[0])
 	if err != nil {
 		return *err
 	}
@@ -164,20 +164,24 @@ func (c *Context) cut(v []Value, take bool) Value {
 	if rows == 0 || cols == 0 {
 		return ErrCalc
 	}
-	out := make([]Value, 0, rows*cols)
-	for i := lo[0]; i < hi[0]; i++ {
-		out = append(out, row(t, i)[lo[1]:hi[1]]...)
+	held := min(rows, max(t.held()-lo[0], 1))
+	out := make([]Value, 0, held*cols)
+	for i := range held {
+		out = append(out, row(t, lo[0]+i)[lo[1]:hi[1]]...)
 	}
 	return table(out, rows, cols)
 }
 
 // choose is CHOOSECOLS, or CHOOSEROWS when byCol is false.
 func (c *Context) choose(v []Value, byCol bool) Value {
-	t, err := c.arrayArg(v[0])
+	t, err := c.gridArg(v[0])
 	if err != nil {
 		return *err
 	}
-	all := lines(t, byCol)
+	n := t.Rows
+	if byCol {
+		n = t.Cols
+	}
 	var picked [][]Value
 	for _, a := range v[1:] {
 		for _, x := range c.array(a).Cells {
@@ -186,15 +190,23 @@ func (c *Context) choose(v []Value, byCol bool) Value {
 				return *err
 			}
 			if k < 0 {
-				k += len(all) + 1
+				k += n + 1
 			}
-			if k < 1 || k > len(all) {
+			if k < 1 || k > n {
 				return ErrValue
 			}
-			picked = append(picked, all[k-1])
+			if byCol {
+				picked = append(picked, column(t, k-1))
+			} else {
+				picked = append(picked, row(t, k-1))
+			}
 		}
 	}
-	return assemble(picked, byCol)
+	out := assemble(picked, byCol)
+	if byCol {
+		out.Arr.Rows = t.Rows
+	}
+	return out
 }
 
 // stack is HSTACK, or VSTACK when across is false: the arrays side by
@@ -203,20 +215,35 @@ func (c *Context) stack(v []Value, across bool) Value {
 	ts := make([]*Table, len(v))
 	rows, cols := 0, 0
 	for i, x := range v {
-		ts[i] = c.array(x)
 		if across {
+			ts[i] = c.grid(x)
 			rows, cols = max(rows, ts[i].Rows), cols+ts[i].Cols
-		} else {
-			rows, cols = rows+ts[i].Rows, max(cols, ts[i].Cols)
+			continue
 		}
+		ts[i] = c.array(x)
+		rows, cols = rows+ts[i].Rows, max(cols, ts[i].Cols)
 		if rows*cols > maxCells {
 			return ErrNum
 		}
 	}
-	out := slices.Repeat([]Value{ErrNA}, rows*cols)
+	held := rows
+	if across {
+		held = 0
+		for _, t := range ts {
+			if t.Rows < rows {
+				held = max(held, t.Rows+1)
+			} else {
+				held = max(held, t.held())
+			}
+		}
+	}
+	if held*cols > maxCells {
+		return ErrNum
+	}
+	out := slices.Repeat([]Value{ErrNA}, held*cols)
 	at := 0
 	for _, t := range ts {
-		for i := range t.Rows {
+		for i := range min(t.Rows, held) {
 			if across {
 				copy(out[i*cols+at:], row(t, i))
 			} else {
@@ -234,7 +261,7 @@ func (c *Context) stack(v []Value, across bool) Value {
 
 // flatten is TOCOL, or TOROW when toCol is false.
 func (c *Context) flatten(v []Value, toCol bool) Value {
-	t, err := c.arrayArg(v[0])
+	t, err := c.gridArg(v[0])
 	if err != nil {
 		return *err
 	}
@@ -252,6 +279,9 @@ func (c *Context) flatten(v []Value, toCol bool) Value {
 		if byCol, err = c.boolean(v[2]); err != nil {
 			return *err
 		}
+	}
+	if int(skip)&1 == 0 || !t.blankTail() {
+		t = c.array(v[0])
 	}
 	var cells []Value
 	for _, l := range lines(t, byCol) {
