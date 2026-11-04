@@ -52,7 +52,10 @@ whole or not at all, which `Preview` shows first: replacing text, inserting
 paragraphs written in Markdown, deleting, formatting, commenting, accepting
 and rejecting revisions. Its changes of text are revisions signed with its
 name unless the batch is direct. Each batch names the user the agent acts
-for, and `UndoMine` rejects what it did for one of them. A batch prepared on
+for, and `UndoMine` rejects what it did for one of them: the document says
+whom each batch was for, in a document variable of `settings.xml` that Word
+keeps, so that a new session knows it without a journal. Text the agent
+inserted for another user is deleted as a revision, not silently. A batch prepared on
 a version whose blocks changed since fails without writing; the host's
 `Allow` can refuse any write before it is sent. The agent keeps up with the
 room however long its model thinks. PowerPoint and Excel will take the same

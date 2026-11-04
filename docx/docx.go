@@ -338,7 +338,11 @@ func (r *reader) document() error {
 			return err
 		}
 	}
-	return r.commentNodes(rels, last)
+	if err := r.commentNodes(rels, last); err != nil {
+		return err
+	}
+	r.behalf(r.optional(rels.OfType(r.d.main, relSettings)))
+	return nil
 }
 
 // notes reads the footnotes or endnotes of a part, each into a "note" node

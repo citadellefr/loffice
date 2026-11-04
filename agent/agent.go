@@ -69,7 +69,7 @@ type Options struct {
 	// Now is the clock that dates revisions; time.Now when nil.
 	Now func() time.Time
 	// Journal is what a previous session of the agent applied to this
-	// document, for UndoMine to know who it worked for.
+	// document, for its dates to go on from the last one.
 	Journal []Record
 }
 

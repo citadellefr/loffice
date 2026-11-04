@@ -58,14 +58,15 @@ func (d *Document) Check(tree *ot.Tree, e ot.Edit, author string) error {
 				c.Type == "tc" && parent == "tr" ||
 				c.Type == "other" && (parent == "tbl" || parent == "tr") ||
 				(c.Type == "hdr" || c.Type == "ftr") && c.Parent == "doc" ||
-				c.Type == "comment" && c.Parent == "doc" && newComment(c.Attrs, author, typeOf)
+				c.Type == "comment" && c.Parent == "doc" && newComment(c.Attrs, author, typeOf) ||
+				c.Type == BehalfType && newBehalf(c, author)
 			if !ok || (c.Type == "text") != (c.Text != nil) || !d.signed(c.Text, author) {
 				return ErrReadOnly
 			}
 			created[c.ID] = c.Type
 		case ot.OpDel:
 			switch typeOf(c.ID) {
-			case "doc", "body", "hdr", "ftr", "note":
+			case "doc", "body", "hdr", "ftr", "note", BehalfType:
 				return ErrReadOnly
 			}
 		case ot.OpSet:
