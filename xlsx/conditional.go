@@ -1,6 +1,7 @@
 package xlsx
 
 import (
+	"encoding/json"
 	"slices"
 	"strings"
 
@@ -57,24 +58,46 @@ type Threshold struct {
 	Above bool `json:"gt,omitempty"`
 }
 
+// A cfRule is a conditional format with the element it was read from.
+type cfRule struct {
+	Conditional
+	elem *xmldom.Element
+}
+
 // conditionals are the conditional formats of a worksheet, by priority.
 func (d *Document) conditionals(root *xmldom.Element) []Conditional {
 	var out []Conditional
-	for _, cf := range elements(root, "conditionalFormatting") {
-		ref := strings.Join(strings.Fields(cf.Get("sqref")), " ")
-		first, ok := formula.ParseArea(strings.SplitN(ref, " ", 2)[0])
-		if !ok {
-			continue
-		}
-		anchor := formula.CellName(first.R1, first.C1)
-		for _, rule := range elements(cf, "cfRule") {
-			if c, ok := d.conditional(rule, ref, anchor); ok {
-				out = append(out, c)
-			}
-		}
+	for _, r := range d.cfRules(root) {
+		out = append(out, r.Conditional)
 	}
 	slices.SortStableFunc(out, func(a, b Conditional) int { return a.Pri - b.Pri })
 	return out
+}
+
+// cfRules are the rules of the conditional formats of a worksheet that the
+// model holds, in the order of the file.
+func (d *Document) cfRules(root *xmldom.Element) []cfRule {
+	var out []cfRule
+	for _, cf := range elements(root, "conditionalFormatting") {
+		ref, anchor, ok := cfArea(cf)
+		if !ok {
+			continue
+		}
+		for _, rule := range elements(cf, "cfRule") {
+			if c, ok := d.conditional(rule, ref, anchor); ok {
+				out = append(out, cfRule{c, rule})
+			}
+		}
+	}
+	return out
+}
+
+// cfArea is the areas of a conditional format, and the first cell, which
+// its formulas are written for.
+func cfArea(cf *xmldom.Element) (ref, anchor string, ok bool) {
+	ref = strings.Join(strings.Fields(cf.Get("sqref")), " ")
+	first, ok := formula.ParseArea(strings.SplitN(ref, " ", 2)[0])
+	return ref, formula.CellName(first.R1, first.C1), ok
 }
 
 func (d *Document) conditional(rule *xmldom.Element, ref, anchor string) (Conditional, bool) {
@@ -219,4 +242,71 @@ func (s *styles) dxf(i int) *Style {
 		st.Border = s.border(b)
 	}
 	return st
+}
+
+var (
+	thresholdTypes = []string{"min", "max", "num", "percent", "percentile", "formula"}
+	// iconSets are the sets of icons Excel has, with how many icons each
+	// shows.
+	iconSets = map[string]int{
+		"3Arrows": 3, "3ArrowsGray": 3, "3Flags": 3, "3TrafficLights1": 3, "3TrafficLights2": 3, "3Signs": 3,
+		"3Symbols": 3, "3Symbols2": 3, "4Arrows": 4, "4ArrowsGray": 4, "4RedToBlack": 4, "4Rating": 4,
+		"4TrafficLights": 4, "5Arrows": 5, "5ArrowsGray": 5, "5Rating": 5, "5Quarters": 5,
+	}
+)
+
+// checkConditionals tells whether conditional formats are those the editor
+// may set.
+func checkConditionals(raw json.RawMessage) bool {
+	var rules []Conditional
+	if json.Unmarshal(raw, &rules) != nil || len(rules) > maxRules {
+		return false
+	}
+	for _, c := range rules {
+		if !checkAreas(c.Ref) || c.Pri < 1 || c.Style != nil && !c.Style.valid() {
+			return false
+		}
+		for _, f := range c.F {
+			if !checkFormula(f) {
+				return false
+			}
+		}
+		for _, t := range c.Stops {
+			if !slices.Contains(thresholdTypes, t.Type) || t.Val != "" && !checkFormula(t.Val) ||
+				t.Val == "" && t.Type != "min" && t.Type != "max" {
+				return false
+			}
+		}
+		for _, col := range c.Colors {
+			if col == nil || !validColor(col) {
+				return false
+			}
+		}
+		if !checkRule(c) {
+			return false
+		}
+	}
+	return true
+}
+
+// checkRule tells whether the rule of a conditional format is complete.
+func checkRule(c Conditional) bool {
+	switch c.Type {
+	case "formula":
+		return len(c.F) == 1 && c.Style != nil
+	case "top10":
+		return c.Style != nil && c.Rank >= 1 && c.Rank <= 1000
+	case "aboveAverage":
+		return c.Style != nil && c.StdDev >= 0 && c.StdDev <= 3
+	case "duplicateValues", "uniqueValues":
+		return c.Style != nil
+	case "colorScale":
+		return len(c.Stops) >= 2 && len(c.Stops) <= 3 && len(c.Colors) == len(c.Stops)
+	case "dataBar":
+		return len(c.Stops) == 2 && len(c.Colors) >= 1 && c.MinLen >= 0 && c.MinLen <= c.MaxLen && c.MaxLen <= 100
+	case "iconSet":
+		n, ok := iconSets[c.Icons]
+		return ok && len(c.Stops) == n
+	}
+	return false
 }

@@ -14,17 +14,20 @@ import '../clipboard.dart';
 import '../fonts.dart';
 import '../pdf/document.dart' show pdfName;
 import 'charts.dart';
+import 'conditional_menu.dart';
 import 'edits.dart';
 import 'export.dart';
 import 'filter.dart';
 import 'filter_panel.dart';
 import 'formula_text.dart';
 import 'input.dart';
-import 'lists.dart';
 import 'number_format.dart';
 import 'print.dart';
+import 'rules.dart';
 import 'sheet_comments.dart';
 import 'sheet_view.dart';
+import 'validation.dart';
+import 'validation_dialog.dart';
 import 'workbook.dart';
 
 /// An Excel editor on a session whose document is a workbook: the ribbon,
@@ -205,17 +208,16 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     _gridFocus.requestFocus();
   }
 
-  /// Ends editing: what was typed goes into its cell once the list that
-  /// validates the cell takes it. Tells whether it went in.
+  /// Ends editing: what was typed goes into its cell once the validation
+  /// of the cell takes it. Tells whether it went in.
   bool _commit() {
     final sheet = _sheet;
     if (!_editing || sheet == null) return true;
     _editing = false;
     final (r, c) = _editCell;
     final typed = _text.text;
-    final rule = _wb.layout(sheet).listAt(r, c);
-    final items = rule?.error == null || typed.startsWith('=') ? null : rule!.items(_wb, sheet, _locale);
-    if (items != null && !rule!.takes(typed, items)) {
+    final rule = _wb.layout(sheet).validationAt(r, c);
+    if (rule != null && rule.error != null && !typed.startsWith('=') && !rule.takes(typed, _wb, sheet, _locale)) {
       unawaited(_refuse(rule, sheet, r, c, typed));
       setState(() {});
       return false;
@@ -232,11 +234,14 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     if (changed) _edit(_edits.setCells(sheet, [(r, c, input.fields)], format: input.format));
   }
 
-  /// Says, as Excel does, that a value is not one of the list's, and
-  /// writes it, edits it again or lets it go as the list and the user say.
-  Future<void> _refuse(ListRule rule, Node sheet, int r, int c, String typed) async {
+  /// Says, as Excel does, that a value is not what the cell takes, and
+  /// writes it, edits it again or lets it go as the validation and the
+  /// user say.
+  Future<void> _refuse(Validation rule, Node sheet, int r, int c, String typed) async {
     final warning = rule.error == 'warning';
-    final text = rule.errorText.isEmpty ? _s.notInList : rule.errorText;
+    final type = rule.type;
+    String bound(String f) => boundText(f, type: type, date1904: _wb.date1904);
+    final text = rule.errorText.isEmpty ? _s.invalidValue(type ?? '', rule.op, bound(rule.first), bound(rule.second)) : rule.errorText;
     final choice = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
@@ -278,11 +283,11 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
   }
 
   /// The list validating the active cell, when it has values to offer.
-  (ListRule, List<String>)? get _activeList {
+  (Validation, List<String>)? get _activeList {
     final sheet = _sheet;
     if (sheet == null || _session.readOnly) return null;
     final (r, c) = _selection.active;
-    final rule = _wb.layout(sheet).listAt(r, c);
+    final rule = _wb.layout(sheet).validationAt(r, c);
     final items = rule != null && rule.arrow ? rule.items(_wb, sheet, _locale) : null;
     return items == null ? null : (rule!, items);
   }
@@ -306,13 +311,13 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     _gridFocus.requestFocus();
   }
 
-  /// What the list of the active cell asks to be typed, as Excel shows it
-  /// beside the cell.
+  /// What the validation of the active cell asks to be typed, as Excel
+  /// shows it beside the cell.
   Widget? get _prompt {
     final sheet = _sheet;
     if (sheet == null) return null;
     final (r, c) = _selection.active;
-    final rule = _wb.layout(sheet).listAt(r, c);
+    final rule = _wb.layout(sheet).validationAt(r, c);
     if (rule == null || rule.prompt.isEmpty && rule.promptTitle.isEmpty) return null;
     return IgnorePointer(
       child: Container(
@@ -1083,6 +1088,51 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     _gridFocus.requestFocus();
   }
 
+  // conditional formats and validation
+
+  Future<void> _highlight(String kind) async {
+    final sheet = _sheet;
+    if (sheet == null) return;
+    final a = _selection.area;
+    final title = [..._s.highlightKinds, ..._s.topBottomKinds].firstWhere((k) => k.$1 == kind).$2;
+    final rule = await showDialog<Map<String, Object?>>(
+      context: context,
+      builder: (context) => HighlightRuleDialog(strings: _s, kind: kind, title: title, anchor: cellName(a.top, a.left)),
+    );
+    if (rule != null && mounted) _edit(_edits.addConditional(sheet, a, rule));
+  }
+
+  void _addConditional(Map<String, Object?> rule) {
+    final sheet = _sheet;
+    if (sheet != null) _edit(_edits.addConditional(sheet, _selection.area, rule));
+  }
+
+  void _clearConditionals({required bool sheetWide}) {
+    final sheet = _sheet;
+    if (sheet != null) _edit(_edits.clearConditionals(sheet, sheetWide ? null : _selection.area));
+  }
+
+  Future<void> _manageConditionals() async {
+    final sheet = _sheet;
+    if (sheet == null) return;
+    final rules = await showDialog<List<Map<String, Object?>>>(
+      context: context,
+      builder: (context) => RulesManagerDialog(strings: _s, rules: _edits.conditionals(sheet), area: _selection.area),
+    );
+    if (rules != null && mounted) _edit(_edits.setConditionals(sheet, rules));
+  }
+
+  Future<void> _validate() async {
+    final sheet = _sheet;
+    if (sheet == null) return;
+    final (r, c) = _selection.active;
+    final rule = await showDialog<Map<String, Object?>>(
+      context: context,
+      builder: (context) => ValidationDialog(strings: _s, current: _wb.layout(sheet).validationAt(r, c), date1904: _wb.date1904),
+    );
+    if (rule != null && mounted) _edit(_edits.validate(sheet, _selection.area, rule.isEmpty ? null : rule));
+  }
+
   void _goToName() {
     final area = parseArea(_nameBox.text.trim().toUpperCase());
     if (area != null) _selection.selectArea(area);
@@ -1525,6 +1575,19 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
               ],
             ),
           ]),
+          RibbonGroup(_s.styles, [
+            ConditionalMenu(
+              strings: _s,
+              enabled: editable,
+              onHighlight: (k) => unawaited(_highlight(k)),
+              onTopBottom: (k) => unawaited(_highlight(k)),
+              onDataBar: (c) => _addConditional(dataBarRule(c)),
+              onColorScale: (c) => _addConditional(colorScaleRule(c)),
+              onIconSet: (i) => _addConditional(iconSetRule(i)),
+              onClear: (sheetWide) => _clearConditionals(sheetWide: sheetWide),
+              onManage: () => unawaited(_manageConditionals()),
+            ),
+          ]),
           RibbonGroup(_s.cells, [
             RibbonMenu<String>(
               icon: const Icon(Icons.add_box_outlined),
@@ -1604,6 +1667,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
             RibbonButton(icon: const Icon(Icons.filter_alt_off_outlined), label: _s.clearFilters, onPressed: editable && hasFilter ? () => _refilter(clear: true) : null),
             RibbonButton(icon: const Icon(Icons.refresh), label: _s.reapply, onPressed: editable && hasFilter ? _refilter : null),
           ]),
+          RibbonGroup(_s.dataTools, [RibbonButton(icon: const Icon(Icons.fact_check_outlined), label: _s.dataValidation, large: true, onPressed: editable ? _validate : null)]),
         ]),
         RibbonTab(_s.review, [
           RibbonGroup(_s.comments, [

@@ -1,6 +1,7 @@
 package xlsx
 
 import (
+	"cmp"
 	"encoding/json"
 	"reflect"
 	"slices"
@@ -402,4 +403,47 @@ func (s *styleWriter) write() error {
 		s.w.addRel(relStyles, s.w.target(name))
 	}
 	return s.w.put(name, typeStyles, s.doc.Bytes())
+}
+
+// dxf is the index of a differential format among those of the workbook,
+// added when it holds none like it. A solid fill takes its background
+// color, as Excel paints them.
+func (s *styleWriter) dxf(st *Style) (int, error) {
+	if s.root == nil {
+		if err := s.open(); err != nil {
+			return 0, err
+		}
+	}
+	dxfs := child(s.root, "dxfs", styleSheetOrder)
+	p := prefixOf(dxfs)
+	e := xmldom.New(mainNS, p+"dxf")
+	if st.Font != nil {
+		font := xmldom.New(mainNS, p+"font")
+		patchFont(font, st.Font)
+		e.Append(font)
+	}
+	if st.Format != "" {
+		e.Append(xmldom.New(mainNS, p+"numFmt", "numFmtId", strconv.Itoa(s.format(st.Format)), "formatCode", st.Format))
+	}
+	if f := st.Fill; f != nil && f.Pattern != "none" {
+		if c := cmp.Or(f.Fg, f.Bg); c != nil {
+			pf := xmldom.New(mainNS, p+"patternFill")
+			pf.Append(colorElement(pf, "bgColor", c))
+			fill := xmldom.New(mainNS, p+"fill")
+			fill.Append(pf)
+			e.Append(fill)
+		}
+	}
+	if st.Border != nil {
+		b := borderElement(dxfs, st.Border)
+		for _, side := range b.Elements() {
+			if side.Get("style") == "" {
+				b.Remove(side)
+			}
+		}
+		if len(b.Elements()) > 0 {
+			e.Append(b)
+		}
+	}
+	return s.share(dxfs, e), nil
 }

@@ -153,6 +153,161 @@ class LofficeStrings {
   String get selectAll => '(Sélectionner tout)';
   String get blanks => '(Vides)';
   String get search => 'Rechercher';
+  // conditional formats
+  String get conditionalFormatting => 'Mise en forme conditionnelle';
+  String get highlightRules => 'Règles de mise en surbrillance des cellules';
+  String get topBottomRules => 'Règles des valeurs plus/moins élevées';
+  String get dataBars => 'Barres de données';
+  String get colorScales => 'Nuances de couleurs';
+  String get iconSets => 'Jeux d’icônes';
+  String get clearRules => 'Effacer les règles';
+  String get clearRulesSelection => 'Effacer les règles des cellules sélectionnées';
+  String get clearRulesSheet => 'Effacer les règles de la feuille entière';
+  String get manageRules => 'Gérer les règles…';
+  List<(String, String)> get highlightKinds => const [
+    ('greaterThan', 'Supérieur à…'),
+    ('lessThan', 'Inférieur à…'),
+    ('between', 'Entre…'),
+    ('equal', 'Égal à…'),
+    ('contains', 'Texte qui contient…'),
+    ('duplicate', 'Valeurs en double…'),
+  ];
+  List<(String, String)> get topBottomKinds => const [
+    ('top', '10 premiers éléments…'),
+    ('bottom', '10 derniers éléments…'),
+    ('topPercent', '10 % premiers…'),
+    ('bottomPercent', '10 % derniers…'),
+    ('above', 'Au-dessus de la moyenne…'),
+    ('below', 'En dessous de la moyenne…'),
+  ];
+  String highlightPrompt(String kind) => switch (kind) {
+    'greaterThan' => 'Mettre en forme les cellules qui sont supérieures à :',
+    'lessThan' => 'Mettre en forme les cellules qui sont inférieures à :',
+    'between' => 'Mettre en forme les cellules qui sont comprises entre :',
+    'equal' => 'Mettre en forme les cellules qui sont égales à :',
+    'contains' => 'Mettre en forme les cellules qui contiennent le texte :',
+    'duplicate' => 'Mettre en forme les cellules qui contiennent :',
+    'top' || 'topPercent' => 'Mettre en forme les cellules qui se classent parmi les premières :',
+    'bottom' || 'bottomPercent' => 'Mettre en forme les cellules qui se classent parmi les dernières :',
+    'above' => 'Mettre en forme les cellules qui sont au-dessus de la moyenne',
+    _ => 'Mettre en forme les cellules qui sont en dessous de la moyenne',
+  };
+  String get and => 'et';
+  String get formatWith => 'avec :';
+  String get rankCount => 'Nombre';
+  String get duplicateValue => 'Valeurs en double';
+  String get uniqueValue => 'Valeurs uniques';
+  List<(String, String)> get highlightFormats => const [
+    ('red', 'Remplissage rouge clair et texte rouge foncé'),
+    ('yellow', 'Remplissage jaune et texte jaune foncé'),
+    ('green', 'Remplissage vert et texte vert foncé'),
+    ('redText', 'Texte rouge foncé'),
+    ('redBorder', 'Bordure rouge'),
+  ];
+  List<(String, String)> get dataBarColors => const [('blue', 'Bleu'), ('green', 'Vert'), ('red', 'Rouge'), ('orange', 'Orange'), ('purple', 'Violet')];
+  List<(String, String)> get colorScaleSets => const [
+    ('gyr', 'Vert - Jaune - Rouge'),
+    ('ryg', 'Rouge - Jaune - Vert'),
+    ('gwr', 'Vert - Blanc - Rouge'),
+    ('rwg', 'Rouge - Blanc - Vert'),
+    ('bwr', 'Bleu - Blanc - Rouge'),
+    ('rwb', 'Rouge - Blanc - Bleu'),
+    ('wg', 'Blanc - Vert'),
+    ('wr', 'Blanc - Rouge'),
+  ];
+  List<(String, String)> get iconSetNames => const [
+    ('3Arrows', '3 flèches (colorées)'),
+    ('3ArrowsGray', '3 flèches (grises)'),
+    ('3Flags', '3 drapeaux'),
+    ('3TrafficLights1', '3 feux tricolores (sans bordure)'),
+    ('3TrafficLights2', '3 feux tricolores (avec bordure)'),
+    ('3Signs', '3 signes'),
+    ('3Symbols', '3 symboles (encerclés)'),
+    ('3Symbols2', '3 symboles (sans cercle)'),
+    ('3Stars', '3 étoiles'),
+    ('3Triangles', '3 triangles'),
+    ('4Arrows', '4 flèches (colorées)'),
+    ('4ArrowsGray', '4 flèches (grises)'),
+    ('4RedToBlack', '4 cercles du rouge au noir'),
+    ('4Rating', '4 notes'),
+    ('4TrafficLights', '4 feux tricolores'),
+    ('5Arrows', '5 flèches (colorées)'),
+    ('5ArrowsGray', '5 flèches (grises)'),
+    ('5Rating', '5 notes'),
+    ('5Quarters', '5 quarts'),
+    ('5Boxes', '5 cases'),
+  ];
+  String get rulesManager => 'Gestionnaire de règles de mise en forme conditionnelle';
+  String get noRules => 'Aucune règle dans cette feuille.';
+  String get appliesTo => 'S’applique à';
+  String get newRule => 'Nouvelle règle…';
+  String get newFormulaRule => 'Nouvelle règle : utiliser une formule';
+  String get ruleFormula => 'Formule (relative à la première cellule)';
+  String get deleteRule => 'Supprimer la règle';
+  String get moveUp => 'Monter';
+  String get moveDown => 'Descendre';
+  String ruleDescription(String kind, {String formula = '', int rank = 10, String icons = ''}) => switch (kind) {
+    'formula' => 'Formule : =$formula',
+    'top' => '$rank premiers éléments',
+    'bottom' => '$rank derniers éléments',
+    'topPercent' => '$rank % premiers',
+    'bottomPercent' => '$rank % derniers',
+    'above' => 'Au-dessus de la moyenne',
+    'below' => 'En dessous de la moyenne',
+    'duplicateValues' => 'Valeurs en double',
+    'uniqueValues' => 'Valeurs uniques',
+    'colorScale' => 'Nuance de couleurs',
+    'dataBar' => 'Barre de données',
+    _ => 'Jeu d’icônes : ${iconSetNames.where((n) => n.$1 == icons).map((n) => n.$2).firstOrNull ?? icons}',
+  };
+
+  // data validation
+  String get validationOptions => 'Options';
+  String get validationPrompt => 'Message de saisie';
+  String get validationAlert => 'Alerte d’erreur';
+  String get allow => 'Autoriser';
+  String get dataTools => 'Outils de données';
+  String get dataOperator => 'Données';
+  List<(String, String)> get validationTypes => const [
+    ('', 'Tout'),
+    ('whole', 'Nombre entier'),
+    ('decimal', 'Décimal'),
+    ('list', 'Liste'),
+    ('date', 'Date'),
+    ('time', 'Heure'),
+    ('textLength', 'Longueur du texte'),
+    ('custom', 'Personnalisé'),
+  ];
+  List<(String, String)> get validationOperators => const [
+    ('between', 'entre'),
+    ('notBetween', 'pas entre'),
+    ('equal', 'égal à'),
+    ('notEqual', 'différent de'),
+    ('greaterThan', 'supérieur à'),
+    ('lessThan', 'inférieur à'),
+    ('greaterThanOrEqual', 'supérieur ou égal à'),
+    ('lessThanOrEqual', 'inférieur ou égal à'),
+  ];
+  String get minimum => 'Minimum';
+  String get maximum => 'Maximum';
+  String get value => 'Valeur';
+  String get source => 'Source (valeurs séparées par des points-virgules, ou =plage)';
+  String get formula => 'Formule';
+  String get ignoreBlank => 'Ignorer si vide';
+  String get inCellDropdown => 'Liste déroulante dans la cellule';
+  String get showAlert => 'Afficher une alerte si des données non valides sont saisies';
+  String get alertStyle => 'Style';
+  List<(String, String)> get alertStyles => const [('stop', 'Arrêt'), ('warning', 'Avertissement'), ('information', 'Information')];
+  String get title => 'Titre';
+  String get message => 'Message';
+  String get clearAllValidation => 'Effacer tout';
+  String invalidValue(String type, String op, String first, String second) {
+    final kind = validationTypes.where((t) => t.$1 == type).map((t) => t.$2.toLowerCase()).firstOrNull;
+    final how = validationOperators.where((o) => o.$1 == op).map((o) => o.$2).firstOrNull;
+    if (kind == null || how == null || type == 'custom' || type == 'list') return notInList;
+    return 'Valeur attendue : $kind $how $first${op == 'between' || op == 'notBetween' ? ' $and $second' : ''}.';
+  }
+
   String get insertFunction => 'Insérer une fonction';
   String get functionLibrary => 'Bibliothèque de fonctions';
   String get nameBox => 'Zone Nom';

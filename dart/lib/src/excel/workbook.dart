@@ -6,8 +6,8 @@ import 'package:trame/trame.dart';
 import '../drawing/color.dart';
 import 'conditional.dart';
 import 'formula_text.dart';
-import 'lists.dart';
 import 'number_format.dart';
+import 'validation.dart';
 
 /// The theme colors of a workbook in the order its cells count them.
 const themeNames = ['lt1', 'dk1', 'lt2', 'dk2', 'accent1', 'accent2', 'accent3', 'accent4', 'accent5', 'accent6', 'hlink', 'folHlink'];
@@ -430,10 +430,10 @@ class SheetLayout {
 
   List<CellArea> get merges => _merges;
 
-  late final List<ListRule> lists = ListRule.of(sheet);
+  late final List<Validation> validations = Validation.of(sheet);
 
-  /// The list validating a cell, if any.
-  ListRule? listAt(int row, int col) => lists.where((l) => l.contains(row, col)).firstOrNull;
+  /// The validation of a cell, if any.
+  Validation? validationAt(int row, int col) => validations.where((v) => v.contains(row, col)).firstOrNull;
 }
 
 /// A rectangle of cells, from [top] [left] to [bottom] [right] included.
@@ -449,6 +449,19 @@ class CellArea {
   bool intersects(CellArea o) => o.left <= right && o.right >= left && o.top <= bottom && o.bottom >= top;
 
   CellArea union(CellArea o) => CellArea(math.min(top, o.top), math.min(left, o.left), math.max(bottom, o.bottom), math.max(right, o.right));
+
+  /// What is left of this area once [hole] is cut out of it, in up to
+  /// four rectangles.
+  List<CellArea> minus(CellArea hole) {
+    if (!intersects(hole)) return [this];
+    final (r1, r2) = (math.max(top, hole.top), math.min(bottom, hole.bottom));
+    return [
+      if (hole.top > top) CellArea(top, left, hole.top - 1, right),
+      if (hole.bottom < bottom) CellArea(hole.bottom + 1, left, bottom, right),
+      if (hole.left > left) CellArea(r1, left, r2, hole.left - 1),
+      if (hole.right < right) CellArea(r1, hole.right + 1, r2, right),
+    ];
+  }
 
   int get rows => bottom - top + 1;
 
