@@ -13,7 +13,7 @@ func init() {
 		"CHOOSECOLS": fn(2, -1, func(c *Context, v []Value) Value { return c.choose(v, true) }),
 		"CHOOSEROWS": fn(2, -1, func(c *Context, v []Value) Value { return c.choose(v, false) }),
 		"EXPAND": fn(2, 4, func(c *Context, v []Value) Value {
-			t, err := c.arrayArg(v[0])
+			t, err := c.gridArg(v[0])
 			if err != nil {
 				return *err
 			}
@@ -31,15 +31,21 @@ func init() {
 			if rows < t.Rows || cols < t.Cols {
 				return ErrValue
 			}
-			if rows*cols > maxCells {
+			held := t.held()
+			if rows > t.Rows {
+				held = t.Rows + 1
+			}
+			if held*cols > maxCells || rows*cols > maxCells && (rows > t.Rows || cols > 1<<14) {
 				return ErrNum
 			}
 			pad := padding(c, v, 3)
-			out := slices.Repeat([]Value{pad}, rows*cols)
-			for i := range t.Rows {
-				copy(out[i*cols:], row(t, i))
+			out := slices.Repeat([]Value{pad}, held*cols)
+			for i := range min(held, t.Rows) {
+				for j := range t.Cols {
+					out[i*cols+j] = t.At(i, j)
+				}
 			}
-			return table(out, rows, cols)
+			return Value{Type: TypeArray, Arr: &Table{Rows: rows, Cols: cols, Cells: out}}
 		}),
 		"VSTACK":   fn(1, -1, func(c *Context, v []Value) Value { return c.stack(v, false) }),
 		"HSTACK":   fn(1, -1, func(c *Context, v []Value) Value { return c.stack(v, true) }),

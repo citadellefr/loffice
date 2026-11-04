@@ -410,20 +410,21 @@ func lineKey(l []Value) string {
 }
 
 // sortedRows is rows of an array sorted, of which ls holds the first, the
-// last repeating blank down to the others. They stay out when too many to
-// hold unless they sort last.
+// last repeating blank down to the others. Unless they sort last, they
+// stay out when more than maxRepeat cells, as past the cells of a sheet.
 func sortedRows(ls, keys [][]Value, orders []int, rows int) Value {
 	out := sortLines(ls, keys, orders)
 	blank := ls[len(ls)-1]
 	at := slices.IndexFunc(out, func(l []Value) bool { return &l[0] == &blank[0] })
-	v := assemble(out, false)
 	switch {
 	case at == len(out)-1:
+		v := assemble(out, false)
 		v.Arr.Rows = rows
-	case rows*len(blank) <= maxCells:
-		v = assemble(slices.Insert(out, at, slices.Repeat([][]Value{blank}, rows-len(ls))...), false)
+		return v
+	case rows*len(blank) <= maxRepeat:
+		return assemble(slices.Insert(out, at, slices.Repeat([][]Value{blank}, rows-len(ls))...), false)
 	}
-	return v
+	return assemble(slices.Delete(out, at, at+1), false)
 }
 
 // sortLines orders lines stably by their keys in turn: keys[k][i] is the

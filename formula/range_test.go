@@ -80,6 +80,32 @@ func TestHugeArrays(t *testing.T) {
 	}
 }
 
+func TestWholeColumnMemory(t *testing.T) {
+	b := book(map[string]any{"A1": 1, "A2": 2, "B1": 3, "B2": 4})
+	for _, tc := range []struct{ f, want string }{
+		{"INDEX(SCAN(0,A:A,LAMBDA(a,b,a+b)),2)", "3"},
+		{"ROWS(VSTACK(A:A))", "2"},
+		{"COLUMNS(TRANSPOSE(A:A))", "2"},
+		{"ROWS(SORT(A:A,1,-1))", "2"},
+		{"INDEX(SORT(A:A+1,1,-1),1)", "3"},
+		{"INDEX(EXPAND(A:A,,2),2,1)", "2"},
+		{"INDEX(EXPAND(A:A,,2,0),1048576,2)", "0"},
+		{"ROWS(EXPAND(A:A,,2))", "1048576"},
+		{"SUM(EXPAND(A1:A2,1048576,2))", "#NUM!"},
+	} {
+		var before, after runtime.MemStats
+		runtime.ReadMemStats(&before)
+		got := eval(t, b, English, tc.f).show()
+		runtime.ReadMemStats(&after)
+		if got != tc.want {
+			t.Errorf("%s = %s, want %s", tc.f, got, tc.want)
+		}
+		if n := after.TotalAlloc - before.TotalAlloc; n > 1<<20 {
+			t.Errorf("%s took %d bytes", tc.f, n)
+		}
+	}
+}
+
 func TestLookupLongSheet(t *testing.T) {
 	if testing.Short() {
 		t.Skip("300 000 rows")
@@ -119,11 +145,13 @@ func TestWholeColumnArrays(t *testing.T) {
 		{"ROWS(SORT(A:B))", "1048576"},
 		{"INDEX(SORT(A:B,1,1),2,2)", "20"},
 		{"INDEX(SORT(A:B,1,-1),2,1)", "2"},
-		{"ROWS(SORT(A:A,1,-1))", "1048576"},
-		{"INDEX(SORT(A:A,1,-1),1048576,1)", "1"},
-		{"INDEX(SORTBY(A:B,A:A,-1),4,1)", "1"},
+		{"INDEX(SORT(A1:A60000,1,-1),60000,1)", "1"},
+		{"ROWS(SORT(A1:A60000,1,-1))", "60000"},
+		{"ROWS(SORT(A:A,1,-1))", "3"},
+		{"INDEX(SORT(A:A,1,-1),3,1)", "1"},
+		{"INDEX(SORTBY(A:B,A:A,-1),3,1)", "1"},
 		{"ROWS(SORTBY(A:B,A:A))", "1048576"},
-		{"ROWS(SORTBY(A:A,A:A,-1))", "1048576"},
+		{"ROWS(SORTBY(A:A,A:A,-1))", "3"},
 		{"ROWS(FILTER(A:B,A:A=2))", "2"},
 		{"ROWS(FILTER(A:B,A:A=\"\"))", "1048573"},
 		{"ROWS(UNIQUE(A:B))", "4"},

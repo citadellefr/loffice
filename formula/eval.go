@@ -294,6 +294,10 @@ func (c *Context) crowded(a Area3) bool {
 // function, a sheet whose few cells are far apart.
 const maxCells = 1 << 20
 
+// maxRepeat bounds the cells an array spends on rows that only repeat the
+// last one held.
+const maxRepeat = 1 << 16
+
 // scalar is the single value a formula takes where it expects one: a
 // range crossed with the formula's row or column, the first value of an
 // array.
@@ -402,17 +406,16 @@ func (c *Context) boolean(v Value) (bool, *Value) {
 }
 
 // array is a value as a table that holds all its rows: a range's values,
-// a single value alone. Blank rows too many to hold are left out.
+// a single value alone. Past maxRepeat cells, the rows that repeat are left
+// out, as past the cells of a sheet.
 func (c *Context) array(v Value) *Table {
 	t := c.grid(v)
 	if len(t.Cells) == t.Rows*t.Cols {
 		return t
 	}
-	if t.Rows*t.Cols > maxCells {
-		if t.blankTail() {
-			return &Table{Rows: t.held(), Cols: t.Cols, Cells: t.Cells}
-		}
-		return &Table{Rows: 1, Cols: 1, Cells: []Value{ErrNum}}
+	if t.Rows*t.Cols > max(maxRepeat, 2*len(t.Cells)) {
+		n := max(t.held()-1, 1)
+		return &Table{Rows: n, Cols: t.Cols, Cells: t.Cells[:n*t.Cols]}
 	}
 	out := &Table{Rows: t.Rows, Cols: t.Cols, Cells: make([]Value, t.Rows*t.Cols)}
 	n := copy(out.Cells, t.Cells)
