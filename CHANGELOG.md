@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- `agent` and `mcp` edit presentations and workbooks, directly and in view of
+  everyone: fourteen tools (`slide_list`, `slide_read`, `shape_text_set`,
+  `shape_add`, `slide_add`, `slide_delete`, `notes_set`, `sheet_list`,
+  `range_read`, `cells_set`, `rows_insert`, `rows_delete`, `columns_insert`,
+  `columns_delete`), and `comment_add` on a slide, through the same `Check`,
+  batches, dry runs and versions as Word. The agent shows the room its
+  selection and its recent edits (`recent` in its presence) for editors to
+  highlight. `UndoMine` takes back only its edits, rebased over those of
+  others, and fails with `ErrChanged` when someone changed the same content
+  since.
+
 - `formula` calculates the array shaping functions of Excel 365: TAKE, DROP,
   CHOOSECOLS, CHOOSEROWS, EXPAND, VSTACK, HSTACK, TOCOL, TOROW, WRAPCOLS,
   WRAPROWS and TEXTSPLIT, with their French names in the Dart formula text,

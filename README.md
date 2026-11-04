@@ -29,8 +29,8 @@ license.
 | [`drawingml`](drawingml) | The DrawingML of all three formats: colors, fills, lines, geometries, positions and text bodies, read as JSON and text flows, written back as patches of the XML they came from. |
 | [`pptx`](pptx) | Presentations as trees: masters, layouts, slides, shapes, tables of rows and cells, and notes; table styles, Office's built-in ones included. Only what changed is written back; a copied shape keeps its pictures and links. |
 | [`xlsx`](xlsx) | Workbooks as trees: sheets, grids of cells and cell formats. Only the sheets that changed are written back; what the file keeps as XML moves with the rows and columns inserted and removed. CSV files are read as workbooks of one sheet and written back as they were read. |
-| [`agent`](agent) | An AI in a room, as one more participant: it reads a document as Markdown or CriticMarkup, and edits it by batches of revisions signed with its name. |
-| [`mcp`](mcp) | The agent as an MCP server (Model Context Protocol, 2025-06-18) that a host mounts beside its hub as an `http.Handler`, and that `cmd/loffice-mcp` speaks on standard input and output: sixteen tools to read, search, edit, comment, review and undo, each call authorized by the host. |
+| [`agent`](agent) | An AI in a room, as one more participant: it reads a document as Markdown or CriticMarkup, and edits it by batches of revisions signed with its name; it edits presentations and workbooks directly, in view of everyone, and takes back only its own edits. |
+| [`mcp`](mcp) | The agent as an MCP server (Model Context Protocol, 2025-06-18) that a host mounts beside its hub as an `http.Handler`, and that `cmd/loffice-mcp` speaks on standard input and output: thirty tools to read, search, edit, comment, review and undo in documents, presentations and workbooks, each call authorized by the host. |
 | [`docx`](docx) | Word documents as trees: the body and the headers and footers as blocks, paragraphs as flows whose attributes are their formatting and that of their characters, tables of rows and cells; styles, lists and sections read for the editor. Only the parts that changed are written back, and what the model does not cover rides along in the nodes. |
 | [`legacy`](legacy) | The documents of Office 97 to 2003, converted once into those of today: Excel workbooks (`.xls`) with their cells, formulas, formats, sizes, merged cells, frozen panes and names. What a file held that its conversion leaves out is told, never lost in silence. |
 | [`formula`](formula) | Excel formulas parsed and calculated in the French locale, 223 functions, number formats, and an engine that calculates again only what a change reaches. |
@@ -55,8 +55,21 @@ name unless the batch is direct. Each batch names the user the agent acts
 for, and `UndoMine` rejects what it did for one of them. A batch prepared on
 a version whose blocks changed since fails without writing; the host's
 `Allow` can refuse any write before it is sent. The agent keeps up with the
-room however long its model thinks. PowerPoint and Excel will take the same
-batches.
+room however long its model thinks.
+
+Presentations and workbooks have no revisions: the agent edits them
+directly, in view of everyone. It lists the slides and layouts, reads a slide
+with the ids of its shapes, its notes and comments, sets the text of a shape,
+adds text boxes, slides of a layout and comments, deletes slides and shapes,
+and sets notes; it lists the sheets, reads cells with their values, formulas
+and number formats, as Markdown or JSON, sets values and formulas, which the
+hub calculates again with what depends on them, and inserts and deletes rows
+and columns. The same batches, previews and versions hold. The room sees the
+agent's selection move to what it edits, and the list of its recent edits,
+for editors to highlight a while. `UndoMine` takes back its edits for a user
+by edits that undo them, rebased over what others did since, the last first,
+and refuses, saying what, when someone else changed the same content
+meanwhile.
 
 ## MCP server
 
@@ -129,7 +142,12 @@ document under); `tools/list` gives the JSON schema of each. The tools are
 `doc_list`, `doc_outline`, `doc_read` (Markdown or CriticMarkup, a range of
 block ids), `doc_search`, `text_replace`, `block_insert`, `block_delete`,
 `text_format`, `comment_add`, `comment_reply`, `revision_list`,
-`revision_accept`, `revision_reject`, `batch`, `select` and `undo_mine`.
+`revision_accept`, `revision_reject`, `batch`, `select` and `undo_mine` for
+Word documents; `slide_list`, `slide_read`, `shape_text_set`, `shape_add`,
+`slide_add`, `slide_delete`, `notes_set` and `comment_add` for presentations;
+`sheet_list`, `range_read` (Markdown or JSON), `cells_set`, `rows_insert`,
+`rows_delete`, `columns_insert` and `columns_delete` for workbooks. `batch`,
+`dry_run`, `version` and `undo_mine` work on all three.
 
 Reads give a `version`, an ETag of the document. A write may hold the
 `version` it was prepared on: if the blocks it touches changed since, it

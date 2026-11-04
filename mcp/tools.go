@@ -20,6 +20,7 @@ const (
 	maxMatches  = 100
 	maxReadSize = 100_000
 	maxNth      = 10_000
+	maxCells    = 10_000
 )
 
 // params are the arguments of every tool: each one takes the ones its
@@ -44,18 +45,30 @@ type params struct {
 	Atomic     *bool        `json:"atomic"`
 	DryRun     bool         `json:"dry_run"`
 	Version    string       `json:"version"`
+	Slide      string       `json:"slide"`
+	Shape      string       `json:"shape"`
+	Layout     string       `json:"layout"`
+	Box        *agent.Box   `json:"box"`
+	Sheet      string       `json:"sheet"`
+	Range      string       `json:"range"`
+	Values     [][]any      `json:"values"`
 }
 
 // editParams is an edit of a batch, as agent.Edit.
 type editParams struct {
-	Op       string    `json:"op"`
-	Block    string    `json:"block"`
-	Find     string    `json:"find"`
-	Nth      int       `json:"nth"`
-	Text     string    `json:"text"`
-	Format   formatMap `json:"format"`
-	Comment  string    `json:"comment"`
-	Revision string    `json:"revision"`
+	Op       string     `json:"op"`
+	Block    string     `json:"block"`
+	Find     string     `json:"find"`
+	Nth      int        `json:"nth"`
+	Text     string     `json:"text"`
+	Format   formatMap  `json:"format"`
+	Comment  string     `json:"comment"`
+	Revision string     `json:"revision"`
+	Layout   string     `json:"layout"`
+	Box      *agent.Box `json:"box"`
+	Sheet    string     `json:"sheet"`
+	Range    string     `json:"range"`
+	Values   [][]any    `json:"values"`
 }
 
 // formatMap is the formats of a text: "1" sets one, "" clears it. A model
@@ -150,18 +163,46 @@ var (
 		"type":     "object",
 		"required": []string{"op"},
 		"properties": map[string]any{
-			"op":       map[string]any{"type": "string", "enum": []string{"replace", "insert", "delete", "format", "comment", "reply", "accept", "reject"}, "description": "replace: text; insert: Markdown paragraphs after block; delete: block; format; comment: on text; reply: to a comment; accept, reject: a revision."},
-			"block":    prop("string", "Id of the block; for insert, the block the new paragraphs go after (none: the start of the document)."),
+			"op": map[string]any{"type": "string", "enum": []string{"replace", "insert", "delete", "format", "comment", "reply", "accept", "reject",
+				"text", "shape", "slide", "notes", "cells", "insert_rows", "delete_rows", "insert_columns", "delete_columns"},
+				"description": "Word: replace: text; insert: Markdown paragraphs after block; delete: block; format; comment: on text; reply: to a comment; accept, reject: a revision. " +
+					"PowerPoint: text: all the text of the shape block; shape: a text box on the slide block at box; slide: a slide of layout after the slide block; delete: the slide or shape block; notes: of the slide block; comment: on the slide block. " +
+					"Excel: cells: values from range; insert_rows, delete_rows, insert_columns, delete_columns: those of range."},
+			"block":    prop("string", "Id of the block, slide or shape; for insert, the block the new paragraphs go after (none: the start of the document)."),
 			"find":     prop("string", "Text of the block the edit applies to; replace without it takes all the text of the block."),
 			"nth":      nthProp,
 			"text":     prop("string", "New text, Markdown paragraphs for insert, or the comment."),
 			"format":   formatProp,
 			"comment":  prop("string", "Id of the comment answered, such as cm0, for reply."),
 			"revision": prop("string", "Id of the revision, as revision_list gives it, for accept and reject."),
+			"layout":   prop("string", "Id or name of the layout of a new slide, as slide_list gives them."),
+			"box":      boxProp,
+			"sheet":    sheetProp,
+			"range":    prop("string", "Cells, rows or columns, in A1 style: B2, B2:D4, 5:7, C:D."),
+			"values":   valuesProp,
 		},
 		"additionalProperties": false,
 	}
 	revisionsProp = list(map[string]any{"type": "string"}, "Ids of the revisions, as revision_list gives them, in any order.")
+	slideProp     = prop("string", "Id of the slide, such as s256, as slide_list gives it.")
+	boxProp       = map[string]any{
+		"type":        "object",
+		"description": "Where the shape goes, in points from the top left corner of the slide.",
+		"required":    []string{"x", "y", "w", "h"},
+		"properties": map[string]any{
+			"x": prop("number", "Left."), "y": prop("number", "Top."), "w": prop("number", "Width."), "h": prop("number", "Height."),
+		},
+		"additionalProperties": false,
+	}
+	sheetProp  = prop("string", "Name of the sheet, as sheet_list gives it.")
+	valuesProp = map[string]any{
+		"type":        "array",
+		"maxItems":    maxCells,
+		"description": "Rows of values from the top left cell of range: a number, a string, true or false, a string starting with = for a formula (=SUM(A1:A3)), null to empty a cell.",
+		"items":       map[string]any{"type": "array", "items": map[string]any{"type": []string{"number", "string", "boolean", "null"}}},
+	}
+	rowsProp    = prop("string", "The rows, such as 5:7, or 5 for one.")
+	columnsProp = prop("string", "The columns, such as C:D, or C for one.")
 )
 
 func always(*params) bool { return true }
@@ -237,11 +278,17 @@ func newTools() []*tool {
 		},
 		{
 			name:        "comment_add",
-			description: "Comment text of a block, in your name.",
-			props:       map[string]any{"block": blockProp, "find": findProp, "nth": nthProp, "text": prop("string", "The comment."), "version": versionOpt},
-			required:    []string{"block", "find", "text"},
-			write:       always,
-			run:         runComment,
+			description: "Comment text of a block of a Word document, or a slide of a presentation, in your name.",
+			props: map[string]any{
+				"block":   prop("string", "Id of the block, such as p3, as doc_read shows it; in a presentation, the id of the slide, as slide_list gives it."),
+				"find":    prop("string", "Text of the block the comment is on, exactly as doc_read shows it, without markup. Required in Word, not used for a slide."),
+				"nth":     nthProp,
+				"text":    prop("string", "The comment."),
+				"version": versionOpt,
+			},
+			required: []string{"block", "text"},
+			write:    always,
+			run:      runComment,
 		},
 		{
 			name:        "comment_reply",
@@ -274,7 +321,7 @@ func newTools() []*tool {
 		},
 		{
 			name:        "batch",
-			description: "Make several edits together, as tracked changes: each finds its block in the document as the ones before it left it, and all are applied or none. After accepting or rejecting a revision, the next ones of its paragraph move up one: take them from the last to the first. With dry_run, nothing changes and you get the blocks as they would be, in CriticMarkup, and the version to give back to apply them: if the document changed meanwhile the batch fails without writing, so read again and prepare it again.",
+			description: "Make several edits together, as tracked changes in Word: each finds its block in the document as the ones before it left it, and all are applied or none. After accepting or rejecting a revision, the next ones of its paragraph move up one: take them from the last to the first. With dry_run, nothing changes and you get the blocks as they would be, in CriticMarkup, and the version to give back to apply them: if the document changed meanwhile the batch fails without writing, so read again and prepare it again.",
 			props: map[string]any{
 				"edits":   list(editProp, "The edits, in order."),
 				"atomic":  prop("boolean", "All or nothing (default true). False applies the edits one by one and stops at the first that fails, the earlier ones staying."),
@@ -294,9 +341,121 @@ func newTools() []*tool {
 		},
 		{
 			name:        "undo_mine",
-			description: "Reject every tracked change you made for this user, and only those.",
+			description: "Take back what you did for this user, and only that: in Word, reject your tracked changes; in PowerPoint and Excel, undo your edits of this session, the last first, unless someone else changed the same content since.",
 			write:       always,
 			run:         runUndo,
+		},
+		{
+			name:        "slide_list",
+			description: "List the slides of a presentation (id, number, layout, title) and the layouts a new slide can take.",
+			run:         runSlides,
+		},
+		{
+			name:        "slide_read",
+			description: "Read a slide: its shapes with their ids, type, place and text (a paragraph a line), its notes and comments, with the version.",
+			props:       map[string]any{"slide": slideProp},
+			required:    []string{"slide"},
+			run:         runSlide,
+		},
+		{
+			name:        "shape_text_set",
+			description: "Set all the text of a shape of a slide, in view of everyone in the presentation.",
+			props:       map[string]any{"shape": prop("string", "Id of the shape, as slide_read gives it."), "text": prop("string", "The new text, a paragraph a line."), "version": versionOpt},
+			required:    []string{"shape", "text"},
+			write:       always,
+			run:         editing(func(c *call) agent.Edit { return agent.Edit{Op: "text", Block: c.Shape, Text: c.Text} }),
+		},
+		{
+			name:        "shape_add",
+			description: "Add a text box to a slide.",
+			props:       map[string]any{"slide": slideProp, "box": boxProp, "text": prop("string", "The text, a paragraph a line."), "version": versionOpt},
+			required:    []string{"slide", "box", "text"},
+			write:       always,
+			run:         editing(func(c *call) agent.Edit { return agent.Edit{Op: "shape", Block: c.Slide, Box: c.Box, Text: c.Text} }),
+		},
+		{
+			name:        "slide_add",
+			description: "Add a slide of a layout, with the placeholders it gives, after a slide or at the end.",
+			props: map[string]any{
+				"layout":  prop("string", "Id or name of the layout, as slide_list gives them."),
+				"after":   prop("string", "Id of the slide the new one goes after; the end if omitted."),
+				"version": versionOpt,
+			},
+			required: []string{"layout"},
+			write:    always,
+			run:      editing(func(c *call) agent.Edit { return agent.Edit{Op: "slide", Block: c.After, Layout: c.Layout} }),
+		},
+		{
+			name:        "slide_delete",
+			description: "Delete a slide, or a shape of a slide.",
+			props:       map[string]any{"slide": prop("string", "Id of the slide, or of a shape as slide_read gives it."), "version": versionOpt},
+			required:    []string{"slide"},
+			write:       always,
+			run:         editing(func(c *call) agent.Edit { return agent.Edit{Op: "delete", Block: c.Slide} }),
+		},
+		{
+			name:        "notes_set",
+			description: "Set all the speaker notes of a slide.",
+			props:       map[string]any{"slide": slideProp, "text": prop("string", "The notes, a paragraph a line."), "version": versionOpt},
+			required:    []string{"slide", "text"},
+			write:       always,
+			run:         editing(func(c *call) agent.Edit { return agent.Edit{Op: "notes", Block: c.Slide, Text: c.Text} }),
+		},
+		{
+			name:        "sheet_list",
+			description: "List the sheets of a workbook and the area of the cells each uses.",
+			run:         runSheets,
+		},
+		{
+			name:        "range_read",
+			description: "Read cells of a sheet: values, formulas and number formats, as a Markdown table or JSON, with the version.",
+			props: map[string]any{
+				"sheet": sheetProp,
+				"range": prop("string", "Cells in A1 style: B2:D10, A:C, 5:7; all the cells the sheet uses if omitted."),
+				"view":  map[string]any{"type": "string", "enum": []string{"markdown", "json"}, "description": "markdown (default) or json."},
+			},
+			required: []string{"sheet"},
+			run:      runRange,
+		},
+		{
+			name:        "cells_set",
+			description: "Set cells of a sheet to values or formulas, in view of everyone in the workbook; the formulas that depend on them are calculated again.",
+			props:       map[string]any{"sheet": sheetProp, "range": prop("string", "Top left cell, such as B2, or the area the values fill."), "values": valuesProp, "version": versionOpt},
+			required:    []string{"sheet", "range", "values"},
+			write:       always,
+			run:         calculating("cells"),
+		},
+		{
+			name:        "rows_insert",
+			description: "Insert empty rows in a sheet, before the first one given: those below move down, and formulas follow.",
+			props:       map[string]any{"sheet": sheetProp, "range": rowsProp, "version": versionOpt},
+			required:    []string{"sheet", "range"},
+			write:       always,
+			run:         calculating("insert_rows"),
+		},
+		{
+			name:        "rows_delete",
+			description: "Delete rows of a sheet: those below move up, and formulas follow.",
+			props:       map[string]any{"sheet": sheetProp, "range": rowsProp, "version": versionOpt},
+			required:    []string{"sheet", "range"},
+			write:       always,
+			run:         calculating("delete_rows"),
+		},
+		{
+			name:        "columns_insert",
+			description: "Insert empty columns in a sheet, before the first one given: those on the right move right, and formulas follow.",
+			props:       map[string]any{"sheet": sheetProp, "range": columnsProp, "version": versionOpt},
+			required:    []string{"sheet", "range"},
+			write:       always,
+			run:         calculating("insert_columns"),
+		},
+		{
+			name:        "columns_delete",
+			description: "Delete columns of a sheet: those on the right move left, and formulas follow.",
+			props:       map[string]any{"sheet": sheetProp, "range": columnsProp, "version": versionOpt},
+			required:    []string{"sheet", "range"},
+			write:       always,
+			run:         calculating("delete_columns"),
 		},
 	}
 }
@@ -356,12 +515,25 @@ func (t *tool) check(p *params) (*call, error) {
 	if p.Nth < 0 || p.Nth > maxNth {
 		return nil, errors.New("nth is the number of the occurrence, from 0")
 	}
+	cells := countCells(p.Values)
 	for _, e := range p.Edits {
 		if e.Nth < 0 || e.Nth > maxNth {
 			return nil, errors.New("nth is the number of the occurrence, from 0")
 		}
+		cells += countCells(e.Values)
+	}
+	if cells > maxCells {
+		return nil, fmt.Errorf("at most %d cells at a time: split the work", maxCells)
 	}
 	return c, nil
+}
+
+func countCells(rows [][]any) int {
+	n := 0
+	for _, r := range rows {
+		n += max(len(r), 1)
+	}
+	return n
 }
 
 // explain tells a model what went wrong and what to do.
@@ -376,7 +548,9 @@ func explain(err error) string {
 	case errors.Is(err, agent.ErrNotFound):
 		return err.Error() + ". Read the block again with doc_read: find is its text exactly as written, without markup, and nth counts from 0."
 	case errors.Is(err, agent.ErrUnsupported):
-		return "this kind of document cannot be read or edited yet: only Word documents can."
+		return "this tool does not work on this kind of document: doc_ and revision_ tools are for Word documents, slide_, shape_ and notes_set for presentations, sheet_list, range_read, cells_set, rows_ and columns_ for workbooks."
+	case errors.Is(err, agent.ErrChanged):
+		return err.Error() + ". It was left as it is, and so were your earlier edits: undo them by hand with the editing tools if they must go."
 	case errors.Is(err, agent.ErrClosed), errors.Is(err, errClosing):
 		return "the document was closed meanwhile. Nothing was lost: call again."
 	case errors.Is(err, agent.ErrRefused):
