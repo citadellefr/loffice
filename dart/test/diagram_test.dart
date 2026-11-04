@@ -15,7 +15,6 @@ import 'package:loffice/src/word/export.dart';
 import 'package:loffice/src/word/layout.dart';
 import 'package:loffice/src/word/page_painter.dart';
 import 'package:loffice/src/word/paragraph.dart';
-import 'package:trame/trame.dart';
 
 import 'word_layout_test.dart' show document, text;
 
