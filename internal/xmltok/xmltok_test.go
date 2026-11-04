@@ -39,6 +39,8 @@ func tokens(t *testing.T, doc string) []string {
 			out = append(out, "!:"+string(tok.Data))
 		case ProcInst:
 			out = append(out, "?"+string(tok.Name))
+		case Doctype:
+			out = append(out, "D:"+string(tok.Data))
 		}
 	}
 	if err := s.Err(); err != nil {
@@ -58,9 +60,47 @@ func TestTokens(t *testing.T) {
 	}
 }
 
+func TestDoctype(t *testing.T) {
+	got := tokens(t, `<!DOCTYPE a [<!ELEMENT a (#PCDATA)><!-- c --><!ATTLIST a b CDATA "c>d">]><a b="1">x &amp; y</a>`)
+	want := []string{`D: a [<!ELEMENT a (#PCDATA)><!-- c --><!ATTLIST a b CDATA "c>d">]`, `<ab="1">`, "T:x &amp; y", "</a>"}
+	if len(got) == 0 || got[0] != want[0] {
+		t.Fatalf("got  %q\nwant %q", got, want)
+	}
+	if got := tokens(t, "<!DOCTYPE a><a/>"); !slices.Equal(got, []string{"D: a", "<a>", "</a>"}) {
+		t.Fatalf("%q", got)
+	}
+}
+
+func TestDoctypeMessages(t *testing.T) {
+	for doc, want := range map[string]string{
+		`<!DOCTYPE a [<!ENTITY x "y">]><a/>`: "xmltok: syntax error at offset 30: entity declarations are not allowed",
+		`<!DOCTYPE a SYSTEM "a.dtd"><a/>`:    "xmltok: syntax error at offset 27: external document type definitions are not allowed",
+		`<a/><!DOCTYPE a>`:                   "xmltok: syntax error at offset 4: document type declaration after the root element",
+		`<!DOCTYPE a [<!ELEMENT a EMPTY>]`:   "xmltok: syntax error at offset 0: unterminated document type declaration",
+	} {
+		s := New([]byte(doc))
+		for {
+			if _, ok := s.Next(); !ok {
+				break
+			}
+		}
+		if s.Err() == nil || s.Err().Error() != want {
+			t.Errorf("%q: %v, want %q", doc, s.Err(), want)
+		}
+	}
+}
+
 func TestSyntaxErrors(t *testing.T) {
 	for _, doc := range []string{
 		`<!DOCTYPE a [<!ENTITY x "y">]><a/>`,
+		`<!DOCTYPE a [<!ENTITY % x "y">]><a/>`,
+		`<!DOCTYPE a [<!ENTITY x SYSTEM "file:///etc/passwd">]><a>&x;</a>`,
+		`<!DOCTYPE a SYSTEM "a.dtd"><a/>`,
+		`<!DOCTYPE a PUBLIC "-//A//EN" "a.dtd"><a/>`,
+		`<!DOCTYPE a [<!ELEMENT a EMPTY>]`,
+		`<a/><!DOCTYPE a>`,
+		`<a><!DOCTYPE a></a>`,
+		`<!ELEMENT a EMPTY>`,
 		`<a></b>`,
 		`<a>`,
 		`</a>`,
@@ -160,19 +200,22 @@ func TestSkipElement(t *testing.T) {
 
 func TestUnescape(t *testing.T) {
 	for raw, want := range map[string]string{
-		"plain":                   "plain",
-		"a &amp; b &lt;&gt;":      "a & b <>",
-		"&quot;&apos;":            `"'`,
-		"&#233;&#xE9;&#x1F600;":   "éé😀",
-		"one\r\ntwo\rthree\nfour": "one\ntwo\nthree\nfour",
-		"&#xD800;":                "\uFFFD",
+		"plain":                          "plain",
+		"a &amp; b &lt;&gt;":             "a & b <>",
+		"&quot;&apos;":                   `"'`,
+		"&#233;&#xE9;&#x1F600;":          "éé😀",
+		"one\r\ntwo\rthree\nfour":        "one\ntwo\nthree\nfour",
+		"&#xD800;":                       "\uFFFD",
+		"a<![CDATA[ & <b>\r\n]]>c &amp;": "a & <b>\nc &",
+		"<![CDATA[]]><![CDATA[&amp;]]>":  "&amp;",
+		"a<b":                            "a<b",
 	} {
 		got, err := Unescape(nil, []byte(raw))
 		if err != nil || string(got) != want {
 			t.Errorf("Unescape(%q) = %q, %v", raw, got, err)
 		}
 	}
-	for _, raw := range []string{"&nbsp;", "&amp", "&#0;", "&#xFFFE;", "&#;", "&#x;", "&#-1;"} {
+	for _, raw := range []string{"<![CDATA[ &", "&nbsp;", "&amp", "&#0;", "&#xFFFE;", "&#;", "&#x;", "&#-1;"} {
 		if got, err := Unescape(nil, []byte(raw)); err == nil {
 			t.Errorf("Unescape(%q) = %q, want an error", raw, got)
 		}

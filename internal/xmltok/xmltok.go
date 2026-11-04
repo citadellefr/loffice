@@ -3,8 +3,9 @@
 // It allocates nothing per token: names, attributes and text are slices of
 // the input, undecoded until the caller asks. Each token knows its position,
 // so an element the caller does not understand can be kept as the exact bytes
-// it was read from. Document type declarations are refused, which rules out
-// entity expansion attacks.
+// it was read from. Document type declarations that declare entities or point
+// to an external definition are refused, which rules out entity expansion and
+// external entity attacks.
 package xmltok
 
 import (
@@ -32,6 +33,8 @@ const (
 	CData
 	Comment
 	ProcInst
+	// Doctype is a document type declaration, which declares no entity.
+	Doctype
 )
 
 type Token struct {
@@ -55,6 +58,7 @@ type Scanner struct {
 	pos     int
 	stack   [][]byte
 	pending bool // a self-closing element still owes its EndElement
+	rooted  bool // the root element was opened
 	err     error
 	spaces  []binding
 }
@@ -120,7 +124,10 @@ func (s *Scanner) Next() (Token, bool) {
 		case bytes.HasPrefix(rest, []byte("<![CDATA[")):
 			return s.delimited(start, CData, 9, "]]>")
 		}
-		return s.fail("document type declarations are not allowed")
+		if bytes.HasPrefix(rest, []byte("<!DOCTYPE")) {
+			return s.doctype(start)
+		}
+		return s.fail("malformed declaration")
 	}
 	return s.startElement(start)
 }
@@ -133,6 +140,42 @@ func (s *Scanner) delimited(start int, kind Kind, open int, close string) (Token
 	end := start + open + i + len(close)
 	s.pos = end
 	return Token{Kind: kind, Data: s.data[start+open : start+open+i], Offset: start, End: end}, true
+}
+
+// doctype reads a document type declaration. Entities are what make one
+// dangerous: it is refused when it declares any, or when its definition is
+// external, which could declare them.
+func (s *Scanner) doctype(start int) (Token, bool) {
+	if s.rooted {
+		return s.fail("document type declaration after the root element")
+	}
+	var quote byte
+	subset := false
+	for i := start + len("<!DOCTYPE"); i < len(s.data); i++ {
+		switch c := s.data[i]; {
+		case quote != 0:
+			if c == quote {
+				quote = 0
+			}
+		case c == '"' || c == '\'':
+			quote = c
+		case c == '[':
+			subset = true
+		case c == ']':
+			subset = false
+		case c == '>' && !subset:
+			s.pos = i + 1
+			decl := s.data[start:s.pos]
+			switch {
+			case bytes.Contains(decl, []byte("<!ENTITY")):
+				return s.fail("entity declarations are not allowed")
+			case bytes.Contains(decl, []byte("SYSTEM")) || bytes.Contains(decl, []byte("PUBLIC")):
+				return s.fail("external document type definitions are not allowed")
+			}
+			return Token{Kind: Doctype, Data: decl[len("<!DOCTYPE") : len(decl)-1], Offset: start, End: s.pos}, true
+		}
+	}
+	return s.fail("unterminated document type declaration")
 }
 
 func (s *Scanner) procInst(start int) (Token, bool) {
@@ -175,6 +218,7 @@ func (s *Scanner) startElement(start int) (Token, bool) {
 		s.err = fmt.Errorf("%w: more than %d levels", ErrTooDeep, MaxDepth)
 		return Token{}, false
 	}
+	s.rooted = true
 	attrStart := n
 	i := n
 	for {
