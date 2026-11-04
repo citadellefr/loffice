@@ -27,7 +27,7 @@ import 'workbook.dart';
 /// An Excel editor on a session whose document is a workbook: the ribbon,
 /// the formula bar, the cells of a sheet, its tabs and the status bar.
 class SpreadsheetEditor extends StatefulWidget {
-  const SpreadsheetEditor({super.key, required this.session, this.title = '', this.onClose, this.onExport, this.strings = const LofficeStrings(), this.fonts, this.hosted = false});
+  const SpreadsheetEditor({super.key, required this.session, this.title = '', this.onClose, this.onExport, this.onOpenLink, this.strings = const LofficeStrings(), this.fonts, this.hosted = false});
 
   final DocSession session;
   final String title;
@@ -37,6 +37,10 @@ class SpreadsheetEditor extends StatefulWidget {
   /// host saves it where its documents are. File > Export is left out
   /// without it.
   final Future<void> Function(Uint8List pdf, String name)? onExport;
+
+  /// Opens the address of a link of a cell, clicked with Ctrl or, in a
+  /// workbook only read, alone. Without it links to an address do not open.
+  final void Function(Uri uri)? onOpenLink;
   final LofficeStrings strings;
 
   /// The package bundling the free fonts standing in for Office's.
@@ -618,16 +622,85 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     }, key: (r, c) => (r == a.top, r == a.bottom, c == a.left, c == a.right));
   }
 
-  void _mergeCenter() {
+  bool get _merged {
+    final sheet = _sheet;
+    return sheet != null && _wb.layout(sheet).merges.any((m) => m.intersects(_selection.area));
+  }
+
+  bool get _mergeable {
+    final a = _selection.area;
+    return !a.single && !a.wholeCols && !a.wholeRows;
+  }
+
+  void _merge(String how) {
     final sheet = _sheet;
     if (sheet == null) return;
     final a = _selection.area;
-    final merged = _wb.layout(sheet).merges.any((m) => m.intersects(a));
-    if (merged) {
-      _edit(_edits.unmerge(sheet, a));
-    } else if (!a.single && !a.wholeCols && !a.wholeRows) {
-      _edit(_edits.merge(sheet, a));
+    _edit(switch (how) {
+      'unmerge' => _edits.unmerge(sheet, a),
+      'across' => _edits.merge(sheet, a, across: true, center: false),
+      'cells' => _edits.merge(sheet, a, center: false),
+      _ => _edits.merge(sheet, a),
+    });
+  }
+
+  // links
+
+  /// The cell holding the link a cell leads to: the first of its merged
+  /// area.
+  (int, int) _linkCell(int row, int col) {
+    final sheet = _sheet;
+    final merged = sheet == null ? null : _wb.layout(sheet).mergeAt(row, col);
+    return (merged?.top ?? row, merged?.left ?? col);
+  }
+
+  Map<String, Object?>? _linkAt(int row, int col) {
+    final (r, c) = _linkCell(row, col);
+    final link = _fields(r, c)['link'];
+    return link is Map<String, Object?> ? link : null;
+  }
+
+  void _cellDown(int row, int col, {required bool ctrl}) {
+    final link = _linkAt(row, col);
+    if (link != null && (ctrl || _session.readOnly)) _openLink(link);
+  }
+
+  void _openLink(Map<String, Object?> link) {
+    final address = link['url'];
+    final place = link['loc'];
+    if (address is String) {
+      final uri = Uri.tryParse(address);
+      if (uri != null) widget.onOpenLink?.call(uri);
+    } else if (place is String) {
+      _goToPlace(place);
     }
+  }
+
+  /// Goes to a place of the workbook, as "Feuil2!B3" names it.
+  void _goToPlace(String place) {
+    final bang = place.lastIndexOf('!');
+    if (bang > 0) {
+      var name = place.substring(0, bang);
+      if (name.length > 1 && name.startsWith("'") && name.endsWith("'")) name = name.substring(1, name.length - 1).replaceAll("''", "'");
+      final sheet = _wb.sheets.where((s) => s.attributes['name'] == name).firstOrNull;
+      if (sheet == null) return;
+      _goToSheet(sheet);
+    }
+    final area = parseArea(place.substring(bang + 1).replaceAll(r'$', '').toUpperCase());
+    if (area != null) _selection.selectArea(area);
+  }
+
+  Future<void> _editLink() async {
+    final sheet = _sheet;
+    if (sheet == null) return;
+    final (row, col) = _linkCell(_selection.active.$1, _selection.active.$2);
+    final link = await showDialog<Map<String, Object?>>(
+      context: context,
+      builder: (context) => _LinkDialog(strings: _s, link: _linkAt(row, col)),
+    );
+    if (link == null) return;
+    _edit(_edits.setLink(sheet, row, col, link.isEmpty ? null : link));
+    _gridFocus.requestFocus();
   }
 
   // rows, columns and sheets
@@ -1063,6 +1136,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
                           onResize: _session.readOnly ? null : _resize,
                           onZoom: (z) => setState(() => _zoom = z),
                           onMenu: (at, {rows = false, cols = false}) => _cellsMenu(at, rows: rows, cols: cols),
+                          onCellDown: _cellDown,
                           onFill: _session.readOnly ? null : (from, to) => _edit(_edits.fill(sheet, from, to)),
                           onList: _activeList == null ? null : _openList,
                           prompt: _prompt,
@@ -1338,7 +1412,18 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
                 RibbonButton(icon: const Icon(Icons.format_align_left), label: _s.alignLeft, selected: h == 'left', onPressed: editable ? () => _align('h', h == 'left' ? null : 'left') : null),
                 RibbonButton(icon: const Icon(Icons.format_align_center), label: _s.center, selected: h == 'center', onPressed: editable ? () => _align('h', h == 'center' ? null : 'center') : null),
                 RibbonButton(icon: const Icon(Icons.format_align_right), label: _s.alignRight, selected: h == 'right', onPressed: editable ? () => _align('h', h == 'right' ? null : 'right') : null),
-                RibbonButton(icon: const Icon(Icons.merge_type), label: _s.mergeAndCenter, onPressed: editable ? _mergeCenter : null),
+                RibbonMenu<String>(
+                  icon: const Icon(Icons.merge_type),
+                  label: _s.mergeAndCenter,
+                  enabled: editable,
+                  items: [
+                    PopupMenuItem(value: 'center', enabled: _mergeable, child: Text(_s.mergeAndCenter)),
+                    PopupMenuItem(value: 'across', enabled: _mergeable, child: Text(_s.mergeAcross)),
+                    PopupMenuItem(value: 'cells', enabled: _mergeable, child: Text(_s.mergeCells)),
+                    PopupMenuItem(value: 'unmerge', enabled: _merged, child: Text(_s.unmerge)),
+                  ],
+                  onSelected: _merge,
+                ),
               ],
             ),
           ]),
@@ -1425,6 +1510,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
             RibbonButton(icon: const Icon(Icons.table_rows_outlined), label: _s.insertRows, onPressed: editable ? () => _insert(rows: true) : null),
             RibbonButton(icon: const Icon(Icons.view_column_outlined), label: _s.insertColumns, onPressed: editable ? () => _insert(rows: false) : null),
           ]),
+          RibbonGroup(_s.links, [RibbonButton(icon: const Icon(Icons.link), label: _s.insertLink, large: true, onPressed: editable ? _editLink : null)]),
         ]),
         if (!_wb.csv) _printTab(editable),
         RibbonTab(_s.formulas, [
@@ -1871,4 +1957,63 @@ class _ChartSheetPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_ChartSheetPainter old) => old.spec != spec || old.book != book || old.sheet != sheet;
+}
+
+/// Asks where a link leads to. It pops the link to set, an empty map to take
+/// the link away, or null.
+class _LinkDialog extends StatefulWidget {
+  const _LinkDialog({required this.strings, required this.link});
+
+  final LofficeStrings strings;
+  final Map<String, Object?>? link;
+
+  @override
+  State<_LinkDialog> createState() => _LinkDialogState();
+}
+
+class _LinkDialogState extends State<_LinkDialog> {
+  late final _address = TextEditingController(text: '${widget.link?['url'] ?? ''}');
+  late final _place = TextEditingController(text: '${widget.link?['loc'] ?? ''}');
+  late final _tip = TextEditingController(text: '${widget.link?['tip'] ?? ''}');
+
+  @override
+  void dispose() {
+    _address.dispose();
+    _place.dispose();
+    _tip.dispose();
+    super.dispose();
+  }
+
+  void _done() {
+    final url = linkAddress(_address.text);
+    final loc = _place.text.trim();
+    final tip = _tip.text.trim();
+    final link = {'url': ?url, if (loc.isNotEmpty) 'loc': loc, if (tip.isNotEmpty) 'tip': tip};
+    Navigator.of(context).pop(link.isEmpty ? null : link);
+  }
+
+  Widget _field(TextEditingController controller, String label, {bool first = false}) => TextField(
+    controller: controller,
+    autofocus: first,
+    maxLength: first ? null : 255,
+    decoration: InputDecoration(labelText: label),
+    onSubmitted: (_) => _done(),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.strings;
+    return AlertDialog(
+      title: Text(s.insertLink),
+      content: SizedBox(
+        width: 360,
+        child: Column(mainAxisSize: MainAxisSize.min, children: [_field(_address, s.linkAddress, first: true), _field(_place, s.linkPlace), _field(_tip, s.linkTip)]),
+      ),
+      actions: [
+        if (widget.link != null) TextButton(onPressed: () => Navigator.of(context).pop(const <String, Object?>{}), child: Text(s.removeLink)),
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(s.cancel)),
+        FilledButton(onPressed: _done, child: Text(s.ok)),
+      ],
+    );
+  }
 }

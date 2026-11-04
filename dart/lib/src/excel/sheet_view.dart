@@ -107,6 +107,7 @@ class SheetView extends StatefulWidget {
     this.onZoom,
     this.onMenu,
     this.onFill,
+    this.onCellDown,
     this.onList,
     this.prompt,
     this.filter,
@@ -135,6 +136,9 @@ class SheetView extends StatefulWidget {
 
   /// Opens the menu of the cells, at a point of the screen.
   final void Function(Offset at, {bool rows, bool cols})? onMenu;
+
+  /// Tells a cell was pressed with the mouse, with Ctrl or not.
+  final void Function(int row, int col, {required bool ctrl})? onCellDown;
 
   /// Fills from the selection to an area, as the fill handle does.
   final void Function(CellArea from, CellArea to)? onFill;
@@ -409,6 +413,7 @@ class SheetViewState extends State<SheetView> {
           }
         }
         _drag = _Drag.cells();
+        widget.onCellDown?.call(t.row, t.col, ctrl: HardwareKeyboard.instance.isControlPressed || HardwareKeyboard.instance.isMetaPressed);
     }
   }
 
