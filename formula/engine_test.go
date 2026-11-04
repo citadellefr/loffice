@@ -249,6 +249,24 @@ func spillOf(out []Result) string {
 	return ""
 }
 
+func TestEngineSpillArrays(t *testing.T) {
+	s, e := newSource()
+	out := s.dynamic(e, "A1", `TEXTSPLIT("a,b;c,d",",",";")`)
+	if got := results(out); got != `[A1="a" B1="b" A2="c" B2="d"]` {
+		t.Fatal(got)
+	}
+	if got := spillOf(out); got != "A1:A1:B2" {
+		t.Fatal(got)
+	}
+	out = s.dynamic(e, "D1", "VSTACK(SEQUENCE(1,3),SEQUENCE(1,2))")
+	if got := results(out); got != "[D1=1 E1=2 F1=3 D2=1 E2=2 F2=#N/A]" {
+		t.Fatal(got)
+	}
+	if got := results(s.dynamic(e, "H1", "TAKE(SEQUENCE(3,3),-2,-2)")); got != "[H1=5 I1=6 H2=8 I2=9]" {
+		t.Fatal(got)
+	}
+}
+
 func TestEngineSpill(t *testing.T) {
 	s, e := newSource()
 	s.set(e, "C1", "=A2*10")

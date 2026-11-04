@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- `formula` calculates the array shaping functions of Excel 365: TAKE, DROP,
+  CHOOSECOLS, CHOOSEROWS, EXPAND, VSTACK, HSTACK, TOCOL, TOROW, WRAPCOLS,
+  WRAPROWS and TEXTSPLIT, with their French names in the Dart formula text,
+  and XLOOKUP and XMATCH spill when given several values to look up.
 - `xlsx` edits merged cells and links: a cell's `m` is refused when its area
   overlaps another, and a new field `link` (`{"url":"https://…"}`,
   `{"loc":"Sheet2!A1"}`, `"tip"`) is written as Excel writes it, a
