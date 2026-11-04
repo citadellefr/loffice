@@ -252,6 +252,88 @@ class SheetEdits {
     return printSetup(sheet, {'rows': changed(setup.rowBreaks, row), 'cols': changed(setup.colBreaks, col)});
   }
 
+  // conditional formats and validations
+
+  /// The conditional formats of a sheet, the first the one that counts.
+  List<Map<String, Object?>> conditionals(Node sheet) => _rules(sheet, 'cf');
+
+  /// Sets the conditional formats of a sheet, numbering them as they come.
+  Edit setConditionals(Node sheet, List<Map<String, Object?>> rules) {
+    final numbered = [
+      for (var i = 0; i < rules.length; i++) {...rules[i], 'pri': i + 1},
+    ];
+    return Edit([
+      Change.set(sheet.id, attributes: {'cf': numbered.isEmpty ? null : numbered}),
+    ]);
+  }
+
+  /// Adds a conditional format for the cells of an area, before the others.
+  Edit addConditional(Node sheet, CellArea area, Map<String, Object?> rule) => setConditionals(sheet, [
+    {...rule, 'ref': area.name},
+    ...conditionals(sheet),
+  ]);
+
+  /// Takes the conditional formats off the cells of an area, or off the
+  /// whole sheet for null: a rule that holds for other cells stays for them.
+  Edit clearConditionals(Node sheet, CellArea? area) => setConditionals(sheet, area == null ? const [] : _cut(conditionals(sheet), area, _moveRule));
+
+  /// Sets what the cells of an area take, in place of what they took, no
+  /// rule for any value for null.
+  Edit validate(Node sheet, CellArea area, Map<String, Object?>? rule) {
+    final all = [
+      ..._cut(_rules(sheet, 'valid'), area, _moveValidation),
+      if (rule != null) {...rule, 'ref': area.name},
+    ];
+    return Edit([
+      Change.set(sheet.id, attributes: {'valid': all.isEmpty ? null : all}),
+    ]);
+  }
+
+  static List<Map<String, Object?>> _rules(Node sheet, String key) {
+    final all = sheet.attributes[key];
+    return [
+      for (final r in all is List<Object?> ? all : const <Object?>[])
+        if (r is Map<String, Object?>) r,
+    ];
+  }
+
+  /// The rules without the cells of [hole]: a rule loses the part of its
+  /// areas in the hole, and goes when none is left. Their formulas are
+  /// written for the first cell of the areas, so [move] follows it when
+  /// it changes.
+  static List<Map<String, Object?>> _cut(List<Map<String, Object?>> rules, CellArea hole, Map<String, Object?> Function(Map<String, Object?> rule, int rows, int cols) move) {
+    final out = <Map<String, Object?>>[];
+    for (final rule in rules) {
+      final before = '${rule['ref']}'.split(' ')..removeWhere((t) => t.isEmpty);
+      final kept = <String>[];
+      for (final token in before) {
+        final area = parseArea(token);
+        kept.addAll(area == null ? [token] : [for (final a in area.minus(hole)) a.name]);
+      }
+      if (kept.isEmpty) continue;
+      final (was, now) = (parseArea(before.first), parseArea(kept.first));
+      final moved = was == null || now == null ? rule : move(rule, now.top - was.top, now.left - was.left);
+      out.add({...moved, 'ref': kept.join(' ')});
+    }
+    return out;
+  }
+
+  static Map<String, Object?> _moveRule(Map<String, Object?> rule, int rows, int cols) {
+    final f = rule['f'];
+    return f is! List<Object?>
+        ? rule
+        : {
+            ...rule,
+            'f': [for (final x in f) x is String ? moveFormula(x, rows, cols) : x],
+          };
+  }
+
+  static Map<String, Object?> _moveValidation(Map<String, Object?> rule, int rows, int cols) => {
+    ...rule,
+    for (final k in ['f1', 'f2'])
+      if (rule[k] is String) k: moveFormula(rule[k]! as String, rows, cols),
+  };
+
   // sheets
 
   /// A sheet named [name], after [after] or last.

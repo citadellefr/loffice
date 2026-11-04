@@ -268,6 +268,35 @@ func setList[T any](f *follow, id, key string, v []T) {
 	f.set(id, key, raw)
 }
 
+// shiftValid moves the areas of the validations of a sheet with rows or
+// columns inserted or removed: those left without any go.
+func (f *follow) shiftValid(id, sheet string, rows bool, at, n int) {
+	var valid []Validation
+	if f.attr(id, validKey, &valid); len(valid) > 0 {
+		var kept []Validation
+		for _, v := range valid {
+			if v.Ref = shiftRef(v.Ref, sheet, rows, at, n); v.Ref != "" {
+				kept = append(kept, v)
+			}
+		}
+		setList(f, id, validKey, kept)
+	}
+}
+
+// shiftConditionals does the same for the conditional formats.
+func (f *follow) shiftConditionals(id, sheet string, rows bool, at, n int) {
+	var rules []Conditional
+	if f.attr(id, conditionalKey, &rules); len(rules) > 0 {
+		var kept []Conditional
+		for _, r := range rules {
+			if r.Ref = shiftRef(r.Ref, sheet, rows, at, n); r.Ref != "" {
+				kept = append(kept, r)
+			}
+		}
+		setList(f, id, conditionalKey, kept)
+	}
+}
+
 // shiftFilter moves the filter of a sheet with rows or columns inserted
 // or removed.
 func (f *follow) shiftFilter(id, sheet string, rows bool, at, n int) {
@@ -361,7 +390,7 @@ func mapKeys[K comparable, V any](m map[K]V) func(func(K) bool) {
 }
 
 // formulas calls rewrite with every formula of the workbook, those of the
-// defined names, list validations, conditional formats and charts included,
+// defined names, validations, conditional formats and charts included,
 // and sets those it changes.
 func (f *follow) formulas(rewrite func(text, sheet string) string) {
 	c := f.c
@@ -383,41 +412,11 @@ func (f *follow) formulas(rewrite func(text, sheet string) string) {
 			}
 			return true
 		})
-		var lists []List
-		f.attr(id, listsKey, &lists)
-		changed := false
-		for i, l := range lists {
-			if g := rewrite(l.Src, id); g != l.Src {
-				lists[i].Src = g
-				changed = true
-			}
-		}
-		if changed {
-			setList(f, id, listsKey, lists)
-		}
-		var rules []Conditional
-		f.attr(id, conditionalKey, &rules)
-		changed = false
-		for i, r := range rules {
-			for j, x := range r.F {
-				if g := rewrite(x, id); g != x {
-					rules[i].F[j] = g
-					changed = true
-				}
-			}
-			for j, t := range r.Stops {
-				if g := rewrite(t.Val, id); t.Val != "" && g != t.Val {
-					rules[i].Stops[j].Val = g
-					changed = true
-				}
-			}
-		}
-		if changed {
-			setList(f, id, conditionalKey, rules)
-		}
+		f.rewriteValid(id, rewrite)
+		f.rewriteConditionals(id, rewrite)
 		var charts []Placed
 		f.attr(id, chartsKey, &charts)
-		changed = false
+		changed := false
 		for _, p := range charts {
 			if p.Chart != nil && chartRefs(p.Chart, func(ref string) string { return rewrite(ref, id) }) {
 				changed = true
@@ -438,6 +437,50 @@ func (f *follow) formulas(rewrite func(text, sheet string) string) {
 	if changed {
 		f.book = ot.Values{"names": mustJSON(names)}
 		c.defined = names
+	}
+}
+
+// rewriteValid calls rewrite with the formulas of the validations of a
+// sheet, and sets those it changes.
+func (f *follow) rewriteValid(id string, rewrite func(text, sheet string) string) {
+	var valid []Validation
+	f.attr(id, validKey, &valid)
+	changed := false
+	for i := range valid {
+		for _, x := range []*string{&valid[i].F1, &valid[i].F2} {
+			if g := rewrite(*x, id); *x != "" && g != *x {
+				*x = g
+				changed = true
+			}
+		}
+	}
+	if changed {
+		setList(f, id, validKey, valid)
+	}
+}
+
+// rewriteConditionals calls rewrite with the formulas of the conditional
+// formats of a sheet, and sets those it changes.
+func (f *follow) rewriteConditionals(id string, rewrite func(text, sheet string) string) {
+	var rules []Conditional
+	f.attr(id, conditionalKey, &rules)
+	changed := false
+	for i, r := range rules {
+		for j, x := range r.F {
+			if g := rewrite(x, id); g != x {
+				rules[i].F[j] = g
+				changed = true
+			}
+		}
+		for j, t := range r.Stops {
+			if g := rewrite(t.Val, id); t.Val != "" && g != t.Val {
+				rules[i].Stops[j].Val = g
+				changed = true
+			}
+		}
+	}
+	if changed {
+		setList(f, id, conditionalKey, rules)
 	}
 }
 
@@ -489,7 +532,8 @@ func (f *follow) sheetsChanged() {
 
 // shift follows rows or columns inserted or removed on a sheet: the
 // formulas that point there move, as do the merged cells and array
-// formulas that span them and the cells lists validate.
+// formulas that span them, and the cells validations and conditional
+// formats cover.
 func (f *follow) shift(ch ot.Change) {
 	c := f.c
 	sheet := c.names[ch.ID]
@@ -508,26 +552,8 @@ func (f *follow) shift(ch ot.Change) {
 		}
 		return g
 	})
-	var lists []List
-	if f.attr(ch.ID, listsKey, &lists); len(lists) > 0 {
-		var kept []List
-		for _, l := range lists {
-			if l.Ref = shiftRef(l.Ref, sheet, rows, ch.At, n); l.Ref != "" {
-				kept = append(kept, l)
-			}
-		}
-		setList(f, ch.ID, listsKey, kept)
-	}
-	var rules []Conditional
-	if f.attr(ch.ID, conditionalKey, &rules); len(rules) > 0 {
-		var kept []Conditional
-		for _, r := range rules {
-			if r.Ref = shiftRef(r.Ref, sheet, rows, ch.At, n); r.Ref != "" {
-				kept = append(kept, r)
-			}
-		}
-		setList(f, ch.ID, conditionalKey, kept)
-	}
+	f.shiftValid(ch.ID, sheet, rows, ch.At, n)
+	f.shiftConditionals(ch.ID, sheet, rows, ch.At, n)
 	var charts []Placed
 	if f.attr(ch.ID, chartsKey, &charts); len(charts) > 0 {
 		shiftCharts(charts, rows, ch.At, n)
@@ -621,8 +647,9 @@ func (f *follow) restyle(e ot.Edit, all bool) {
 	}
 }
 
-// rebased moves the formulas and the filters an edit sets with the rows
-// and columns the edits it was rebased over inserted or removed.
+// rebased moves the formulas, the filters, the validations and the
+// conditional formats an edit sets with the rows and columns the edits it
+// was rebased over inserted or removed.
 func (f *follow) rebased(e ot.Edit, since []ot.Edit) {
 	var shifts []ot.Change
 	for _, h := range since {
@@ -636,14 +663,35 @@ func (f *follow) rebased(e ot.Edit, since []ot.Edit) {
 		return
 	}
 	for _, ch := range e {
-		if ch.Op == ot.OpSet && ch.Attrs[filterKey] != nil {
+		if ch.Op == ot.OpSet {
 			for _, s := range shifts {
 				n := s.N
 				if s.Op == ot.OpRem {
 					n = -n
 				}
-				if s.ID == ch.ID {
-					f.shiftFilter(ch.ID, f.c.names[ch.ID], s.Dim == ot.DimRows, s.At, n)
+				rows := s.Dim == ot.DimRows
+				move := func(text, sheet string) string {
+					g, err := formula.Shift(text, f.c.names[s.ID], sheet == s.ID, rows, s.At, n)
+					if err != nil {
+						return text
+					}
+					return g
+				}
+				own := s.ID == ch.ID
+				if ch.Attrs[validKey] != nil {
+					f.rewriteValid(ch.ID, move)
+					if own {
+						f.shiftValid(ch.ID, f.c.names[ch.ID], rows, s.At, n)
+					}
+				}
+				if ch.Attrs[conditionalKey] != nil {
+					f.rewriteConditionals(ch.ID, move)
+					if own {
+						f.shiftConditionals(ch.ID, f.c.names[ch.ID], rows, s.At, n)
+					}
+				}
+				if own && ch.Attrs[filterKey] != nil {
+					f.shiftFilter(ch.ID, f.c.names[ch.ID], rows, s.At, n)
 				}
 			}
 		}

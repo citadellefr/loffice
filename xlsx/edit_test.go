@@ -72,7 +72,7 @@ func TestCorpusEdits(t *testing.T) {
 			{Op: ot.OpSet, ID: first, Attrs: ot.Values{"name": json.RawMessage(`"Édité"`), "frozen": json.RawMessage(`{"r":1}`),
 				"tab": json.RawMessage(`{"rgb":"00B050"}`), "zoom": json.RawMessage(`150`),
 				filterKey: json.RawMessage(`{"ref":"A1:E6","cols":[{"col":1,"vals":["3,5","x"],"blank":true}]}`),
-				printKey:  json.RawMessage(printed)}},
+				printKey:  json.RawMessage(printed), conditionalKey: json.RawMessage(addedConditionals), validKey: json.RawMessage(writtenValidations)}},
 			{Op: ot.OpNew, ID: "added", Type: "sheet", Parent: "book", Key: ot.KeyBetween("", all[0].Key),
 				Attrs: ot.Values{"name": json.RawMessage(`"Nouvelle"`)}, Cells: []ot.Cell{
 					cell(1, 1, `{"v":"a\r\nb <&> _x0041_"}`),
@@ -131,6 +131,16 @@ func TestCorpusEdits(t *testing.T) {
 		_ = json.Unmarshal([]byte(printed), &want)
 		if got := string(ed.Attrs[printKey]); got != string(mustJSON(want)) {
 			t.Fatalf("%s: print settings read back as %s", f, got)
+		}
+		var rules []Conditional
+		_ = json.Unmarshal([]byte(addedConditionals), &rules)
+		if got := string(ed.Attrs[conditionalKey]); got != string(mustJSON(rules)) {
+			t.Fatalf("%s: conditional formats read back as %s", f, got)
+		}
+		var valid []Validation
+		_ = json.Unmarshal([]byte(writtenValidations), &valid)
+		if got := string(ed.Attrs[validKey]); got != string(mustJSON(valid)) {
+			t.Fatalf("%s: validations read back as %s", f, got)
 		}
 		if out != "" {
 			rel, _ := filepath.Rel(filepath.Join("..", "corpus", "files"), f)

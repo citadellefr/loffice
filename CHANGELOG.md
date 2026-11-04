@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- `xlsx` edits conditional formatting and data validation: the "cf" and
+  "valid" fields of a sheet (cell value, formula, top/bottom, duplicates, data
+  bars, color scales and icon sets with their dxf formats; list, whole,
+  decimal, date, time, text length and custom validations with their input and
+  error messages). `Check` verifies their formulas and ranges; unchanged rules
+  keep their XML. The "lists" field becomes "valid". The Dart editor draws
+  every rule type, refuses an invalid entry, offers the values of a list in
+  the cell, and has Home > Conditional formatting and Data > Data validation.
 - Size limits are options, no longer global variables: `loffice.NewHub` and
   `loffice.Convert` take `Limits`, and `docx.Open`, `pptx.Open`, `xlsx.Open`
   and `legacy.Workbook` take theirs as an argument. The hub refuses a file
