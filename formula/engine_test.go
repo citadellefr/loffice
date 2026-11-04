@@ -407,6 +407,57 @@ func TestEngineCircleThrough(t *testing.T) {
 	}
 }
 
+// CELL reading the contents of a cell, or what depends on them, is in a
+// circle with it; reading its place alone is not.
+func TestEngineCircleCell(t *testing.T) {
+	for _, c := range []struct {
+		formulas map[string]string
+		want     string
+	}{
+		{map[string]string{"A1": `CELL("contents",A1)`}, "[A1]"},
+		{map[string]string{"A1": `CELL("type",A1)`}, "[A1]"},
+		{map[string]string{"A1": `CELL("contenu",B1)`, "B1": "A1"}, "[A1 B1]"},
+		{map[string]string{"A1": `CELL("contents",B1)`, "B1": `CELL("contents",A1)`}, "[A1 B1]"},
+		{map[string]string{"A1": `CELL("address",A1)`}, "[]"},
+		{map[string]string{"A1": `CELL("row",A1)+CELL("col",A1)`}, "[]"},
+		{map[string]string{"A1": `CELL("address",B1)`, "B1": "A1"}, "[]"},
+		{map[string]string{"A1": `CELL(B1,A1)`}, "[]"},
+	} {
+		_, e := newSource()
+		for cell, text := range c.formulas {
+			r, col, _ := ParseCell(cell)
+			e.Set(Pos{0, r, col}, text, nil)
+		}
+		if got := circular(e); got != c.want {
+			t.Errorf("%v: %s, want %s", c.formulas, got, c.want)
+		}
+	}
+}
+
+// An engine told the circles of the one it replaces does not look for them.
+func TestEngineKnownCircles(t *testing.T) {
+	s, e := newSource()
+	s.set(e, "A1", "=B1")
+	s.set(e, "B1", "=A1")
+	s.set(e, "C1", "=1")
+	known := NewEngine(s, Options{})
+	for p, f := range s.formulas {
+		known.Set(p, f, nil)
+	}
+	known.Known(e.Circular())
+	if got := circular(known); got != "[A1 B1]" {
+		t.Fatal(got)
+	}
+	known = NewEngine(s, Options{})
+	for p, f := range s.formulas {
+		known.Set(p, f, nil)
+	}
+	known.Known([]Pos{{0, 1, 3}})
+	if got := circular(known); got != "[C1]" {
+		t.Fatalf("not taken as known: %s", got)
+	}
+}
+
 // A workbook read with its spills holds their values: the engine takes
 // them as its own, and a spill saved blocked spills once the way is free.
 func TestEngineSpillRead(t *testing.T) {

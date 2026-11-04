@@ -165,8 +165,9 @@ func (c *Calc) Formulas() int {
 // inserted or removed.
 func (c *Calc) Follow(e ot.Edit, since []ot.Edit) ot.Edit {
 	f := &follow{c: c, cells: map[string]map[[2]int]map[string]json.RawMessage{}, sheets: map[string]ot.Values{}}
-	// whether sheets came, went, moved or were renamed, or names changed
-	books, iterate := false, false
+	// whether sheets came, went, moved or were renamed, or names changed,
+	// and which of those change what formulas read
+	books, graph, iterate := false, false, false
 	for _, ch := range e {
 		h, sheet := c.handles[ch.ID]
 		_, name := ch.Attrs["name"]
@@ -178,10 +179,13 @@ func (c *Calc) Follow(e ot.Edit, since []ot.Edit) ot.Edit {
 			}
 		case ot.OpNew:
 			books = books || ch.Type == "sheet"
+			graph = graph || ch.Type == "sheet"
 		case ot.OpDel:
 			books = books || sheet
+			graph = graph || sheet
 		case ot.OpSet:
 			books = books || sheet && (name || ch.Key != "") || ch.ID == "book" && names
+			graph = graph || sheet && ch.Key != "" || ch.ID == "book" && names
 			iterate = iterate || ch.ID == "book" && ch.Attrs["iterate"] != nil
 		}
 	}
@@ -199,7 +203,16 @@ func (c *Calc) Follow(e ot.Edit, since []ot.Edit) ot.Edit {
 	f.tables(e)
 	f.flush()
 	if books || f.moved || iterate || f.retable {
+		// sheets renamed keep their places, and formulas read what they did
+		same := !graph && !f.moved && !f.retable
+		var circular []formula.Pos
+		if same {
+			circular = c.engine.Circular()
+		}
 		c.rebuild()
+		if same {
+			c.engine.Known(circular)
+		}
 	}
 	f.recalc(e, iterate)
 	f.flush()

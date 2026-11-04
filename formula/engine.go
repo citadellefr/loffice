@@ -354,7 +354,7 @@ func (e *Engine) reads(x Expr, p Pos, seen map[string]bool, f func(Area3), calls
 			e.readsName(nameExpr{name: x.name}, p, seen, f, calls)
 		}
 		for i, a := range x.args {
-			if placing(x.name, i) {
+			if placing(x, i) {
 				e.reads(a, p, map[string]bool{}, func(Area3) {}, calls)
 			} else {
 				e.reads(a, p, seen, f, calls)
@@ -399,16 +399,21 @@ func (e *Engine) readsTable(tb Tables, s Structured, p Pos, f func(Area3)) {
 	}
 }
 
-// placing tells whether an argument of a function is a reference whose
-// place the function reads, not its cells.
-func placing(name string, arg int) bool {
-	switch name {
+// placing tells whether an argument of a call is a reference whose place
+// the function reads, not its cells: CELL reads those of the information
+// it is asked for only when it is the contents or what depends on them.
+func placing(x callExpr, arg int) bool {
+	switch x.name {
 	case "ROW", "COLUMN", "ROWS", "COLUMNS":
 		return true
 	case "OFFSET":
 		return arg == 0
 	case "CELL":
-		return arg == 1
+		if arg != 1 {
+			return false
+		}
+		kind, literal := x.args[0].(textExpr)
+		return !literal || !cellReadsValue(strings.ToLower(string(kind)))
 	}
 	return false
 }
@@ -684,6 +689,16 @@ func (e *Engine) spillsAt(p Pos, f func(*cellFormula)) {
 		if q != p && q.Sheet == p.Sheet && cf.reach.Contains(p.Row, p.Col) {
 			f(cf)
 		}
+	}
+}
+
+// Known tells the engine the formulas in circles of the engine it replaces,
+// when the formulas it was given read as they did: it does not look for
+// them again.
+func (e *Engine) Known(circular []Pos) {
+	e.scanned = true
+	for _, p := range circular {
+		e.circular[p] = true
 	}
 }
 

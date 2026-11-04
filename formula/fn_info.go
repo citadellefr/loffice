@@ -267,6 +267,16 @@ func (c *Context) display(v Value, strict bool) (string, *Value) {
 	return c.text(v)
 }
 
+// cellReadsValue tells whether CELL reads the value of its cell for the
+// information asked, not only its place.
+func cellReadsValue(kind string) bool {
+	switch kind {
+	case "contents", "contenu", "type":
+		return true
+	}
+	return false
+}
+
 func (c *Context) cell(kind string, at Area3) Value {
 	switch kind {
 	case "address", "adresse":
