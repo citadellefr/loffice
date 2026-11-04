@@ -120,7 +120,7 @@ func (a *Agent) describe(r revision) Revision {
 	out := Revision{ID: r.id, Kind: r.kind, Author: r.author, Block: r.block, Text: r.text}
 	out.Date, _ = time.Parse(time.RFC3339, r.date)
 	if r.author == a.peer.Name {
-		out.OnBehalfOf = a.behalfOf(out.Date)
+		out.OnBehalfOf = docx.BehalfOf(a.s.tree, r.author, r.date)
 	}
 	return out
 }

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- `agent` keeps whom its revisions are for in the document, one `behalf` node
+  per author and date written as a document variable of `settings.xml`
+  (`docx.BehalfNode`, `docx.BehalfOf`), instead of in a journal of the
+  session; two instances of the same name, even in the same second, are told
+  apart. Deleting, replacing or formatting text the agent inserted for
+  another user is now a revision, and the same user's text still goes away
+  at once.
 - `legacy` converts more of the `.xls` workbooks: the fonts within a text,
   links, notes, how sheets print (margins, headers, footers, breaks, fit),
   conditional formats, validations, filters on values and the protection of
