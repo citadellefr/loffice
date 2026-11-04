@@ -46,6 +46,7 @@ func (d *Document) Check(tree *ot.Tree, e ot.Edit, _ string) error {
 		}
 		return ""
 	}
+	merged := merges{}
 	shifts := 0
 	for _, c := range e {
 		if c.Op == ot.OpIns || c.Op == ot.OpRem {
@@ -61,7 +62,7 @@ func (d *Document) Check(tree *ot.Tree, e ot.Edit, _ string) error {
 		case ot.OpNew:
 			switch {
 			case c.Type == "sheet" && c.Parent == "book":
-				if c.Cells == nil || !d.checkAttrs("sheet", c.Attrs) || !d.checkCells(typeOf, c.Cells) {
+				if c.Cells == nil || !d.checkAttrs("sheet", c.Attrs) || !d.checkCells(typeOf, c.Cells) || !merged.apply(tree, c.ID, c.Cells) {
 					return ErrReadOnly
 				}
 			case c.Type == "xf" && c.Parent == "":
@@ -87,7 +88,7 @@ func (d *Document) Check(tree *ot.Tree, e ot.Edit, _ string) error {
 				return ErrReadOnly
 			}
 		case ot.OpCel:
-			if t != "" && (t != "sheet" || !d.checkCells(typeOf, c.Cells)) {
+			if t != "" && (t != "sheet" || !d.checkCells(typeOf, c.Cells) || !merged.apply(tree, c.ID, c.Cells)) {
 				return ErrReadOnly
 			}
 		case ot.OpIns, ot.OpRem:
@@ -221,7 +222,7 @@ func (d *Document) checkCells(typeOf func(string) string, cells []ot.Cell) bool 
 }
 
 var (
-	cellKeys = []string{"ca", "cm", "e", "f", "fa", "fx", "m", "rich", "s", "v", "vm"}
+	cellKeys = []string{"ca", "cm", "e", "f", "fa", "fx", "link", "m", "rich", "s", "v", "vm"}
 	lineKeys = []string{"bf", "ch", "cl", "cw", "h", "hide", "ol", "s", "w"}
 )
 
@@ -278,6 +279,9 @@ func (d *Document) checkCell(k string, v json.RawMessage, typeOf func(string) st
 	case "ca":
 		var b bool
 		return json.Unmarshal(v, &b) == nil
+	case "link":
+		_, ok := parseLink(v)
+		return ok
 	case "m":
 		var m [2]int
 		return json.Unmarshal(v, &m) == nil && m[0] >= 1 && m[1] >= 1 && m[0] <= formula.MaxRows && m[1] <= formula.MaxCols

@@ -69,6 +69,9 @@ func (w *writer) sheet(n *ot.Node, p *sheetPart) error {
 			merges.Append(xmldom.New(mainNS, prefixOf(merges)+"mergeCell", "ref", ref))
 		}
 	}
+	if err := w.writeLinks(root, p.name, c.links); err != nil {
+		return err
+	}
 	w.stringRefs[p] = c.strings
 	doc := &xmldom.Document{Prolog: p.doc.Prolog, Root: root, Tail: p.doc.Tail}
 	return w.put(p.name, typeWorksheet, doc.Bytes())
@@ -227,6 +230,7 @@ type sheetWriter struct {
 	// cols are the fields of whole columns, row 0 of the grid.
 	cols   []ot.Cell
 	merges []string
+	links  []link
 	// the corners of the cells written
 	minRow, minCol, maxRow, maxCol int
 	strings                        int
@@ -322,6 +326,10 @@ func (c *sheetWriter) cell(r, col int, raw json.RawMessage) {
 	if f.M != nil && f.M[0] >= 1 && f.M[1] >= 1 && (f.M[0] > 1 || f.M[1] > 1) &&
 		r+f.M[0]-1 <= formula.MaxRows && col+f.M[1]-1 <= formula.MaxCols {
 		c.merges = append(c.merges, formula.CellName(r, col)+":"+formula.CellName(r+f.M[0]-1, col+f.M[1]-1))
+	}
+
+	if len(f.Link) > 0 {
+		c.link(r, col, &f)
 	}
 
 	typ, value := c.value(&f)

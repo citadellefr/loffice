@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/citadellefr/trame/ot"
@@ -29,7 +30,7 @@ const printed = `{"paper":9,"land":true,"fit":[1,0],"across":true,"first":3,` +
 	`"firstPage":["","&CPremière"]}`
 
 // Every workbook of the corpus takes the same edits: cells set, a format
-// made, cells merged, rows frozen, a filter and the way it prints set, a
+// made, cells merged, links set, rows frozen, a filter and the way it prints set, a
 // sheet renamed, one added before the others and the last one deleted.
 // When LOFFICE_EDITED is set, the packages are written there for the
 // validator.
@@ -67,7 +68,9 @@ func TestCorpusEdits(t *testing.T) {
 				cell(2, 0, `{"h":30,"ch":true}`),
 				cell(2, 2, `{"v":3.5,"s":"fmt","f":null,"e":null}`),
 				cell(3, 3, `{"f":"B2*2","v":7,"e":null}`),
-				cell(4, 4, `{"m":[2,2],"v":"fusion","f":null,"e":null,"s":null,"rich":null}`),
+				cell(900, 90, `{"m":[2,2],"v":"fusion","f":null,"e":null,"s":null,"rich":null}`),
+				cell(6, 1, `{"v":"lien","f":null,"e":null,"link":{"url":"https://example.com/a?b=1","tip":"Ouvrir"}}`),
+				cell(6, 2, `{"link":{"loc":"A1"}}`),
 			}},
 			{Op: ot.OpSet, ID: first, Attrs: ot.Values{"name": json.RawMessage(`"Édité"`), "frozen": json.RawMessage(`{"r":1}`),
 				"tab": json.RawMessage(`{"rgb":"00B050"}`), "zoom": json.RawMessage(`150`),
@@ -121,8 +124,14 @@ func TestCorpusEdits(t *testing.T) {
 		if string(c.V) != "3.5" || st.Font == nil || !st.Font.Bold {
 			t.Fatalf("%s: formatted cell read back as %s, %+v", f, ed.Grid.Cell(2, 2), st)
 		}
-		if got := string(ed.Grid.Cell(4, 4)); got != `{"m":[2,2],"v":"fusion"}` {
+		if got := string(ed.Grid.Cell(900, 90)); got != `{"m":[2,2],"v":"fusion"}` {
 			t.Fatalf("%s: merged cell read back as %s", f, got)
+		}
+		if got := string(ed.Grid.Cell(6, 1)); !strings.Contains(got, `"link":{"url":"https://example.com/a?b=1","tip":"Ouvrir"}`) || !strings.Contains(got, `"v":"lien"`) {
+			t.Fatalf("%s: link read back as %s", f, got)
+		}
+		if got := string(ed.Grid.Cell(6, 2)); !strings.Contains(got, `"link":{"loc":"A1"}`) {
+			t.Fatalf("%s: link inside the workbook read back as %s", f, got)
 		}
 		if got := string(ed.Attrs[filterKey]); got != `{"ref":"A1:E6","cols":[{"col":1,"vals":["3,5","x"],"blank":true}]}` {
 			t.Fatalf("%s: filter read back as %s", f, got)

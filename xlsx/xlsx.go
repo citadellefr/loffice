@@ -17,9 +17,12 @@
 // A cell has the fields: v its value (number, string or boolean), e its
 // error ("#DIV/0!"), f its formula without "=", s its format (an xf node
 // id, none for the default), m the rows and columns it is merged over
-// ([2,3]), fa the area of the array formula it holds, ca when it is always
-// recalculated, cm its metadata index (dynamic arrays), rich its rich text
-// and fx a data table formula, both XML the workbook carried. Column 0
+// ([2,3]), link where it leads (a Link: {"url":"https://…"} an address of
+// the web, of mail or a name "urn:", {"loc":"Sheet2!A1"} a place of the
+// workbook, "tip" the text shown over the cell), fa the area of the array
+// formula it holds, ca when it is always recalculated, cm its metadata
+// index (dynamic arrays), rich its rich text and fx a data table formula,
+// both XML the workbook carried. Column 0
 // holds the fields of rows: h their height in points, ch when it was set
 // by hand, hide, s, ol their outline level, cl when collapsed; row 0 those
 // of columns: w their width in characters, cw, bf, hide, s, ol, cl.

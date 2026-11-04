@@ -74,6 +74,15 @@ func (r *Rels) Target(source, id string) string {
 	return name
 }
 
+// Link is the address the external hyperlink id of a part points to, "" for
+// any other relationship.
+func (r *Rels) Link(id string) string {
+	if x, ok := r.byID[id]; ok && x.External && x.Type == Hyperlink {
+		return x.Target
+	}
+	return ""
+}
+
 // OfType is the part the first relationship of that type points to.
 func (r *Rels) OfType(source, typ string) string {
 	for _, x := range r.List {
@@ -308,6 +317,19 @@ func (w *Writer) Drop(typ string, keep Rel) {
 	out := w.List[:0]
 	for _, x := range w.List {
 		if x.Type == typ && !w.same(x, keep) {
+			w.Changed = true
+			continue
+		}
+		out = append(out, x)
+	}
+	w.List = out
+}
+
+// Prune removes the relationships of a type whose id keep refuses.
+func (w *Writer) Prune(typ string, keep func(id string) bool) {
+	out := w.List[:0]
+	for _, x := range w.List {
+		if x.Type == typ && !keep(x.ID) {
 			w.Changed = true
 			continue
 		}

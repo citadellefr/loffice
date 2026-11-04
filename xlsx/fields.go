@@ -14,6 +14,7 @@ type cellFields struct {
 	F    string          `json:"f,omitempty"`
 	FA   string          `json:"fa,omitempty"`
 	FX   string          `json:"fx,omitempty"`
+	Link json.RawMessage `json:"link,omitempty"`
 	M    *[2]int         `json:"m,omitempty"`
 	Rich string          `json:"rich,omitempty"`
 	S    string          `json:"s,omitempty"`
@@ -70,6 +71,10 @@ func (f *cellFields) marshal() json.RawMessage {
 	if f.FX != "" {
 		field("fx")
 		b = appendString(b, f.FX)
+	}
+	if len(f.Link) > 0 {
+		field("link")
+		b = append(b, f.Link...)
 	}
 	if f.M != nil {
 		field("m")

@@ -166,8 +166,9 @@ func (r *reader) sheet(s *xmldom.Element, key string) (string, error) {
 			merges[[2]int{a.R1, a.C1}] = [2]int{a.R2 - a.R1 + 1, a.C2 - a.C1 + 1}
 		}
 	}
-	if len(merges) > 0 {
-		cells = mergeInto(cells, merges)
+	links := d.links(root, name)
+	if len(merges) > 0 || len(links) > 0 {
+		cells = fieldsInto(cells, merges, links)
 	}
 	if cells == nil {
 		cells = []ot.Cell{}
@@ -219,21 +220,41 @@ func relID(e, root *xmldom.Element) string {
 	return ""
 }
 
-// mergeInto gives the first cell of each merged area its span.
-func mergeInto(cells []ot.Cell, merges map[[2]int][2]int) []ot.Cell {
+// fieldsInto gives the first cell of each merged area its span, and the
+// cells their links, making the cells it lacks.
+func fieldsInto(cells []ot.Cell, merges map[[2]int][2]int, links map[[2]int]Link) []ot.Cell {
+	fill := func(f *cellFields, at [2]int) {
+		if span, ok := merges[at]; ok {
+			f.M = &span
+		}
+		if l, ok := links[at]; ok {
+			f.Link = mustJSON(l)
+		}
+		delete(merges, at)
+		delete(links, at)
+	}
 	for i, c := range cells {
-		span, ok := merges[[2]int{c.Row, c.Col}]
-		if !ok {
+		at := [2]int{c.Row, c.Col}
+		_, merged := merges[at]
+		_, linked := links[at]
+		if !merged && !linked {
 			continue
 		}
 		var f cellFields
 		_ = json.Unmarshal(c.Fields, &f)
-		f.M = &span
+		fill(&f, at)
 		cells[i].Fields = f.marshal()
-		delete(merges, [2]int{c.Row, c.Col})
 	}
-	for at, span := range merges {
-		cells = append(cells, ot.Cell{Row: at[0], Col: at[1], Fields: (&cellFields{M: &span}).marshal()})
+	add := func(at [2]int) {
+		var f cellFields
+		fill(&f, at)
+		cells = append(cells, ot.Cell{Row: at[0], Col: at[1], Fields: f.marshal()})
+	}
+	for at := range merges {
+		add(at)
+	}
+	for at := range links {
+		add(at)
 	}
 	slices.SortFunc(cells, func(a, b ot.Cell) int {
 		if a.Row != b.Row {
