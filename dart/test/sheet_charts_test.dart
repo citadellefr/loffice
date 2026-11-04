@@ -333,6 +333,7 @@ void main() {
       'smooth': true,
     });
     expect(series[1], {
+      'index': 1,
       'val': {'ref': r'Feuil1!$C$2:$C$4'},
       'cat': {'ref': r'Feuil1!$A$2:$A$4'},
     });
@@ -434,5 +435,14 @@ void main() {
     final moved = ChartEdits(withSize.sheets.single, l).place(0, const Rect.fromLTWH(10, 20, 300, 200)).single;
     expect([moved['x'], moved['y'], moved['w'], moved['h']], [10 * 9525, 20 * 9525, 300 * 9525, 200 * 9525]);
     expect(moved.containsKey('from'), isFalse);
+  });
+
+  test('a series added takes an index the plot has not', () {
+    final book = Workbook(Tree.fromEdit(workbook([placed()]))!);
+    final sheet = book.sheets.single;
+    final edited = ChartEdits(sheet, book.layout(sheet)).setSeries(0, const [SeriesInput(null, '', r'Feuil1!$C$2:$C$3'), SeriesInput(0, r'Feuil1!$B$1', r'Feuil1!$B$2:$B$3')], r'Feuil1!$A$2:$A$3');
+    final series = (((edited.single['chart']! as Map)['plots'] as List).single as Map)['series'] as List;
+    expect([for (final s in series) (s as Map)['index']], [1, 0]);
+    expect(((series.first as Map)['val'] as Map)['ref'], r'Feuil1!$C$2:$C$3');
   });
 }

@@ -550,14 +550,21 @@ func (p *patcher) seriesDefaults(ser *xmldom.Element, kind string) {
 	}
 }
 
-// series patches the series of e, a plot read as h, to be those of w.
-// used are the indexes of the series of the chart.
+// series patches the series of e, a plot read as h, to be those of w,
+// each the one of the same index. used are the indexes of the series of
+// the chart.
 func (p *patcher) series(e *xmldom.Element, h, w Plot, used map[int]bool) {
-	var list []*xmldom.Element
+	elements := map[int]*xmldom.Element{}
 	for _, c := range e.Elements() {
 		if c.Space == NS && c.Local == "ser" {
-			list = append(list, c)
+			if i := intVal(child(c, "idx")); elements[i] == nil {
+				elements[i] = c
+			}
 		}
+	}
+	read := map[int]Series{}
+	for _, s := range h.Series {
+		read[s.Index] = s
 	}
 	xy := strings.HasPrefix(e.Local, "scatter") || strings.HasPrefix(e.Local, "bubble")
 	cat, val := "cat", "val"
@@ -565,35 +572,37 @@ func (p *patcher) series(e *xmldom.Element, h, w Plot, used map[int]bool) {
 		cat, val = "xVal", "yVal"
 	}
 	kind := strings.TrimSuffix(e.Local, "Chart")
-	for j, s := range w.Series {
-		if j >= len(list) {
-			ser := p.el("ser")
-			idx := s.Index
-			for used[idx] || idx < 0 {
-				idx++
-			}
-			used[idx] = true
-			ser.Append(p.val("idx", strconv.Itoa(idx)))
-			ser.Append(p.val("order", strconv.Itoa(idx)))
-			p.seriesDefaults(ser, kind)
-			e.Insert(ser, plotOrder)
-			p.changed = true
-			p.data(ser, "tx", nil, s.Name)
-			p.data(ser, cat, nil, s.Cat)
-			p.data(ser, val, nil, s.Val)
+	kept := map[*xmldom.Element]bool{}
+	for _, s := range w.Series {
+		if ser := elements[s.Index]; ser != nil && !kept[ser] {
+			kept[ser] = true
+			hs := read[s.Index]
+			p.data(ser, "tx", hs.Name, s.Name)
+			p.data(ser, cat, hs.Cat, s.Cat)
+			p.data(ser, val, hs.Val, s.Val)
 			continue
 		}
-		var hs Series
-		if j < len(h.Series) {
-			hs = h.Series[j]
+		ser := p.el("ser")
+		idx := max(s.Index, 0)
+		for used[idx] {
+			idx++
 		}
-		p.data(list[j], "tx", hs.Name, s.Name)
-		p.data(list[j], cat, hs.Cat, s.Cat)
-		p.data(list[j], val, hs.Val, s.Val)
-	}
-	for _, s := range list[min(len(w.Series), len(list)):] {
-		e.Remove(s)
+		used[idx] = true
+		ser.Append(p.val("idx", strconv.Itoa(idx)))
+		ser.Append(p.val("order", strconv.Itoa(idx)))
+		p.seriesDefaults(ser, kind)
+		e.Insert(ser, plotOrder)
+		kept[ser] = true
 		p.changed = true
+		p.data(ser, "tx", nil, s.Name)
+		p.data(ser, cat, nil, s.Cat)
+		p.data(ser, val, nil, s.Val)
+	}
+	for _, c := range e.Elements() {
+		if c.Space == NS && c.Local == "ser" && !kept[c] {
+			e.Remove(c)
+			p.changed = true
+		}
 	}
 }
 
@@ -603,7 +612,7 @@ func (p *patcher) data(ser *xmldom.Element, local string, have, want *Data) {
 	e := child(ser, local)
 	switch {
 	case want == nil:
-		if e != nil {
+		if e != nil && have != nil {
 			ser.Remove(e)
 			p.changed = true
 		}

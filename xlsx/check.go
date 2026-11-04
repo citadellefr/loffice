@@ -62,7 +62,7 @@ func (d *Document) Check(tree *ot.Tree, e ot.Edit, author string) error {
 		case ot.OpNew:
 			switch {
 			case c.Type == "sheet" && c.Parent == "book":
-				if c.Cells == nil || !d.checkAttrs("sheet", c.ID, c.Attrs) || !d.checkCells(typeOf, c.Cells, nil, author) || !merged.apply(tree, c.ID, c.Cells) {
+				if c.Cells == nil || !d.checkAttrs(tree, "sheet", c.ID, c.Attrs) || !d.checkCells(typeOf, c.Cells, nil, author) || !merged.apply(tree, c.ID, c.Cells) {
 					return ErrReadOnly
 				}
 			case c.Type == "xf" && c.Parent == "":
@@ -81,7 +81,7 @@ func (d *Document) Check(tree *ot.Tree, e ot.Edit, author string) error {
 			if t == "" {
 				continue
 			}
-			if c.Key != "" && t != "sheet" && t != "kept" || !d.checkAttrs(t, c.ID, c.Attrs) {
+			if c.Key != "" && t != "sheet" && t != "kept" || !d.checkAttrs(tree, t, c.ID, c.Attrs) {
 				return ErrReadOnly
 			}
 			if names, ok := c.Attrs["names"]; ok && !checkNames(typeOf, names) {
@@ -105,7 +105,7 @@ func (d *Document) Check(tree *ot.Tree, e ot.Edit, author string) error {
 	return nil
 }
 
-func (d *Document) checkAttrs(typ, id string, attrs ot.Values) bool {
+func (d *Document) checkAttrs(tree *ot.Tree, typ, id string, attrs ot.Values) bool {
 	for k, v := range attrs {
 		if !editable[typ][k] {
 			return false
@@ -153,7 +153,7 @@ func (d *Document) checkAttrs(typ, id string, attrs ot.Values) bool {
 		case validKey:
 			ok = checkValidations(v)
 		case chartsKey:
-			ok = d.checkCharts(id, v)
+			ok = d.checkCharts(tree, id, v)
 		}
 		if !ok {
 			return false

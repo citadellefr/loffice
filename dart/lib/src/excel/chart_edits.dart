@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'dart:ui';
 
 import 'package:trame/trame.dart';
@@ -128,14 +129,16 @@ class ChartEdits {
     return _all;
   }
 
-  /// Sets the series of the first plot and the categories they share.
+  /// Sets the series of the first plot and the categories they share: a
+  /// new series takes an index no series of the plot has.
   List<Map<String, Object?>> setSeries(int i, List<SeriesInput> inputs, String categories) {
     final plot = _plot(i);
     final old = (plot['series'] as List<Object?>?) ?? const [];
+    var next = [for (final s in old) ((s! as Map<String, Object?>)['index'] as num?)?.toInt() ?? 0].fold(-1, max) + 1;
     plot['series'] = [
       for (final s in inputs)
         () {
-          final series = s.source == null ? <String, Object?>{} : old[s.source!]! as Map<String, Object?>;
+          final series = s.source == null ? <String, Object?>{'index': next++} : old[s.source!]! as Map<String, Object?>;
           _reference(series, 'name', s.name);
           _reference(series, 'val', s.values);
           _reference(series, 'cat', categories);

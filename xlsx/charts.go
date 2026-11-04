@@ -12,6 +12,7 @@ import (
 	"github.com/citadellefr/loffice/formula"
 	"github.com/citadellefr/loffice/internal/xmldom"
 	"github.com/citadellefr/loffice/opc"
+	"github.com/citadellefr/trame/ot"
 )
 
 const chartsKey = "charts"
@@ -88,6 +89,7 @@ func (d *Document) sheetCharts(part string, root *xmldom.Element) []Placed {
 		return nil
 	}
 	var out []Placed
+	seen := map[string]bool{}
 	for _, a := range drawing.Elements() {
 		if a.Space != drawingNS {
 			continue
@@ -97,6 +99,10 @@ func (d *Document) sheetCharts(part string, root *xmldom.Element) []Placed {
 			continue
 		}
 		part := d.relTarget(name, relID(ref, drawing))
+		if seen[part] {
+			continue
+		}
+		seen[part] = true
 		data, err := d.pkg.Read(part)
 		if err != nil {
 			continue
@@ -225,29 +231,36 @@ const (
 
 // checkCharts tells whether charts are those the sheet id had, moved,
 // resized, edited or removed, and charts inserted from cells.
-func (d *Document) checkCharts(id string, raw json.RawMessage) bool {
+func (d *Document) checkCharts(tree *ot.Tree, id string, raw json.RawMessage) bool {
 	var list []Placed
 	if json.Unmarshal(raw, &list) != nil || len(list) > maxCharts {
 		return false
 	}
-	had := map[string]*chart.Chart{}
-	if n := d.loaded.Node(id); n != nil && n.Type == "sheet" {
-		var loaded []Placed
-		_ = json.Unmarshal(n.Attrs[chartsKey], &loaded)
-		for _, p := range loaded {
-			had[p.ID] = p.Chart
-		}
+	had := map[string]bool{}
+	for _, p := range placedCharts(d.loaded.Node(id)) {
+		had[p.ID] = true
+	}
+	current := map[string]*chart.Chart{}
+	for _, p := range placedCharts(tree.Node(id)) {
+		current[p.ID] = p.Chart
 	}
 	seen := map[string]bool{}
 	for _, p := range list {
-		old, ok := had[p.ID]
-		if p.ID != "" && (!ok || seen[p.ID]) || p.ID == "" && (p.From == nil || p.To == nil) || p.Chart == nil ||
-			p.Source != "" && (p.ID != "" || !checkChartRef(p.Source, false)) || !checkAnchor(p) || !checkChart(p.Chart, old) {
+		if p.ID != "" && (!had[p.ID] || seen[p.ID]) || p.ID == "" && (p.From == nil || p.To == nil) || p.Chart == nil ||
+			p.Source != "" && (p.ID != "" || !checkChartSource(p.Source)) || !checkAnchor(p) || !checkChart(p.Chart, current[p.ID]) {
 			return false
 		}
 		seen[p.ID] = true
 	}
 	return true
+}
+
+// checkChartSource tells whether source is an area a chart can be drawn
+// from: no more series than a plot holds, nor cells than a series reads.
+func checkChartSource(source string) bool {
+	r, ok := chartRef(source, "")
+	rows, cols := r.Area.R2-r.Area.R1+1, r.Area.C2-r.Area.C1+1
+	return ok && min(rows, cols) <= maxChartSeries+1 && max(rows, cols) <= maxChartCells+1
 }
 
 func checkAnchor(p Placed) bool {
@@ -262,33 +275,63 @@ func checkAnchor(p Placed) bool {
 // maxEMU bounds the offsets and sizes of a chart: a hundred meters.
 const maxEMU = 36000000 * 100
 
+var (
+	chartDirs      = []string{"", "bar", "col"}
+	chartGroupings = []string{"", "clustered", "stacked", "percentStacked", "standard"}
+	axisKinds      = []string{"cat", "val", "date", "ser"}
+	axisPositions  = []string{"", "l", "r", "t", "b"}
+	axisCrosses    = []string{"", "autoZero", "min", "max"}
+	axisBetweens   = []string{"", "between", "midCat"}
+	legendPlaces   = []string{"", "r", "l", "t", "b", "tr"}
+)
+
 // checkChart tells whether c is a chart of the kinds charts are made in,
-// or old with only what can be edited changed.
+// or old, the chart as the sheet holds it, with only what can be edited
+// changed: what c keeps of old is not bounded again.
 func checkChart(c, old *chart.Chart) bool {
-	if len(c.Plots) == 0 || len(c.Plots) > 4 || c.Title != nil && !checkChartTitle(c.Title) ||
-		c.Legend != nil && !slices.Contains([]string{"", "r", "l", "t", "b", "tr"}, c.Legend.Pos) {
+	if old == nil {
+		old = &chart.Chart{}
+	}
+	if len(c.Plots) == 0 || len(c.Plots) > max(4, len(old.Plots)) || c.Title != nil && !checkChartTitle(c.Title) ||
+		c.Legend != nil && !slices.Contains(legendPlaces, c.Legend.Pos) {
 		return false
 	}
+	series := map[int64]bool{}
+	for _, a := range old.Axes {
+		series[a.ID] = a.Kind == "ser"
+	}
 	for _, a := range c.Axes {
-		if a.Title != nil && !checkChartTitle(a.Title) {
+		if a.Title != nil && !checkChartTitle(a.Title) || !slices.Contains(axisKinds, a.Kind) || a.Kind == "ser" && !series[a.ID] || !slices.Contains(axisPositions, a.Pos) ||
+			!slices.Contains(axisCrosses, a.Crosses) || !slices.Contains(axisBetweens, a.Between) {
 			return false
 		}
 	}
 	kept := map[string]bool{}
-	if old != nil {
-		chartRefs(old, func(ref string) string {
-			kept[ref] = true
-			return ref
-		})
+	for _, p := range old.Plots {
+		for _, s := range p.Series {
+			for _, d := range []*chart.Data{s.Name, s.Cat, s.Val, s.Size} {
+				if d != nil {
+					kept[string(mustJSON(d))] = true
+				}
+			}
+		}
 	}
 	for i, p := range c.Plots {
-		if !chart.Kinds[p.Kind] && (old == nil || i >= len(old.Plots) || old.Plots[i].Kind != p.Kind) || len(p.Series) > maxChartSeries {
+		var was chart.Plot
+		if i < len(old.Plots) {
+			was = old.Plots[i]
+		}
+		if !chart.Kinds[p.Kind] && was.Kind != p.Kind || len(p.Series) > max(maxChartSeries, len(was.Series)) ||
+			!slices.Contains(chartDirs, p.Dir) || !slices.Contains(chartGroupings, p.Grouping) {
 			return false
 		}
 		for _, s := range p.Series {
+			if s.Index < 0 {
+				return false
+			}
 			for _, d := range []*chart.Data{s.Name, s.Cat, s.Val, s.Size} {
-				if d != nil && (d.Ref != "" && !kept[d.Ref] && !checkChartRef(d.Ref, true) || d.Count < 0 || d.Count > maxChartCells ||
-					len(d.Num) > maxChartCells || len(d.Str) > maxChartCells || len(d.Levels) > 0 && d.Ref == "") {
+				if d != nil && !kept[string(mustJSON(d))] && (d.Ref != "" && !checkChartRef(d.Ref, true) || d.Count < 0 ||
+					d.Count > maxChartCells || len(d.Num) > maxChartCells || len(d.Str) > maxChartCells || len(d.Levels) > 0 && d.Ref == "") {
 					return false
 				}
 			}

@@ -260,6 +260,9 @@ func expand(c *chart.Chart, source, own string, cells *chartCells) bool {
 	if !byCol {
 		count = a.R2 - top + 1
 	}
+	if count > maxChartSeries {
+		return false
+	}
 	for i := range count {
 		var s chart.Series
 		var name, val string

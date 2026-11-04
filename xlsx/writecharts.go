@@ -92,29 +92,37 @@ func (w *writer) sheetCharts(s sheet, had, want []Placed, now, then *chartCells)
 	}
 	rw := &sheetRels{list: rels}
 
-	anchors := map[string]*xmldom.Element{}
+	anchors := map[string][]*xmldom.Element{}
 	for _, a := range drawing.Root.Elements() {
 		if c := find(a, chartNS, "chart"); a.Space == drawingNS && c != nil {
-			anchors[relPart(rels, name, relID(c, drawing.Root))] = a
+			part := relPart(rels, name, relID(c, drawing.Root))
+			anchors[part] = append(anchors[part], a)
 		}
+	}
+	before := map[string]*chart.Chart{}
+	for _, p := range had {
+		before[p.ID] = p.Chart
 	}
 	kept := map[string]bool{}
 	for _, p := range want {
 		kept[p.ID] = true
 	}
 	changed := false
-	for part, a := range anchors {
-		if !kept[part] {
-			drawing.Root.Remove(a)
-			if err := w.dropChart(rw, name, part); err != nil {
-				return err
-			}
-			changed = true
+	for part, list := range anchors {
+		if before[part] == nil || kept[part] {
+			continue
 		}
-	}
-	before := map[string]*chart.Chart{}
-	for _, p := range had {
-		before[p.ID] = p.Chart
+		for _, a := range list {
+			if parent, frame := chartFrame(a); parent != nil && parent != a {
+				parent.Remove(frame)
+			} else {
+				drawing.Root.Remove(a)
+			}
+		}
+		if err := w.dropChart(rw, name, part); err != nil {
+			return err
+		}
+		changed = true
 	}
 	sheetName := str(s.node, "name")
 	for _, p := range want {
@@ -129,11 +137,11 @@ func (w *writer) sheetCharts(s sheet, had, want []Placed, now, then *chartCells)
 			changed = true
 			continue
 		}
-		a := anchors[p.ID]
-		if a == nil {
+		list := anchors[p.ID]
+		if len(list) == 0 {
 			continue
 		}
-		changed = place(a, p) || changed
+		changed = place(list[0], p) || changed
 		if err := w.patchChart(p.ID, p.Chart); err != nil {
 			return err
 		}
@@ -144,6 +152,20 @@ func (w *writer) sheetCharts(s sheet, had, want []Placed, now, then *chartCells)
 		}
 	}
 	return w.putPartRels(name, rw)
+}
+
+// chartFrame is the graphicFrame of a chart in e, and the element that
+// holds it: e itself, or a group of shapes.
+func chartFrame(e *xmldom.Element) (parent, frame *xmldom.Element) {
+	for _, c := range e.Elements() {
+		if c.Space == drawingNS && c.Local == "graphicFrame" && find(c, chartNS, "chart") != nil {
+			return e, c
+		}
+		if p, f := chartFrame(c); f != nil {
+			return p, f
+		}
+	}
+	return nil, nil
 }
 
 // relPart is the part a relationship of source points to, "" if none.

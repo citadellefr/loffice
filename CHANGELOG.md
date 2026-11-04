@@ -6,7 +6,8 @@
   from cells (`"source":"A1:C4"`, a clustered column, bar, line, pie,
   scatter or area chart, given its series by the server as Excel does),
   moved, resized, removed, and changed in type, title, legend, axis titles
-  and series ranges. Each chart has an `id`, its part. `chart.New` writes a
+  and series ranges. Each chart has an `id`, its part; a series is the one
+  of its `index`, and a series added takes one the plot has not. `chart.New` writes a
   chart and `chart.Patch` rewrites only what changed; the values a chart
   caches follow the cells it reads when they change. The Dart workbook
   editor has Insert > Chart and the Chart Design and Format tabs.

@@ -155,10 +155,24 @@ func TestPatchSeries(t *testing.T) {
 	data := New(sample("line", ""))
 	c, _ := patched(t, data, func(c *Chart) {
 		s := c.Plots[0].Series
-		c.Plots[0].Series = []Series{s[1], {Val: &Data{Ref: "Feuil1!$D$2:$D$4", Count: 3, Num: numbers(7, 8, 9)}}}
+		c.Plots[0].Series = []Series{s[1], {Index: 2, Val: &Data{Ref: "Feuil1!$D$2:$D$4", Count: 3, Num: numbers(7, 8, 9)}}}
 	})
 	s := c.Plots[0].Series
-	if len(s) != 2 || s[0].Val.Ref != "Feuil1!$C$2:$C$4" || s[1].Index != 1 || s[1].Name != nil || *s[1].Val.Num[0] != 7 {
+	if len(s) != 2 || s[0].Index != 1 || s[0].Val.Ref != "Feuil1!$C$2:$C$4" || s[0].Name.Str[0] != "Sud" || s[1].Index != 2 || s[1].Name != nil || *s[1].Val.Num[0] != 7 {
 		t.Errorf("series: %+v", s)
+	}
+}
+
+func TestPatchEmptyKept(t *testing.T) {
+	data := New(sample("bar", "col"))
+	i := bytes.Index(data, []byte("<c:cat>"))
+	j := bytes.Index(data, []byte("</c:cat>")) + len("</c:cat>")
+	data = append(append(append([]byte{}, data[:i]...), "<c:cat/>"...), data[j:]...)
+	doc, err := xmldom.Parse(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if Patch(doc.Root, readBytes(t, data)) {
+		t.Errorf("an empty series child is patched:\n%s", doc.Bytes())
 	}
 }

@@ -261,9 +261,21 @@ func TestChartCheck(t *testing.T) {
 	l = clone()
 	l[0].ID, l[0].From = "", nil
 	bad["no anchor"] = l
+	l = clone()
+	l[0].Chart.Plots[0].Series[0].Index = -1 << 62
+	bad["index"] = l
+	l = clone()
+	l[0].Chart.Axes[0].Kind = `a b="1"`
+	bad["axis kind"] = l
+	l = clone()
+	l[0].Chart.Plots[0].Grouping = "x"
+	bad["grouping"] = l
 	p := inserted("bar", "")
 	p.Source = "A1:C4,E1"
 	bad["source"] = []Placed{p}
+	p = inserted("bar", "")
+	p.Source = "A1:XFD60000"
+	bad["source too large"] = []Placed{p}
 	for why, l := range bad {
 		if d.Check(tree, ot.Edit{{Op: ot.OpSet, ID: id, Attrs: ot.Values{chartsKey: mustJSON(l)}}}, "") == nil {
 			t.Errorf("%s taken", why)
@@ -304,5 +316,44 @@ func TestChartCorpusUntouched(t *testing.T) {
 	plot := regexp.MustCompile(`(?s)<c:plotArea>.*</c:plotArea>`)
 	if a, b := plot.Find(part(t, data, name)), plot.Find(part(t, out, name)); a == nil || !bytes.Equal(a, b) {
 		t.Error("plot area rewritten")
+	}
+}
+
+func TestChartRowsRemoved(t *testing.T) {
+	_, d, tree, c, id := chartSaved(t)
+	followed(t, d, tree, c, ot.Edit{{Op: ot.OpRem, ID: id, Dim: ot.DimRows, At: 2, N: 3}})
+	list := chartsOf(tree, id)
+	if ref := list[0].Chart.Plots[0].Series[0].Val.Ref; !strings.Contains(ref, "#REF!") {
+		t.Fatalf("ref: %s", ref)
+	}
+	list[0].From.Col++
+	if err := d.Check(tree, ot.Edit{{Op: ot.OpSet, ID: id, Attrs: ot.Values{chartsKey: mustJSON(list)}}}, ""); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestChartUnreadKept(t *testing.T) {
+	data, _, _, _, _ := chartSaved(t)
+	pkg, err := opc.Open(data, opc.Limits{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	name := "xl/charts/chart1.xml"
+	if err := pkg.Set(name, []byte(`<oops/>`)); err != nil {
+		t.Fatal(err)
+	}
+	if data, err = pkg.Bytes(); err != nil {
+		t.Fatal(err)
+	}
+	d, tree, err := Open(data, Limits{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := d.Save(tree)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(part(t, out, name), []byte(`<oops/>`)) || !bytes.Contains(part(t, out, "xl/drawings/drawing1.xml"), []byte("graphicFrame")) {
+		t.Error("a chart not read is removed")
 	}
 }
