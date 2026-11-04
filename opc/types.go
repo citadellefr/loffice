@@ -31,6 +31,9 @@ type typeRule struct {
 
 func parseContentTypes(data []byte) (*contentTypes, error) {
 	var t contentTypes
+	if err := checkProlog(contentTypesName, data); err != nil {
+		return nil, err
+	}
 	if err := xml.Unmarshal(data, &t); err != nil {
 		return nil, fmt.Errorf("%w: %s: %v", ErrInvalid, contentTypesName, err)
 	}

@@ -30,6 +30,7 @@ license.
 | [`pptx`](pptx) | Presentations as trees: masters, layouts, slides, shapes, tables of rows and cells, and notes; table styles, Office's built-in ones included. Only what changed is written back; a copied shape keeps its pictures and links. |
 | [`xlsx`](xlsx) | Workbooks as trees: sheets, grids of cells and cell formats. Only the sheets that changed are written back; what the file keeps as XML moves with the rows and columns inserted and removed. CSV files are read as workbooks of one sheet and written back as they were read. |
 | [`agent`](agent) | An AI in a room, as one more participant: it reads a document as Markdown or CriticMarkup, and edits it by batches of revisions signed with its name. |
+| [`mcp`](mcp) | The agent as an MCP server (Model Context Protocol, 2025-06-18) that a host mounts beside its hub as an `http.Handler`, and that `cmd/loffice-mcp` speaks on standard input and output: sixteen tools to read, search, edit, comment, review and undo, each call authorized by the host. |
 | [`docx`](docx) | Word documents as trees: the body and the headers and footers as blocks, paragraphs as flows whose attributes are their formatting and that of their characters, tables of rows and cells; styles, lists and sections read for the editor. Only the parts that changed are written back, and what the model does not cover rides along in the nodes. |
 | [`legacy`](legacy) | The documents of Office 97 to 2003, converted once into those of today: Excel workbooks (`.xls`) with their cells, formulas, formats, sizes, merged cells, frozen panes and names. What a file held that its conversion leaves out is told, never lost in silence. |
 | [`formula`](formula) | Excel formulas parsed and calculated in the French locale, 223 functions, number formats, and an engine that calculates again only what a change reaches. |
@@ -56,6 +57,118 @@ a version whose blocks changed since fails without writing; the host's
 `Allow` can refuse any write before it is sent. The agent keeps up with the
 room however long its model thinks. PowerPoint and Excel will take the same
 batches.
+
+## MCP server
+
+Package `mcp` lets an AI model that speaks MCP read and edit the documents
+of a hub: the protocol by hand (JSON-RPC 2.0, `initialize`, `tools/list`,
+`tools/call`, notifications), no dependency. A host mounts the server beside
+its hub and a consumer such as Héraut calls it over the network; the same
+server speaks on standard input and output for a client started locally.
+
+### Mounting it
+
+```go
+hub := loffice.NewHub(store, loffice.Options{}, loffice.Limits{})
+srv, err := mcp.New(mcp.Config{
+	Hub:  hub,
+	Name: "Héraut", // the author of its revisions and comments in Word
+	Authorize: func(ctx context.Context, a mcp.Access) error {
+		service, err := services.Authenticate(a.Request) // who calls, by its credentials
+		if err != nil {
+			return mcp.ErrUnauthenticated
+		}
+		return rights.Check(ctx, service, a.User, a.Doc, a.Write)
+	},
+	List: func(ctx context.Context, a mcp.Access) ([]mcp.Document, error) {
+		return documentsOf(ctx, a.User)
+	},
+})
+if err != nil {
+	return err
+}
+defer srv.Close()
+mux.Handle("/mcp", srv)
+```
+
+A host that does not mount the server exposes nothing, and nothing in the
+package is global: each server holds its own rooms.
+
+### What the host decides
+
+`Config.Authorize` is called **on every request**, before anything is read or
+written. The AI has no right of its own: the host checks that the caller is a
+service it authorized, taken from `Access.Request` (nil on standard input),
+and that the user in `Access.User`, the `on_behalf_of` of the call, may read
+the document in `Access.Doc` (`Access.Write` false) or edit it
+(`Access.Write` true), and has agreed to have the AI do it for them. It
+also sees `Method` (`tools/call`…) and `Tool`.
+
+| Authorize returns | A tool call | Any other request |
+|---|---|---|
+| `nil` | goes on | goes on |
+| `mcp.ErrUnauthenticated` | HTTP 401 | HTTP 401 |
+| another error | a result with `isError`, `not allowed: <the message>`, which the model reads: write messages that tell it what to do | HTTP 403, JSON-RPC error `-32001` |
+
+A write the host refuses is refused before it is sent to the room: the
+document is not touched. A call without `on_behalf_of` reaches `Authorize`
+with an empty `User`, for the host to check the caller alone, and is refused
+after. `doc_list` exists only when `Config.List` is set; the host gives the
+documents the user may open, and `Authorize` is not asked about each.
+
+The author in Word is always `Config.Name`, which stays the same; the user a
+batch was made for is its metadata, with which `undo_mine` finds what to take
+back. The AI stays in the room of a document between calls, and leaves
+after `Config.Idle` (ten minutes) without a call: the versions it gave are
+void then, and a call that holds one fails cleanly.
+
+### Calls
+
+Every tool takes `on_behalf_of` and `doc` (the key the hub serves the
+document under); `tools/list` gives the JSON schema of each. The tools are
+`doc_list`, `doc_outline`, `doc_read` (Markdown or CriticMarkup, a range of
+block ids), `doc_search`, `text_replace`, `block_insert`, `block_delete`,
+`text_format`, `comment_add`, `comment_reply`, `revision_list`,
+`revision_accept`, `revision_reject`, `batch`, `select` and `undo_mine`.
+
+Reads give a `version`, an ETag of the document. A write may hold the
+`version` it was prepared on: if the blocks it touches changed since, it
+fails with nothing written, and the message says to read again. `batch` is
+atomic by default, applied whole or not at all; `dry_run` shows the result
+as CriticMarkup without changing anything, and `atomic: false` applies the
+edits one by one, stopping at the first that fails.
+
+A tool that fails is a result with `isError` whose text says what to do, not
+a JSON-RPC error, which is kept for a malformed message (`-32700`, `-32600`),
+an unknown method (`-32601`), an unknown tool (`-32602`) or a refusal
+(`-32001`). The HTTP handler takes only POST (405 otherwise), refuses a
+body over 4 MiB (413) and an `Origin` that is not in
+`Config.AllowedOrigins` (403), and a protocol version it does not speak (400).
+
+A call may take tens of seconds, the model or the hub being slow:
+`Config.Timeout` (two minutes) bounds it. When it lasts more than fifteen
+seconds and the client accepts `text/event-stream`, the answer comes on a
+stream with a comment, or a `notifications/progress` if the client gave a
+`progressToken`, every fifteen seconds to keep the connection up.
+
+### Standard input and output
+
+```sh
+go build -o loffice-mcp ./cmd/loffice-mcp
+claude mcp add loffice -- ./loffice-mcp -root ~/documents -name Assistant
+```
+
+or, in the configuration of any client that starts MCP servers:
+
+```json
+{"mcpServers": {"loffice": {"command": "/path/to/loffice-mcp", "args": ["-root", "/home/me/documents", "-name", "Assistant"]}}}
+```
+
+The documents are the Word files under `-root`, named by their path from it
+(`doc_list` gives them). A path that leaves the root, by `..`, an absolute
+path or a link, is refused and nothing outside is read or written. Any user
+is accepted: the process is the user's own. Edits are saved after a pause,
+and when the client closes the input.
 
 ## Protocol
 
@@ -107,4 +220,12 @@ LOFFICE_OUT=/tmp/out go test ./pptx -run Corpus
 dotnet run --project tools/validate -- corpus/files /tmp/out
 LOFFICE_EDITED=/tmp/edited go test ./pptx -run Edits   # a document edited
 LOFFICE_EDITED=1 dotnet run --project tools/validate -- corpus/files /tmp/edited
+```
+
+`tools/validate/run.sh` does it for every family, rewritten then edited, as CI
+does. Without `dotnet` in the PATH it gets the SDK from nix, so nothing is
+installed on the machine:
+
+```sh
+tools/validate/run.sh /tmp/validate   # work directory, optional
 ```

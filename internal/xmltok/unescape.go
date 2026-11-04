@@ -8,13 +8,26 @@ import (
 )
 
 // Unescape appends raw text to dst with its entity and character references
-// decoded and its line breaks normalized to "\n", as an XML parser must.
+// decoded and its line breaks normalized to "\n", as an XML parser must. The
+// content of CDATA sections is kept as it is, apart from its line breaks.
 func Unescape(dst, raw []byte) ([]byte, error) {
-	if bytes.IndexByte(raw, '&') < 0 && bytes.IndexByte(raw, '\r') < 0 {
+	if bytes.IndexAny(raw, "&\r<") < 0 {
 		return append(dst, raw...), nil
 	}
 	for i := 0; i < len(raw); i++ {
 		switch c := raw[i]; c {
+		case '<':
+			rest := raw[i:]
+			if !bytes.HasPrefix(rest, []byte("<![CDATA[")) {
+				dst = append(dst, c)
+				continue
+			}
+			n := bytes.Index(rest, []byte("]]>"))
+			if n < 0 {
+				return dst, fmt.Errorf("%w: unterminated CDATA section", ErrSyntax)
+			}
+			dst = lineBreaks(dst, rest[9:n])
+			i += n + 2
 		case '\r':
 			dst = append(dst, '\n')
 			if i+1 < len(raw) && raw[i+1] == '\n' {
@@ -37,6 +50,20 @@ func Unescape(dst, raw []byte) ([]byte, error) {
 		}
 	}
 	return dst, nil
+}
+
+func lineBreaks(dst, raw []byte) []byte {
+	for i := 0; i < len(raw); i++ {
+		if raw[i] != '\r' {
+			dst = append(dst, raw[i])
+			continue
+		}
+		dst = append(dst, '\n')
+		if i+1 < len(raw) && raw[i+1] == '\n' {
+			i++
+		}
+	}
+	return dst
 }
 
 func reference(ref []byte) (rune, bool) {

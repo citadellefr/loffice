@@ -133,6 +133,14 @@ func next(f string, i int) (Token, error) {
 	if ref, n, ok := readRef(f, i); ok {
 		return Token{Kind: Reference, Text: f[i : i+n], Pos: i, Ref: ref}, nil
 	}
+	// a structured reference of the table holding the formula: [@Col]
+	if c == '[' {
+		n, ok := bracketLen(f[i:])
+		if !ok {
+			return Token{}, ErrSyntax
+		}
+		return tok(Name, n)
+	}
 	n := identLen(f[i:])
 	if n == 0 {
 		return Token{}, ErrSyntax

@@ -61,6 +61,9 @@ func (p *Package) Relationships(source string) ([]Relationship, error) {
 			TargetMode string `xml:"TargetMode,attr"`
 		} `xml:"Relationship"`
 	}
+	if err := checkProlog(name, data); err != nil {
+		return nil, err
+	}
 	if err := xml.Unmarshal(data, &doc); err != nil {
 		return nil, fmt.Errorf("%w: %s: %v", ErrInvalid, name, err)
 	}

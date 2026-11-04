@@ -38,6 +38,10 @@ type Context struct {
 	// the first cell they format.
 	MoveRows, MoveCols int
 	depth              int
+	// vars are the names LET and LAMBDA give values, and calls the LAMBDA
+	// functions being calculated within one another.
+	vars  *variable
+	calls int
 }
 
 // ErrUnsupported is what a formula gives when it calls a function the
@@ -72,6 +76,8 @@ func (c *Context) Eval(e Expr) Value {
 		return Value{Type: TypeRange, Refs: e.refs}
 	case nameExpr:
 		return c.name(e)
+	case structExpr:
+		return c.structured(e.s)
 	case unaryExpr:
 		x := c.Eval(e.x)
 		switch e.op {
@@ -101,13 +107,18 @@ func (c *Context) Eval(e Expr) Value {
 		return c.binary(e)
 	case callExpr:
 		f := functions[e.name]
+		if v := c.vars.find(e.name); v != nil && (f == nil || v.value.Type == TypeLambda) {
+			return c.invoke(v.value, e.args)
+		}
 		if f == nil {
-			return ErrUnsupported
+			return c.named(e)
 		}
 		if len(e.args) < f.min || f.max >= 0 && len(e.args) > f.max {
 			return ErrValue
 		}
 		return f.call(c, e.args)
+	case invokeExpr:
+		return c.invoke(c.Eval(e.fn), e.args)
 	case arrayExpr:
 		t := &Table{Rows: e.rows, Cols: e.cols, Cells: make([]Value, len(e.cells))}
 		for i, x := range e.cells {
@@ -170,7 +181,29 @@ func (c *Context) spill(v Value) Value {
 	return ErrRef
 }
 
+// structured is the area a structured reference stands for in the cell of
+// the formula, when the book has tables.
+func (c *Context) structured(s Structured) Value {
+	tb, ok := c.Book.(Tables)
+	if !ok {
+		return ErrUnsupported
+	}
+	a, err := resolve(tb, s, Pos{c.Sheet, c.Row, c.Col})
+	if err != nil {
+		return *err
+	}
+	return Value{Type: TypeRange, Refs: []Area3{a}}
+}
+
 func (c *Context) name(e nameExpr) Value {
+	if s, ok := ParseStructured(e.name); ok && e.sheet == "" {
+		return c.structured(s)
+	}
+	if e.sheet == "" {
+		if v := c.vars.find(e.name); v != nil {
+			return v.value
+		}
+	}
 	sheet := c.Sheet
 	if e.sheet != "" {
 		s, ok := c.Book.Sheets(e.sheet, "")
@@ -184,13 +217,26 @@ func (c *Context) name(e nameExpr) Value {
 		if strings.ContainsRune(e.name, '[') {
 			return ErrUnsupported
 		}
+		if tb, ok := c.Book.(Tables); ok {
+			if _, ok := tb.Table(e.name); ok {
+				return c.structured(Structured{Table: e.name})
+			}
+		}
 		return ErrName
 	}
+	return c.defined(x)
+}
+
+// defined calculates the formula of a defined name, out of reach of the
+// names LET and LAMBDA bind where it is used.
+func (c *Context) defined(x Expr) Value {
 	if c.depth >= maxDepth {
 		return ErrRef
 	}
 	c.depth++
-	defer func() { c.depth-- }()
+	vars := c.vars
+	c.vars = nil
+	defer func() { c.depth--; c.vars = vars }()
 	return c.Eval(x)
 }
 
@@ -256,6 +302,8 @@ func (c *Context) scalar(v Value) Value {
 			return ErrValue
 		}
 		return v.Arr.Cells[0]
+	case TypeLambda:
+		return ErrCalc
 	}
 	return v
 }
@@ -379,28 +427,31 @@ func (c *Context) zip(x, y Value, f func(a, b Value) Value) Value {
 	}
 	a, b := c.array(x), c.array(y)
 	rows, cols := max(a.Rows, b.Rows), max(a.Cols, b.Cols)
-	at := func(t *Table, i, j int) Value {
-		if t.Rows == 1 {
-			i = 0
-		}
-		if t.Cols == 1 {
-			j = 0
-		}
-		if i >= t.Rows || j >= t.Cols {
-			return ErrNA
-		}
-		return t.At(i, j)
-	}
 	if rows*cols > maxCells {
 		return ErrNum
 	}
 	out := &Table{Rows: rows, Cols: cols, Cells: make([]Value, rows*cols)}
 	for i := range rows {
 		for j := range cols {
-			out.Cells[i*cols+j] = f(at(a, i, j), at(b, i, j))
+			out.Cells[i*cols+j] = f(stretched(a, i, j), stretched(b, i, j))
 		}
 	}
 	return Value{Type: TypeArray, Arr: out}
+}
+
+// stretched is the value at row i and column j of a table stretched to a
+// larger one: a single row or column repeated, #N/A past the others.
+func stretched(t *Table, i, j int) Value {
+	if t.Rows == 1 {
+		i = 0
+	}
+	if t.Cols == 1 {
+		j = 0
+	}
+	if i >= t.Rows || j >= t.Cols {
+		return ErrNA
+	}
+	return t.At(i, j)
 }
 
 func (c *Context) binary(e binaryExpr) Value {

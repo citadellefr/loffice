@@ -70,48 +70,59 @@ const (
 // in an extension for lists on other sheets included.
 func validations(root *xmldom.Element) []Validation {
 	var out []Validation
+	eachValidation(root, func(_, _ *xmldom.Element, v Validation, ok bool) {
+		if ok {
+			out = append(out, v)
+		}
+	})
+	return out
+}
+
+// eachValidation calls visit with each validation of a worksheet, in its
+// list, and what the model holds of it: ok is false when it cannot show it.
+func eachValidation(root *xmldom.Element, visit func(list, e *xmldom.Element, v Validation, ok bool)) {
 	text := func(e *xmldom.Element) string {
 		if e == nil {
 			return ""
 		}
 		return strings.TrimSpace(e.Text())
 	}
-	for _, v := range elements(root.Child(mainNS, "dataValidations"), "dataValidation") {
-		out = appendValidation(out, v, v.Get("sqref"), text(v.Child(mainNS, "formula1")), text(v.Child(mainNS, "formula2")))
+	if all := root.Child(mainNS, "dataValidations"); all != nil {
+		for _, e := range elements(all, "dataValidation") {
+			v, ok := readValidation(e, e.Get("sqref"), text(e.Child(mainNS, "formula1")), text(e.Child(mainNS, "formula2")))
+			visit(all, e, v, ok)
+		}
 	}
 	for _, ext := range elements(root.Child(mainNS, "extLst"), "ext") {
 		all := ext.Child(x14NS, "dataValidations")
 		if all == nil {
 			continue
 		}
-		for _, v := range all.Elements() {
-			if v.Space != x14NS || v.Local != "dataValidation" {
-				continue
-			}
+		for _, e := range elementsIn(all, x14NS, "dataValidation") {
 			f := func(local string) string {
-				if f := v.Child(x14NS, local); f != nil {
+				if f := e.Child(x14NS, local); f != nil {
 					return text(f.Child(xmNS, "f"))
 				}
 				return ""
 			}
-			out = appendValidation(out, v, text(v.Child(xmNS, "sqref")), f("formula1"), f("formula2"))
+			v, ok := readValidation(e, text(e.Child(xmNS, "sqref")), f("formula1"), f("formula2"))
+			visit(all, e, v, ok)
 		}
 	}
-	return out
 }
 
-func appendValidation(out []Validation, v *xmldom.Element, ref, f1, f2 string) []Validation {
+func readValidation(v *xmldom.Element, ref, f1, f2 string) (Validation, bool) {
 	typ := v.Get("type")
 	if typ == "none" {
 		typ = ""
 	}
 	x := Validation{Ref: strings.Join(strings.Fields(ref), " "), Type: typ, NoArrow: truthy(v.Get("showDropDown")), Blank: truthy(v.Get("allowBlank"))}
 	if x.Ref == "" || typ != "" && !slices.Contains(validTypes, typ) {
-		return out
+		return x, false
 	}
 	if typ != "" {
 		if x.F1 = f1; f1 == "" {
-			return out
+			return x, false
 		}
 		if !slices.Contains(validNoCompare, typ) {
 			x.Op = v.Get("operator")
@@ -119,11 +130,11 @@ func appendValidation(out []Validation, v *xmldom.Element, ref, f1, f2 string) [
 				x.Op = ""
 			}
 			if x.Op != "" && !slices.Contains(validOps, x.Op) {
-				return out
+				return x, false
 			}
 			if x.Op == "" || x.Op == "notBetween" {
 				if x.F2 = f2; f2 == "" {
-					return out
+					return x, false
 				}
 			}
 		}
@@ -139,9 +150,9 @@ func appendValidation(out []Validation, v *xmldom.Element, ref, f1, f2 string) [
 		x.PromptTitle, x.Prompt = v.Get("promptTitle"), v.Get("prompt")
 	}
 	if typ == "" && x.Err == "" && x.PromptTitle == "" && x.Prompt == "" {
-		return out
+		return x, false
 	}
-	return append(out, x)
+	return x, true
 }
 
 // checkValidations tells whether validations are those the editor may set.
@@ -209,23 +220,29 @@ func checkFormula(text string) bool {
 }
 
 // writeValidations gives a worksheet the validations of its sheet, in place
-// of those it had, which Excel 2010 may keep in an extension.
+// of those it read, which Excel 2010 may keep in an extension. The ones the
+// model cannot show stay where they are.
 func writeValidations(root *xmldom.Element, raw json.RawMessage) {
 	var list []Validation
 	_ = json.Unmarshal(raw, &list)
-	if e := root.Child(mainNS, "dataValidations"); e != nil {
-		root.Remove(e)
-	}
-	editExt(root, func(ext *xmldom.Element) {
-		if all := ext.Child(x14NS, "dataValidations"); all != nil {
-			ext.Remove(all)
+	eachValidation(root, func(all, e *xmldom.Element, _ Validation, ok bool) {
+		if ok {
+			all.Remove(e)
 		}
 	})
+	editExt(root, func(ext *xmldom.Element) {
+		if all := ext.Child(x14NS, "dataValidations"); all != nil {
+			countValidations(ext, all)
+		}
+	})
+	all := root.Child(mainNS, "dataValidations")
+	if all != nil {
+		countValidations(root, all)
+	}
 	if len(list) == 0 {
 		return
 	}
-	all := child(root, "dataValidations", worksheetOrder)
-	all.Set("count", strconv.Itoa(len(list)))
+	all = child(root, "dataValidations", worksheetOrder)
 	p := prefixOf(all)
 	for _, v := range list {
 		e := xmldom.New(mainNS, p+"dataValidation")
@@ -253,6 +270,17 @@ func writeValidations(root *xmldom.Element, raw json.RawMessage) {
 			}
 		}
 		all.Append(e)
+	}
+	all.Set("count", strconv.Itoa(len(all.Elements())))
+}
+
+// countValidations counts the validations of a list, and removes it from
+// its parent when it has none.
+func countValidations(parent, all *xmldom.Element) {
+	if n := len(all.Elements()); n == 0 {
+		parent.Remove(all)
+	} else {
+		all.Set("count", strconv.Itoa(n))
 	}
 }
 

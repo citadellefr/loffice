@@ -33,6 +33,12 @@ type Calc struct {
 	// filters are, by sheet, the rows under the first of a filter that
 	// filters columns, read once per calculation.
 	filters map[int]*formula.Area
+	// tables are the tables of the sheets as last calculated, by sheet,
+	// defs those structured references read, and tableID the last id a
+	// table took.
+	tables  map[string][]Table
+	defs    []formula.TableDef
+	tableID int
 }
 
 // NewCalc keeps the formulas of the tree calculated. Their values are
@@ -109,6 +115,7 @@ func (c *Calc) rebuild() {
 		_ = json.Unmarshal(book.Attrs["iterate"], &c.opt.Iteration)
 	}
 	c.bounds, c.filters = map[int][2]int{}, map[int]*formula.Area{}
+	c.readTables()
 	c.engine = formula.NewEngine(c, c.opt)
 	for h, id := range c.sheets {
 		n := c.tree.Node(id)
@@ -194,7 +201,9 @@ func (c *Calc) Follow(e ot.Edit, since []ot.Edit) ot.Edit {
 	}
 	f.rebased(e, since)
 	f.flush()
-	if books || f.moved || iterate {
+	f.tables(e)
+	f.flush()
+	if books || f.moved || iterate || f.retable {
 		c.rebuild()
 	}
 	f.recalc(e, iterate)
@@ -251,6 +260,10 @@ type follow struct {
 	book ot.Values
 	// sheets are the attributes of sheets to set, by sheet.
 	sheets map[string]ot.Values
+	// goneTables are the tables rows or columns removed, and retable tells
+	// whether tables changed.
+	goneTables []string
+	retable    bool
 }
 
 // attr reads an attribute of a sheet into v, the value to set if any.
@@ -406,6 +419,12 @@ func mapKeys[K comparable, V any](m map[K]V) func(func(K) bool) {
 // defined names, validations, conditional formats and charts included,
 // and sets those it changes.
 func (f *follow) formulas(rewrite func(text, sheet string) string) {
+	f.formulasAt(func(text, sheet string, _, _ int) string { return rewrite(text, sheet) })
+}
+
+// formulasAt is formulas, rewrite told the cell of the formulas of cells,
+// row 0 for the others.
+func (f *follow) formulasAt(rewrite func(text, sheet string, row, col int) string) {
 	c := f.c
 	for _, id := range c.sheets {
 		n := c.tree.Node(id)
@@ -419,19 +438,20 @@ func (f *follow) formulas(rewrite func(text, sheet string) string) {
 			var fields cellFields
 			_ = json.Unmarshal(raw, &fields)
 			if fields.F != "" {
-				if g := rewrite(fields.F, id); g != fields.F {
+				if g := rewrite(fields.F, id, row, col); g != fields.F {
 					f.setCell(id, row, col, "f", g)
 				}
 			}
 			return true
 		})
-		f.rewriteValid(id, rewrite)
-		f.rewriteConditionals(id, rewrite)
+		unplaced := func(text, sheet string) string { return rewrite(text, sheet, 0, 0) }
+		f.rewriteValid(id, unplaced)
+		f.rewriteConditionals(id, unplaced)
 		var charts []Placed
 		f.attr(id, chartsKey, &charts)
 		changed := false
 		for _, p := range charts {
-			if p.Chart != nil && chartRefs(p.Chart, func(ref string) string { return rewrite(ref, id) }) {
+			if p.Chart != nil && chartRefs(p.Chart, func(ref string) string { return rewrite(ref, id, 0, 0) }) {
 				changed = true
 			}
 		}
@@ -442,7 +462,7 @@ func (f *follow) formulas(rewrite func(text, sheet string) string) {
 	changed := false
 	names := slices.Clone(c.defined)
 	for i, n := range names {
-		if g := rewrite(n.Ref, n.Sheet); g != n.Ref {
+		if g := rewrite(n.Ref, n.Sheet, 0, 0); g != n.Ref {
 			names[i].Ref = g
 			changed = true
 		}
@@ -573,6 +593,7 @@ func (f *follow) shift(ch ot.Change) {
 		setList(f, ch.ID, chartsKey, charts)
 	}
 	f.shiftFilter(ch.ID, sheet, rows, ch.At, n)
+	f.shiftTables(ch.ID, sheet, rows, ch.At, n, true)
 	var setup *Print
 	if f.attr(ch.ID, printKey, &setup); setup != nil && len(setup.Rows)+len(setup.Cols) > 0 {
 		f.set(ch.ID, printKey, mustJSON(setup.shifted(rows, ch.At, n)))
@@ -708,6 +729,17 @@ func (f *follow) rebased(e ot.Edit, since []ot.Edit) {
 				}
 			}
 		}
+		if ch.Op == ot.OpSet && ch.Attrs[tablesKey] != nil {
+			for _, s := range shifts {
+				n := s.N
+				if s.Op == ot.OpRem {
+					n = -n
+				}
+				if s.ID == ch.ID {
+					f.shiftTables(ch.ID, f.c.names[ch.ID], s.Dim == ot.DimRows, s.At, n, false)
+				}
+			}
+		}
 		if ch.Op != ot.OpCel && !(ch.Op == ot.OpNew && ch.Cells != nil) {
 			continue
 		}
@@ -791,6 +823,19 @@ func (f *follow) recalc(e ot.Edit, circles bool) {
 				}
 				return true
 			})
+		}
+	}
+	if f.retable {
+		for h, id := range c.sheets {
+			if n := c.tree.Node(id); n != nil && n.Grid != nil {
+				n.Grid.Each(1, formula.MaxRows, func(row, col int, raw json.RawMessage) bool {
+					if p := (formula.Pos{Sheet: h, Row: row, Col: col}); col > 0 && !seen[p] && bytes.Contains(raw, []byte(`"f":`)) && bytes.Contains(raw, []byte("[")) {
+						seen[p] = true
+						changed = append(changed, p)
+					}
+					return true
+				})
+			}
 		}
 	}
 	if circles {

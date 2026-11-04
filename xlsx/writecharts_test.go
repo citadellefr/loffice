@@ -29,7 +29,7 @@ func chartBook(t *testing.T) (*Document, *ot.Tree, *Calc, string) {
 	}
 	id := firstSheet(tree).ID
 	c := NewCalc(tree, formula.Options{})
-	followed(t, d, tree, c, ot.Edit{{Op: ot.OpCel, ID: id, Cells: []ot.Cell{
+	chartFollowed(t, d, tree, c, ot.Edit{{Op: ot.OpCel, ID: id, Cells: []ot.Cell{
 		cell(1, 2, `{"v":"Nord"}`), cell(1, 3, `{"v":"Sud"}`),
 		cell(2, 1, `{"v":"T1"}`), cell(2, 2, `{"v":1}`), cell(2, 3, `{"v":3}`),
 		cell(3, 1, `{"v":"T2"}`), cell(3, 2, `{"v":2.5}`), cell(3, 3, `{"v":4}`),
@@ -38,8 +38,8 @@ func chartBook(t *testing.T) (*Document, *ot.Tree, *Calc, string) {
 	return d, tree, c, id
 }
 
-// followed checks an edit, applies it and what follows it.
-func followed(t *testing.T, d *Document, tree *ot.Tree, c *Calc, e ot.Edit) {
+// chartFollowed checks an edit, applies it and what follows it.
+func chartFollowed(t *testing.T, d *Document, tree *ot.Tree, c *Calc, e ot.Edit) {
 	t.Helper()
 	apply(t, d, tree, e)
 	c.Follow(e, nil)
@@ -47,7 +47,7 @@ func followed(t *testing.T, d *Document, tree *ot.Tree, c *Calc, e ot.Edit) {
 
 func setCharts(t *testing.T, d *Document, tree *ot.Tree, c *Calc, id string, list []Placed) {
 	t.Helper()
-	followed(t, d, tree, c, ot.Edit{{Op: ot.OpSet, ID: id, Attrs: ot.Values{chartsKey: mustJSON(list)}}})
+	chartFollowed(t, d, tree, c, ot.Edit{{Op: ot.OpSet, ID: id, Attrs: ot.Values{chartsKey: mustJSON(list)}}})
 }
 
 func chartsOf(tree *ot.Tree, id string) []Placed {
@@ -78,7 +78,7 @@ func savedChart(t *testing.T, d *Document, tree *ot.Tree, name string) ([]byte, 
 	return data, d, tree
 }
 
-func part(t *testing.T, data []byte, name string) []byte {
+func chartPart(t *testing.T, data []byte, name string) []byte {
 	t.Helper()
 	pkg, err := opc.Open(data, opc.Limits{})
 	if err != nil {
@@ -117,7 +117,7 @@ func TestChartInsert(t *testing.T) {
 			t.Fatalf("%s: charts %+v", k.kind, list)
 		}
 		p = list[0]
-		if *p.From != (Corner{Col: 4, Row: 1}) || *p.To != (Corner{Col: 11, Row: 16, DX: 1000}) || p.ID == "" || part(t, data, p.ID) == nil {
+		if *p.From != (Corner{Col: 4, Row: 1}) || *p.To != (Corner{Col: 11, Row: 16, DX: 1000}) || p.ID == "" || chartPart(t, data, p.ID) == nil {
 			t.Errorf("%s: placed %+v %+v %s", k.kind, p.From, p.To, p.ID)
 		}
 		pl := p.Chart.Plots[0]
@@ -150,7 +150,7 @@ func TestChartUntouched(t *testing.T) {
 	}
 	pkg, _ := opc.Open(data, opc.Limits{})
 	for _, name := range pkg.Names() {
-		if !bytes.Equal(part(t, data, name), part(t, again, name)) {
+		if !bytes.Equal(chartPart(t, data, name), chartPart(t, again, name)) {
 			t.Errorf("%s rewritten", name)
 		}
 	}
@@ -168,21 +168,21 @@ func TestChartPlace(t *testing.T) {
 	if *p.From != (Corner{Col: 1, Row: 6, DX: 500}) || *p.To != (Corner{Col: 9, Row: 30}) {
 		t.Errorf("moved: %+v %+v", p.From, p.To)
 	}
-	if !bytes.Equal(part(t, data, name), part(t, moved, name)) {
+	if !bytes.Equal(chartPart(t, data, name), chartPart(t, moved, name)) {
 		t.Error("chart rewritten when moved")
 	}
 	drawing := "xl/drawings/drawing1.xml"
 	frame := regexp.MustCompile(`(?s)<xdr:graphicFrame.*</xdr:graphicFrame>`)
-	if a, b := frame.Find(part(t, data, drawing)), frame.Find(part(t, moved, drawing)); a == nil || !bytes.Equal(a, b) {
+	if a, b := frame.Find(chartPart(t, data, drawing)), frame.Find(chartPart(t, moved, drawing)); a == nil || !bytes.Equal(a, b) {
 		t.Errorf("frame rewritten:\n%s\n%s", a, b)
 	}
 
 	setCharts(t, d, tree, c, id, nil)
 	removed, _, again := savedChart(t, d, tree, "removed.xlsx")
-	if len(chartsOf(again, id)) != 0 || part(t, removed, name) != nil || part(t, removed, opc.RelsName(drawing)) != nil {
-		t.Errorf("chart kept: %s", part(t, removed, drawing))
+	if len(chartsOf(again, id)) != 0 || chartPart(t, removed, name) != nil || chartPart(t, removed, opc.RelsName(drawing)) != nil {
+		t.Errorf("chart kept: %s", chartPart(t, removed, drawing))
 	}
-	if bytes.Contains(part(t, removed, "[Content_Types].xml"), []byte(name)) {
+	if bytes.Contains(chartPart(t, removed, "[Content_Types].xml"), []byte(name)) {
 		t.Error("content type kept")
 	}
 }
@@ -203,7 +203,7 @@ func TestChartPatch(t *testing.T) {
 		t.Errorf("edited: %+v %+v %+v", got.Title, got.Legend, got.Axes)
 	}
 	plot := regexp.MustCompile(`(?s)<c:barChart>.*</c:barChart>`)
-	if a, b := plot.Find(part(t, data, name)), plot.Find(part(t, out, name)); a == nil || !bytes.Equal(a, b) {
+	if a, b := plot.Find(chartPart(t, data, name)), plot.Find(chartPart(t, out, name)); a == nil || !bytes.Equal(a, b) {
 		t.Errorf("plot rewritten:\n%s\n%s", a, b)
 	}
 
@@ -219,7 +219,7 @@ func TestChartPatch(t *testing.T) {
 	if got.Plots[0].Kind != "line" || len(s) != 1 || s[0].Val.Ref != str(again.Node(id), "name")+"!C2:C4" || *s[0].Val.Num[0] != 3 {
 		t.Errorf("retyped: %+v", got.Plots[0])
 	}
-	if strings.Contains(string(part(t, out, name)), "barChart") {
+	if strings.Contains(string(chartPart(t, out, name)), "barChart") {
 		t.Error("bar kept")
 	}
 }
@@ -227,14 +227,14 @@ func TestChartPatch(t *testing.T) {
 func TestChartCache(t *testing.T) {
 	data, d, tree, c, id := chartSaved(t)
 	name := chartsOf(tree, id)[0].ID
-	followed(t, d, tree, c, ot.Edit{{Op: ot.OpCel, ID: id, Cells: []ot.Cell{cell(3, 2, `{"v":42}`), cell(3, 3, `{"v":7}`)}}})
+	chartFollowed(t, d, tree, c, ot.Edit{{Op: ot.OpCel, ID: id, Cells: []ot.Cell{cell(3, 2, `{"v":42}`), cell(3, 3, `{"v":7}`)}}})
 	out, _, again := savedChart(t, d, tree, "recalculated.xlsx")
 	s := chartsOf(again, id)[0].Chart.Plots[0].Series
 	if *s[0].Val.Num[1] != 42 || *s[1].Val.Num[1] != 7 || *s[1].Val.Num[2] != 8 {
 		t.Errorf("cache: %v %v %v", *s[0].Val.Num[1], *s[1].Val.Num[1], *s[1].Val.Num[2])
 	}
 	cat := regexp.MustCompile(`(?s)<c:cat>.*?</c:cat>`)
-	if a, b := cat.Find(part(t, data, name)), cat.Find(part(t, out, name)); a == nil || !bytes.Equal(a, b) {
+	if a, b := cat.Find(chartPart(t, data, name)), cat.Find(chartPart(t, out, name)); a == nil || !bytes.Equal(a, b) {
 		t.Errorf("categories rewritten:\n%s\n%s", a, b)
 	}
 }
@@ -309,19 +309,19 @@ func TestChartCorpusUntouched(t *testing.T) {
 	}
 	pkg, _ := opc.Open(data, opc.Limits{})
 	for _, n := range pkg.Names() {
-		if n != name && !bytes.Equal(part(t, data, n), part(t, out, n)) {
+		if n != name && !bytes.Equal(chartPart(t, data, n), chartPart(t, out, n)) {
 			t.Errorf("%s rewritten", n)
 		}
 	}
 	plot := regexp.MustCompile(`(?s)<c:plotArea>.*</c:plotArea>`)
-	if a, b := plot.Find(part(t, data, name)), plot.Find(part(t, out, name)); a == nil || !bytes.Equal(a, b) {
+	if a, b := plot.Find(chartPart(t, data, name)), plot.Find(chartPart(t, out, name)); a == nil || !bytes.Equal(a, b) {
 		t.Error("plot area rewritten")
 	}
 }
 
 func TestChartRowsRemoved(t *testing.T) {
 	_, d, tree, c, id := chartSaved(t)
-	followed(t, d, tree, c, ot.Edit{{Op: ot.OpRem, ID: id, Dim: ot.DimRows, At: 2, N: 3}})
+	chartFollowed(t, d, tree, c, ot.Edit{{Op: ot.OpRem, ID: id, Dim: ot.DimRows, At: 2, N: 3}})
 	list := chartsOf(tree, id)
 	if ref := list[0].Chart.Plots[0].Series[0].Val.Ref; !strings.Contains(ref, "#REF!") {
 		t.Fatalf("ref: %s", ref)
@@ -353,7 +353,7 @@ func TestChartUnreadKept(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(part(t, out, name), []byte(`<oops/>`)) || !bytes.Contains(part(t, out, "xl/drawings/drawing1.xml"), []byte("graphicFrame")) {
+	if !bytes.Equal(chartPart(t, out, name), []byte(`<oops/>`)) || !bytes.Contains(chartPart(t, out, "xl/drawings/drawing1.xml"), []byte("graphicFrame")) {
 		t.Error("a chart not read is removed")
 	}
 }

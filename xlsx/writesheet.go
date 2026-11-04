@@ -36,6 +36,9 @@ func (w *writer) sheet(n *ot.Node, p *sheetPart) error {
 	if err := w.settings(root, old, n.Attrs); err != nil {
 		return err
 	}
+	if err := w.tables(root, n, p); err != nil {
+		return err
+	}
 
 	data := root.Child(mainNS, "sheetData")
 	if data == nil {

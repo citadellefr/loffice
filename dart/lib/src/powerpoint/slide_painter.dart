@@ -8,6 +8,7 @@ import 'package:trame/trame.dart';
 import '../chart/chart.dart';
 import '../chart/chart_painter.dart';
 import '../drawing/color.dart';
+import '../drawing/diagram.dart';
 import '../drawing/geometry.dart';
 import '../drawing/paint.dart';
 import '../pdf/canvas.dart';
@@ -79,6 +80,7 @@ class SlidePainter {
 
   final _frames = Expando<TextFrame>();
   final _charts = Expando<ChartSpec>();
+  final _diagrams = Expando<DiagramPainter>();
   final _tables = Expando<TableLayout>();
 
   void paint(Canvas canvas, Node slide) {
@@ -187,20 +189,26 @@ class SlidePainter {
     }
     if (shape.type == 'frame' || shape.type == 'other') {
       final chart = shape.type == 'frame' ? _charts[shape] ??= ChartSpec.fromJson(shape.attributes['chart']) : null;
+      final diagram = _diagrams[shape] ??= _diagramOf(shape, colors, theme);
+      final blip = shape.attributes['blip'];
       if (chart != null) {
         ChartPainter(
           chart,
           colors: colors,
           fonts: Fonts(theme: theme.typeface, package: fonts),
         ).paint(canvas, size);
+      } else if (diagram != null) {
+        diagram.paint(canvas);
+      } else if (blip is Map<String, Object?>) {
+        DrawingPainter(colors, images: images).picture(canvas, Offset.zero & size, blip);
       } else {
         _stand(canvas, size);
       }
       canvas.restore();
       return;
     }
-    final geometry = _geometry(style);
-    final adjust = _adjust(style);
+    final geometry = Geometry.of(style.geometry);
+    final adjust = Geometry.adjustments(style.geometry);
     final paths = geometry.paths(size, adjust);
     final (fill, fillColors) = _fill(style, colors, theme);
     final painter = DrawingPainter(fillColors, images: images);
@@ -229,6 +237,16 @@ class SlidePainter {
     frame?.paint(canvas);
     canvas.restore();
   }
+
+  DiagramPainter? _diagramOf(Node frame, ColorContext colors, DeckTheme theme) => DiagramPainter.of(
+    frame.attributes['diagram'],
+    colors: colors,
+    images: images,
+    fonts: Fonts(theme: theme.typeface, package: fonts),
+    themeFills: theme.fills,
+    themeLines: theme.lines,
+    backgroundFills: theme.backgroundFills,
+  );
 
   /// The table of a frame laid out, null for a frame that shows none.
   TableLayout? tableOf(Node frame) {
@@ -259,7 +277,7 @@ class SlidePainter {
     _ => tableOf(shape)?.size ?? deck.styleOf(shape).bounds?.size,
   };
 
-  /// What stands for an object the editor does not draw yet.
+  /// What stands for an object with nothing to draw.
   void _stand(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
     canvas.drawRect(rect, Paint()..color = const Color(0x14000000));
@@ -271,50 +289,13 @@ class SlidePainter {
     );
   }
 
-  Geometry _geometry(ShapeStyle style) {
-    final g = style.geometry;
-    final preset = g?['prst'];
-    if (preset is String) return Geometry.preset(preset) ?? Geometry.preset('rect')!;
-    return Geometry.fromJson(g?['cust']) ?? Geometry.preset('rect')!;
-  }
-
-  Map<String, String> _adjust(ShapeStyle style) {
-    final av = style.geometry?['av'];
-    return {
-      if (av is Map<String, Object?>)
-        for (final e in av.entries)
-          if (e.value is String) e.key: e.value! as String,
-    };
-  }
-
-  /// The fill of a shape: its own, or the theme's its style points to, with
-  /// the colors "phClr" resolves in.
-  (Map<String, Object?>?, ColorContext) _fill(ShapeStyle style, ColorContext colors, DeckTheme theme) {
-    final ref = style.style?['fill'];
-    final refColors = ref is Map<String, Object?> ? colors.withPlaceholder(colors.resolve(ref['color'])) : colors;
-    if (style.fill != null) return (style.fill, refColors);
-    if (ref is! Map<String, Object?>) return (null, colors);
-    final idx = int.tryParse('${ref['idx']}') ?? 0;
-    if (idx <= 0) return (null, colors);
-    final list = idx >= 1001 ? theme.backgroundFills : theme.fills;
-    final i = idx >= 1001 ? idx - 1001 : idx - 1;
-    return (i < list.length ? list[i] as Map<String, Object?>? : null, refColors);
-  }
+  /// The fill of a shape: its own, or the theme's its style points to.
+  (Map<String, Object?>?, ColorContext) _fill(ShapeStyle style, ColorContext colors, DeckTheme theme) =>
+      styledFill(style.fill, style.style, colors, themeFills: theme.fills, backgroundFills: theme.backgroundFills);
 
   /// The line of a shape: the theme's its style points to, with its own
   /// properties over it.
-  (Map<String, Object?>?, ColorContext) _line(ShapeStyle style, ColorContext colors, DeckTheme theme) {
-    final ref = style.style?['ln'];
-    var ctx = colors;
-    Map<String, Object?>? line;
-    if (ref is Map<String, Object?>) {
-      final idx = int.tryParse('${ref['idx']}') ?? 0;
-      if (idx > 0 && idx <= theme.lines.length) line = theme.lines[idx - 1] as Map<String, Object?>?;
-      ctx = colors.withPlaceholder(colors.resolve(ref['color']));
-    }
-    if (style.line != null) line = {...?line, ...style.line!};
-    return (line, ctx);
-  }
+  (Map<String, Object?>?, ColorContext) _line(ShapeStyle style, ColorContext colors, DeckTheme theme) => styledLine(style.line, style.style, colors, themeLines: theme.lines);
 
   /// The text of a shape laid out in its box, null for one without text.
   TextFrame? textOf(Node shape) {
@@ -341,7 +322,7 @@ class SlidePainter {
     Props levels(int lvl) => color == null ? style.level(lvl) : {...style.level(lvl), 'fill': '{"solid":{"rgb":"${(color.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}"}}'};
     return TextFrame.layout(
       text,
-      box: _geometry(style).textRect(box.size, _adjust(style)),
+      box: Geometry.of(style.geometry).textRect(box.size, Geometry.adjustments(style.geometry)),
       body: style.body,
       levels: levels,
       colors: colors,

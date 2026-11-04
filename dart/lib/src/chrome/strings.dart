@@ -147,6 +147,13 @@ class LofficeStrings {
   String get window => 'Fenêtre';
   String get sortAndFilter => 'Trier et filtrer';
   String get filter => 'Filtrer';
+  String get createTable => 'Créer un tableau';
+  String get tableRange => 'Où sont les données de votre tableau ?';
+  String get tableHeaders => 'Mon tableau comporte des en-têtes';
+  String get tableRangeInvalid => 'Cette plage ne peut pas devenir un tableau.';
+  String get tableOverlap => 'Cette plage chevauche un autre tableau.';
+  String get tableMerged => 'Cette plage contient des cellules fusionnées.';
+  String get convertToRange => 'Convertir en plage';
   String get clearFilters => 'Effacer';
   String get reapply => 'Réappliquer';
   String clearFilterFrom(String column) => 'Effacer le filtre de « $column »';

@@ -12,6 +12,7 @@ import 'comment_bubble.dart';
 import 'filter.dart';
 import 'number_format.dart';
 import 'sheet_comments.dart';
+import 'tables.dart';
 import 'workbook.dart';
 
 /// Where a sheet is selected: the active cell and the area around it.
@@ -116,6 +117,8 @@ class SheetView extends StatefulWidget {
     this.prompt,
     this.filter,
     this.onFilter,
+    this.tables = const [],
+    this.onTableFilter,
     this.chart,
     this.onChart,
     this.onChartRect,
@@ -162,6 +165,11 @@ class SheetView extends StatefulWidget {
   /// column and their rectangle on screen.
   final SheetFilter? filter;
   final void Function(int col, Rect at)? onFilter;
+
+  /// The tables of the sheet, whose header arrows open [onTableFilter]
+  /// with their table, their column and their rectangle on screen.
+  final List<SheetTable> tables;
+  final void Function(SheetTable table, int col, Rect at)? onTableFilter;
 
   /// The index of the chart selected, which [onChart] asks to select or,
   /// for null, to leave; [onChartRect] puts one in another rectangle, in
@@ -270,19 +278,27 @@ class SheetViewState extends State<SheetView> {
     return box == null ? r : box.localToGlobal(r.topLeft) & r.size;
   }
 
-  /// The arrows of the filter on the columns in view, where they go.
-  List<(int, Rect)> get _filterArrows {
+  /// The arrows of the filter and of the tables on the columns in view,
+  /// where they go.
+  List<(int, Rect, SheetTable?)> get _filterArrows {
     final f = widget.filter;
-    if (f == null || _size.isEmpty) return const [];
+    if (_size.isEmpty) return const [];
     final l = _layout;
     final first = cellAt(Offset(_rowHeader + _frozen.dx * _z + 1, _colHeader + 1)).$2;
     final last = cellAt(Offset(_size.width - 1, _colHeader + 1)).$2;
-    final out = <(int, Rect)>[];
-    for (var col = f.area.left; col <= f.area.right; col++) {
-      if (col > l.frozenCols && (col < first || col > last)) continue;
-      final r = areaRect(CellArea.cell(f.area.top, col));
-      final side = math.min(r.height - 2, 17 * _z);
-      if (side > 6) out.add((col, Rect.fromLTWH(r.right - side - 1, r.bottom - side - 1, side, side)));
+    final out = <(int, Rect, SheetTable?)>[];
+    void headers(CellArea area, SheetTable? table) {
+      for (var col = area.left; col <= area.right; col++) {
+        if (col > l.frozenCols && (col < first || col > last)) continue;
+        final r = areaRect(CellArea.cell(area.top, col));
+        final side = math.min(r.height - 2, 17 * _z);
+        if (side > 6) out.add((col, Rect.fromLTWH(r.right - side - 1, r.bottom - side - 1, side, side), table));
+      }
+    }
+
+    if (f != null) headers(f.area, null);
+    for (final t in widget.tables) {
+      if (t.filter && t.header) headers(t.area, t);
     }
     return out;
   }
@@ -643,10 +659,12 @@ class SheetViewState extends State<SheetView> {
                       rect: arrow,
                       child: _Arrow(icon: Icons.arrow_drop_down, onDown: () => widget.onList!(activeScreenRect)),
                     ),
-                  for (final (col, r) in _filterArrows)
+                  for (final (col, r, table) in _filterArrows)
                     Positioned.fromRect(
                       rect: r,
-                      child: _Arrow(icon: widget.filter!.filters(col) ? Icons.filter_alt : Icons.arrow_drop_down, onDown: widget.onFilter == null ? null : () => widget.onFilter!(col, _onScreen(r))),
+                      child: table == null
+                          ? _Arrow(icon: widget.filter!.filters(col) ? Icons.filter_alt : Icons.arrow_drop_down, onDown: widget.onFilter == null ? null : () => widget.onFilter!(col, _onScreen(r)))
+                          : _Arrow(icon: Icons.arrow_drop_down, onDown: widget.onTableFilter == null ? null : () => widget.onTableFilter!(table, col, _onScreen(r))),
                     ),
                   if (hovered != null)
                     Positioned(

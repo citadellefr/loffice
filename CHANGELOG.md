@@ -7,14 +7,47 @@
   scatter or area chart, given its series by the server as Excel does),
   moved, resized, removed, and changed in type, title, legend, axis titles
   and series ranges. Each chart has an `id`, its part; a series is the one
-  of its `index`, and a series added takes one the plot has not. `chart.New` writes a
-  chart and `chart.Patch` rewrites only what changed; the values a chart
-  caches follow the cells it reads when they change. The Dart workbook
-  editor has Insert > Chart and the Chart Design and Format tabs.
+  of its `index`, and a series added takes one the plot has not.
+  `chart.New` writes a chart and `chart.Patch` rewrites only what changed;
+  the values a chart caches follow the cells it reads when they change. The
+  Dart workbook editor has Insert > Chart and the Chart Design and Format
+  tabs.
+
+## 0.12.0 — 2026-11-04
+
+- The PDF export of the Dart package writes what it left blank: pattern fills
+  as tiling patterns of the preset's pixels, tiled pictures as tiling
+  patterns of the picture, opaque PNG pictures as they are (Flate with its
+  predictor, palettes included) and the others, transparent ones, as colors
+  with their opacity as a soft mask, shadows (`drawShadow`) and blurs
+  (`MaskFilter.blur`) as the shape grown in fainter and fainter layers. No
+  method of a `Canvas` fails the export any more: the rest is written in
+  its plainest form or left aside, and `PdfExport.ignored` (the `ignored`
+  callback of `wordPdf`, `deckPdf` and `workbookPdf`) tells what, as
+  `missing` tells the characters.
 - `formula` calculates the array shaping functions of Excel 365: TAKE, DROP,
   CHOOSECOLS, CHOOSEROWS, EXPAND, VSTACK, HSTACK, TOCOL, TOROW, WRAPCOLS,
   WRAPROWS and TEXTSPLIT, with their French names in the Dart formula text,
   and XLOOKUP and XMATCH spill when given several values to look up.
+- `mcp` serves the `agent` over MCP (2025-06-18, written by hand): an
+  `http.Handler` of the streamable transport for a host to mount beside its
+  hub, and `Serve` for standard input and output, which `cmd/loffice-mcp`
+  runs on the files of a directory. Sixteen tools (`doc_read`, `doc_search`,
+  `text_replace`, `batch` with `dry_run` and `version`, `revision_accept`,
+  `undo_mine`…) with their JSON schemas. The host's `Authorize` is asked on
+  every request who calls and for which user, on which document, and
+  refuses before anything is sent.
+- `agent.Apply` returns the error of its context when it is cancelled while
+  the hub does not answer, and leaves nothing behind.
+- `pptx` and `docx` expose the drawing PowerPoint and Word record of a
+  SmartArt, read-only: the `diagram` attribute of a `frame` of a slide and the
+  `diagram` of a picture's `img` in Word hold its shapes, as the attributes of
+  the shapes of a slide, with the box of their text. A frame of an OLE object
+  or of another object has the picture it shows as `blip`, and Word reads the
+  fallback of an `mc:AlternateContent` whose choice has nothing to draw. Saving
+  without an edit keeps the files as they are. The Dart editors draw them, on
+  screen and in PDF exports; the grey rectangle stands only for an object with
+  nothing to draw.
 - `xlsx` edits merged cells and links: a cell's `m` is refused when its area
   overlaps another, and a new field `link` (`{"url":"https://…"}`,
   `{"loc":"Sheet2!A1"}`, `"tip"`) is written as Excel writes it, a
@@ -61,6 +94,14 @@
   the pointer, a Review tab (New Comment, New Note, Edit Note, Delete, Show
   Comments) and the comments pane on the right.
 - The hub serves `.dotm`, `.xltm`, `.potx` and `.potm`.
+- Tables of xlsx are editable: the `tables` attribute of a sheet may be set
+  to create a table, delete it or turn its total row on, and rows and
+  columns may be inserted or removed across a table, its area, autoFilter,
+  columns and calculated column formulas following. `formula` calculates
+  structured references (`Table1[Col]`, `[@Col]`, `Table1[#Totals]`…), which
+  follow a column renamed. The Dart editor has Insertion > Tableau, draws the
+  built-in table styles, grows a table typed under its last row, and turns
+  its total row on or converts it to a range from the menu of its cells.
 
 ## 0.11.1 — 2026-10-15
 
