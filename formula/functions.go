@@ -45,6 +45,12 @@ func fn(min, max int, f func(c *Context, v []Value) Value) *function {
 	}}
 }
 
+// volatile marks a function to calculate again after every edit.
+func volatile(f *function) *function {
+	f.volatile = true
+	return f
+}
+
 // math1 is a function of one number, applied to each value of an array.
 func math1(f func(n float64) Value) *function {
 	return fn(1, 1, func(c *Context, v []Value) Value {

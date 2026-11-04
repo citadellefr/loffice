@@ -995,6 +995,18 @@ func (c *Calc) Sheets(first, last string) ([]int, bool) {
 	return out, true
 }
 
+// SheetCount is the number of sheets of the workbook.
+func (c *Calc) SheetCount() int { return len(c.sheets) }
+
+// FileName is what CELL("filename") gives of a sheet, empty while the
+// document has no name.
+func (c *Calc) FileName(sheet int) string {
+	if c.opt.FileName == "" || sheet < 0 || sheet >= len(c.sheets) {
+		return ""
+	}
+	return "[" + c.opt.FileName + "]" + c.names[c.sheets[sheet]]
+}
+
 func (c *Calc) Name(name string, sheet int) (string, bool) {
 	global := ""
 	found := false

@@ -159,12 +159,12 @@ type workbook struct {
 	stale bool
 }
 
-func openWorkbook(_ string, data []byte, l Limits) (*ot.Tree, trame.File, error) {
+func openWorkbook(name string, data []byte, l Limits) (*ot.Tree, trame.File, error) {
 	doc, tree, err := xlsx.Open(data, l.xlsx())
 	if err != nil {
 		return nil, nil, err
 	}
-	return tree, &workbook{doc: doc, calc: xlsx.NewCalc(tree, formula.Options{})}, nil
+	return tree, &workbook{doc: doc, calc: xlsx.NewCalc(tree, formula.Options{FileName: path.Base(name)})}, nil
 }
 
 func openCSV(name string, data []byte, _ Limits) (*ot.Tree, trame.File, error) {
@@ -172,7 +172,7 @@ func openCSV(name string, data []byte, _ Limits) (*ot.Tree, trame.File, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	return tree, &workbook{doc: doc, calc: xlsx.NewCalc(tree, formula.Options{})}, nil
+	return tree, &workbook{doc: doc, calc: xlsx.NewCalc(tree, formula.Options{FileName: path.Base(name)})}, nil
 }
 
 func (w *workbook) Check(doc *ot.Tree, e ot.Edit, by Peer) (err error) {

@@ -43,6 +43,9 @@ type Options struct {
 	// Iteration calculates the formulas of a circle again and again, as
 	// the workbook asks; without, they hold 0, as in Excel.
 	Iteration *Iteration
+	// FileName is the name of the document, which CELL("filename") puts
+	// before the sheet's.
+	FileName string
 }
 
 // Iteration calculates a circle at most Count times, until no value
@@ -1348,6 +1351,23 @@ func (b *engineBook) TableAt(sheet, row, col int) (TableDef, bool) {
 		return tb.TableAt(sheet, row, col)
 	}
 	return TableDef{}, false
+}
+
+// FileName is the name of the sheet's workbook as CELL("filename") gives
+// it, empty when the source does not know it.
+func (b *engineBook) FileName(sheet int) string {
+	if fn, ok := b.src.(fileNames); ok {
+		return fn.FileName(sheet)
+	}
+	return ""
+}
+
+// SheetCount is the number of sheets of the workbook, for SHEETS().
+func (b *engineBook) SheetCount() int {
+	if sc, ok := b.src.(sheetCounter); ok {
+		return sc.SheetCount()
+	}
+	return 0
 }
 
 // Hidden tells whether a row is hidden, and whether by a filter, when the
