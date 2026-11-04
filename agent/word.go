@@ -127,7 +127,22 @@ func (a *Agent) describe(r revision) Revision {
 
 // word runs f on the document if it is a Word one.
 func (a *Agent) word(f func(s *state) error) error {
-	if !a.isWord() {
+	return a.on(a.isWord, f)
+}
+
+var (
+	wordKinds  = map[string]bool{".docx": true, ".docm": true, ".dotx": true, ".dotm": true}
+	slideKinds = map[string]bool{".pptx": true, ".pptm": true, ".ppsx": true, ".potx": true, ".potm": true}
+	sheetKinds = map[string]bool{".xlsx": true, ".xlsm": true, ".xltx": true, ".xltm": true, ".csv": true}
+)
+
+func (a *Agent) isWord() bool   { return wordKinds[a.kind] }
+func (a *Agent) isSlides() bool { return slideKinds[a.kind] }
+func (a *Agent) isSheets() bool { return sheetKinds[a.kind] }
+
+// on runs f on the document if is tells it is of its kind.
+func (a *Agent) on(is func() bool, f func(s *state) error) error {
+	if !is() {
 		return ErrUnsupported
 	}
 	a.mu.Lock()
@@ -136,14 +151,6 @@ func (a *Agent) word(f func(s *state) error) error {
 		return a.err
 	}
 	return f(a.s)
-}
-
-func (a *Agent) isWord() bool {
-	switch a.kind {
-	case ".docx", ".docm", ".dotx", ".dotm":
-		return true
-	}
-	return false
 }
 
 // eachParagraph calls f with the paragraphs under parent, in order, and

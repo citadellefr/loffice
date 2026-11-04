@@ -43,8 +43,25 @@ type Batch struct {
 //   - reply: Text answers the comment Comment;
 //   - accept, reject: Revision, an id Revisions gives.
 //
-// PowerPoint will take the same edits on the paragraphs of its shapes, and
-// Excel replace on cells named as blocks.
+// In PowerPoint, blocks are the ids of slides and shapes:
+//
+//   - text: the paragraphs of Text, one a line, are all the text of the
+//     shape Block;
+//   - shape: a text box with Text goes on the slide Block, at Box;
+//   - slide: a slide of the layout Layout, an id or a name, goes after the
+//     slide Block, at the end when Block is empty;
+//   - delete: the slide or shape Block goes;
+//   - notes: Text is all the notes of the slide Block;
+//   - comment: Text comments the slide Block.
+//
+// In Excel, Sheet is the name of a sheet and Range an area of it in A1
+// style:
+//
+//   - cells: Values, rows of values from the top left cell of Range, set
+//     the cells: a number, a string, true or false, a string starting with
+//     = for a formula, nil to empty a cell;
+//   - insert_rows, delete_rows: the rows of Range, such as 5:7;
+//   - insert_columns, delete_columns: the columns of Range, such as C:D.
 type Edit struct {
 	Op       string            `json:"op"`
 	Block    string            `json:"block,omitempty"`
@@ -54,6 +71,20 @@ type Edit struct {
 	Format   map[string]string `json:"format,omitempty"`
 	Comment  string            `json:"comment,omitempty"`
 	Revision string            `json:"revision,omitempty"`
+	Layout   string            `json:"layout,omitempty"`
+	Box      *Box              `json:"box,omitempty"`
+	Sheet    string            `json:"sheet,omitempty"`
+	Range    string            `json:"range,omitempty"`
+	Values   [][]any           `json:"values,omitempty"`
+}
+
+// Box is where a shape goes on its slide, in points from its top left
+// corner.
+type Box struct {
+	X float64 `json:"x"`
+	Y float64 `json:"y"`
+	W float64 `json:"w"`
+	H float64 `json:"h"`
 }
 
 // Record is a batch the agent applied: the version it made, the user it
@@ -75,6 +106,9 @@ type Preview struct {
 
 // Preview tells what the batch would do, changing nothing.
 func (a *Agent) Preview(b Batch) (Preview, error) {
+	if a.direct() {
+		return a.previewDirect(b)
+	}
 	var out Preview
 	err := a.word(func(s *state) error {
 		_, work, err := a.plan(b, a.date())
@@ -99,7 +133,7 @@ func (a *Agent) Preview(b Batch) (Preview, error) {
 // Apply makes the batch, once the host's Allow agrees, and returns what it
 // recorded.
 func (a *Agent) Apply(ctx context.Context, b Batch) (Record, error) {
-	if !a.isWord() {
+	if !a.isWord() && !a.direct() {
 		return Record{}, ErrUnsupported
 	}
 	if a.opt.Allow != nil {
@@ -127,7 +161,7 @@ func (a *Agent) Apply(ctx context.Context, b Batch) (Record, error) {
 		a.mu.Unlock()
 		return Record{}, err
 	}
-	f, err := a.submit(ctx, e)
+	f, err := a.submit(ctx, &flight{edit: e, owner: b.OnBehalfOf, batch: slices.Clone(b.Edits)})
 	if f != nil && err != nil {
 		unlock = nil
 		go a.settle(f, b, date)
@@ -137,7 +171,9 @@ func (a *Agent) Apply(ctx context.Context, b Batch) (Record, error) {
 		return Record{}, err
 	}
 	rec := a.record(f, b, date)
-	if c, ok := cursorAfter(f.applied); ok {
+	if a.direct() {
+		_ = a.publish()
+	} else if c, ok := cursorAfter(f.applied); ok {
 		_ = a.show(c)
 	}
 	return rec, nil
@@ -163,7 +199,13 @@ func (a *Agent) settle(f *flight, b Batch, date time.Time) {
 }
 
 // UndoMine rejects the revisions the agent made for user, and only those.
+// In a document without revisions, it takes back the agent's edits for
+// user in this session, unless someone else changed the same content
+// since.
 func (a *Agent) UndoMine(ctx context.Context, user string) (Record, error) {
+	if a.direct() {
+		return a.undoDirect(ctx, user)
+	}
 	for {
 		var b Batch
 		err := a.word(func(s *state) error {
@@ -244,7 +286,7 @@ func (a *Agent) plan(b Batch, date time.Time) (ot.Edit, *state, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	p := &planner{orig: a.s, s: a.s.clone(), base: base, name: a.peer.Name, date: date.Format(time.RFC3339), direct: b.Direct}
+	p := &planner{orig: a.s, s: a.s.clone(), base: base, name: a.peer.Name, date: date.Format(time.RFC3339), direct: b.Direct, kind: a.kind}
 	v := a.s.version + 1
 	var out ot.Edit
 	for i, ed := range b.Edits {
@@ -262,6 +304,9 @@ func (a *Agent) plan(b Batch, date time.Time) (ot.Edit, *state, error) {
 	if len(out) == 0 {
 		return nil, nil, fmt.Errorf("%w: nothing to change", ErrInvalid)
 	}
+	if a.isSheets() && len(split(out)) > 1 {
+		return nil, nil, fmt.Errorf("%w: rows and columns are inserted or deleted in a batch of their own", ErrInvalid)
+	}
 	p.s.version = v
 	return out, p.s, nil
 }
@@ -274,9 +319,16 @@ type planner struct {
 	name    string
 	date    string
 	direct  bool
+	kind    string
 }
 
 func (p *planner) edit(e Edit) (ot.Edit, error) {
+	switch {
+	case slideKinds[p.kind]:
+		return p.slideEdit(e)
+	case sheetKinds[p.kind]:
+		return p.sheetEdit(e)
+	}
 	switch e.Op {
 	case "replace":
 		return p.replace(e)

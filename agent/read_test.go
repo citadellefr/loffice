@@ -39,7 +39,7 @@ func TestOutlineSearchRevisions(t *testing.T) {
 }
 
 func TestUnsupported(t *testing.T) {
-	a := &Agent{kind: ".xlsx"}
+	a := &Agent{kind: ".txt"}
 	if _, _, err := a.Read(Markdown); !errors.Is(err, ErrUnsupported) {
 		t.Fatal(err)
 	}
