@@ -22,6 +22,7 @@ const (
 var chartParts = map[string]bool{
 	relBase + "chartUserShapes": true,
 	relBase + "package":         true,
+	relBase + "themeOverride":   true,
 	"http://schemas.microsoft.com/office/2011/relationships/chartStyle":      true,
 	"http://schemas.microsoft.com/office/2011/relationships/chartColorStyle": true,
 }

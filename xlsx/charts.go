@@ -227,6 +227,9 @@ const (
 	maxCharts      = 256
 	maxChartSeries = 255
 	maxChartTitle  = 255
+	// maxChartRead bounds the cells an edit makes the charts of a sheet
+	// read anew.
+	maxChartRead = 1 << 20
 )
 
 // checkCharts tells whether charts are those the sheet id had, moved,
@@ -245,22 +248,22 @@ func (d *Document) checkCharts(tree *ot.Tree, id string, raw json.RawMessage) bo
 		current[p.ID] = p.Chart
 	}
 	seen := map[string]bool{}
+	read := maxChartRead
 	for _, p := range list {
 		if p.ID != "" && (!had[p.ID] || seen[p.ID]) || p.ID == "" && (p.From == nil || p.To == nil) || p.Chart == nil ||
-			p.Source != "" && (p.ID != "" || !checkChartSource(p.Source)) || !checkAnchor(p) || !checkChart(p.Chart, current[p.ID]) {
+			p.Source != "" && p.ID != "" || !checkAnchor(p) || !checkChart(p.Chart, current[p.ID], &read) {
 			return false
+		}
+		if p.Source != "" {
+			n := chartRefCells(p.Source, false)
+			read -= n
+			if n == 0 || n > maxChartCells {
+				return false
+			}
 		}
 		seen[p.ID] = true
 	}
-	return true
-}
-
-// checkChartSource tells whether source is an area a chart can be drawn
-// from: no more series than a plot holds, nor cells than a series reads.
-func checkChartSource(source string) bool {
-	r, ok := chartRef(source, "")
-	rows, cols := r.Area.R2-r.Area.R1+1, r.Area.C2-r.Area.C1+1
-	return ok && min(rows, cols) <= maxChartSeries+1 && max(rows, cols) <= maxChartCells+1
+	return read >= 0
 }
 
 func checkAnchor(p Placed) bool {
@@ -287,21 +290,22 @@ var (
 
 // checkChart tells whether c is a chart of the kinds charts are made in,
 // or old, the chart as the sheet holds it, with only what can be edited
-// changed: what c keeps of old is not bounded again.
-func checkChart(c, old *chart.Chart) bool {
+// changed: what c keeps of old is not bounded again. What it reads anew
+// comes off read.
+func checkChart(c, old *chart.Chart, read *int) bool {
 	if old == nil {
 		old = &chart.Chart{}
 	}
-	if len(c.Plots) == 0 || len(c.Plots) > max(4, len(old.Plots)) || c.Title != nil && !checkChartTitle(c.Title) ||
+	if len(c.Plots) == 0 || len(c.Plots) > max(4, len(old.Plots)) || !checkChartTitle(c.Title, old.Title) ||
 		c.Legend != nil && !slices.Contains(legendPlaces, c.Legend.Pos) {
 		return false
 	}
-	series := map[int64]bool{}
+	axes := map[int64]chart.Axis{}
 	for _, a := range old.Axes {
-		series[a.ID] = a.Kind == "ser"
+		axes[a.ID] = a
 	}
 	for _, a := range c.Axes {
-		if a.Title != nil && !checkChartTitle(a.Title) || !slices.Contains(axisKinds, a.Kind) || a.Kind == "ser" && !series[a.ID] || !slices.Contains(axisPositions, a.Pos) ||
+		if !checkChartTitle(a.Title, axes[a.ID].Title) || !slices.Contains(axisKinds, a.Kind) || a.Kind == "ser" && axes[a.ID].Kind != "ser" || !slices.Contains(axisPositions, a.Pos) ||
 			!slices.Contains(axisCrosses, a.Crosses) || !slices.Contains(axisBetweens, a.Between) {
 			return false
 		}
@@ -330,8 +334,7 @@ func checkChart(c, old *chart.Chart) bool {
 				return false
 			}
 			for _, d := range []*chart.Data{s.Name, s.Cat, s.Val, s.Size} {
-				if d != nil && !kept[string(mustJSON(d))] && (d.Ref != "" && !checkChartRef(d.Ref, true) || d.Count < 0 ||
-					d.Count > maxChartCells || len(d.Num) > maxChartCells || len(d.Str) > maxChartCells || len(d.Levels) > 0 && d.Ref == "") {
+				if d != nil && !kept[string(mustJSON(d))] && !checkChartData(d, read) {
 					return false
 				}
 			}
@@ -340,13 +343,34 @@ func checkChart(c, old *chart.Chart) bool {
 	return true
 }
 
-func checkChartTitle(t *chart.Title) bool {
-	return len(utf16.Encode([]rune(t.Text))) <= maxChartTitle && strings.IndexFunc(t.Text, func(r rune) bool { return unicode.IsControl(r) && r != '\n' }) < 0
+func checkChartData(d *chart.Data, read *int) bool {
+	if d.Ref != "" {
+		n := chartRefCells(d.Ref, true)
+		*read -= n
+		if n == 0 {
+			return false
+		}
+	}
+	return d.Count >= 0 && d.Count <= maxChartCells && len(d.Num) <= maxChartCells && len(d.Str) <= maxChartCells &&
+		(len(d.Levels) == 0 || d.Ref != "") && chartText(d.Format) && !slices.ContainsFunc(d.Str, func(s string) bool { return !chartText(s) })
 }
 
-// checkChartRef tells whether ref is an area of cells a chart reads: a
-// row or column when flat is set.
-func checkChartRef(ref string, flat bool) bool {
+func checkChartTitle(t, old *chart.Title) bool {
+	return t == nil || old != nil && t.Text == old.Text || len(utf16.Encode([]rune(t.Text))) <= maxChartTitle && chartText(t.Text)
+}
+
+// chartText tells whether s holds no character XML cannot.
+func chartText(s string) bool {
+	return strings.IndexFunc(s, func(r rune) bool { return unicode.IsControl(r) && r != '\n' && r != '\t' && r != '\r' }) < 0
+}
+
+// chartRefCells is the cells of ref, an area a chart reads, a row or
+// column when flat is set; 0 for anything else.
+func chartRefCells(ref string, flat bool) int {
 	r, ok := chartRef(ref, "")
-	return ok && (!flat || r.Area.R1 == r.Area.R2 || r.Area.C1 == r.Area.C2)
+	rows, cols := r.Area.R2-r.Area.R1+1, r.Area.C2-r.Area.C1+1
+	if !ok || flat && rows > 1 && cols > 1 {
+		return 0
+	}
+	return rows * cols
 }

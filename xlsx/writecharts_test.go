@@ -276,6 +276,22 @@ func TestChartCheck(t *testing.T) {
 	p = inserted("bar", "")
 	p.Source = "A1:XFD60000"
 	bad["source too large"] = []Placed{p}
+	p = inserted("bar", "")
+	p.Source = "A1:IV20000"
+	bad["source of many cells"] = []Placed{p}
+	var many []Placed
+	for range 17 {
+		p = inserted("bar", "")
+		p.Source = "A1:A65536"
+		many = append(many, p)
+	}
+	bad["sources of many cells"] = many
+	l = clone()
+	l[0].Chart.Plots[0].Series[0].Name = &chart.Data{Count: 1, Str: []string{"a\x01b"}}
+	bad["control character"] = l
+	l = clone()
+	l[0].Chart.Plots[0].Series[0].Val.Format = "\x02"
+	bad["control character in a format"] = l
 	for why, l := range bad {
 		if d.Check(tree, ot.Edit{{Op: ot.OpSet, ID: id, Attrs: ot.Values{chartsKey: mustJSON(l)}}}, "") == nil {
 			t.Errorf("%s taken", why)
@@ -355,5 +371,96 @@ func TestChartUnreadKept(t *testing.T) {
 	}
 	if !bytes.Equal(chartPart(t, out, name), []byte(`<oops/>`)) || !bytes.Contains(chartPart(t, out, "xl/drawings/drawing1.xml"), []byte("graphicFrame")) {
 		t.Error("a chart not read is removed")
+	}
+}
+
+func TestChartTitleKept(t *testing.T) {
+	long := &chart.Title{Text: strings.Repeat("a", maxChartTitle+1)}
+	if !checkChartTitle(long, &chart.Title{Text: long.Text}) || checkChartTitle(long, nil) {
+		t.Error("a title too long is refused only when it changes")
+	}
+}
+
+func TestChartCategoriesTurnText(t *testing.T) {
+	_, d, tree, c, id := chartSaved(t)
+	chartFollowed(t, d, tree, c, ot.Edit{{Op: ot.OpCel, ID: id, Cells: []ot.Cell{cell(2, 1, `{"v":2001}`), cell(3, 1, `{"v":2002}`), cell(4, 1, `{"v":2003}`)}}})
+	list := chartsOf(tree, id)
+	s := list[0].Chart.Plots[0].Series
+	for i := range s {
+		ref := s[i].Cat.Ref
+		s[i].Cat = &chart.Data{Ref: ref, Count: 3, Num: []*float64{ptr(2001), ptr(2002), ptr(2003)}}
+	}
+	setCharts(t, d, tree, c, id, list)
+	_, d, tree = savedChart(t, d, tree, "numeric-categories.xlsx")
+	if s := chartsOf(tree, id)[0].Chart.Plots[0].Series[0]; s.Cat.Num == nil {
+		t.Fatalf("categories: %+v", s.Cat)
+	}
+	c = NewCalc(tree, formula.Options{})
+	chartFollowed(t, d, tree, c, ot.Edit{{Op: ot.OpCel, ID: id, Cells: []ot.Cell{cell(3, 1, `{"v":"deux"}`)}}})
+	_, _, tree = savedChart(t, d, tree, "text-category.xlsx")
+	cat := chartsOf(tree, id)[0].Chart.Plots[0].Series[0].Cat
+	if cat.Num != nil || strings.Join(cat.Str, " ") != "2001 deux 2003" {
+		t.Errorf("categories: %+v", cat)
+	}
+}
+
+func ptr(v float64) *float64 { return &v }
+
+// redrawn is the chart book saved with its drawing changed by change.
+func redrawn(t *testing.T, change func(drawing string) string) (*Document, *ot.Tree, string) {
+	t.Helper()
+	data, _, _, _, id := chartSaved(t)
+	pkg, err := opc.Open(data, opc.Limits{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const name = "xl/drawings/drawing1.xml"
+	if err := pkg.Set(name, []byte(change(string(chartPart(t, data, name))))); err != nil {
+		t.Fatal(err)
+	}
+	if data, err = pkg.Bytes(); err != nil {
+		t.Fatal(err)
+	}
+	d, tree, err := Open(data, Limits{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return d, tree, id
+}
+
+func TestChartGroupedRemoved(t *testing.T) {
+	d, tree, id := redrawn(t, func(s string) string {
+		frame := regexp.MustCompile(`(?s)<xdr:graphicFrame.*</xdr:graphicFrame>`).FindString(s)
+		group := `<xdr:grpSp><xdr:nvGrpSpPr><xdr:cNvPr id="9" name="Groupe"/><xdr:cNvGrpSpPr/></xdr:nvGrpSpPr><xdr:grpSpPr/>` + frame + `</xdr:grpSp>`
+		return strings.Replace(s, frame, group, 1)
+	})
+	if len(chartsOf(tree, id)) != 1 {
+		t.Fatal("grouped chart not read")
+	}
+	setCharts(t, d, tree, NewCalc(tree, formula.Options{}), id, []Placed{})
+	out, _, _ := savedChart(t, d, tree, "grouped.xlsx")
+	drawing := chartPart(t, out, "xl/drawings/drawing1.xml")
+	if !bytes.Contains(drawing, []byte("grpSp")) || bytes.Contains(drawing, []byte("graphicFrame")) || chartPart(t, out, "xl/charts/chart1.xml") != nil {
+		t.Errorf("drawing:\n%s", drawing)
+	}
+}
+
+func TestChartAnchoredTwice(t *testing.T) {
+	d, tree, id := redrawn(t, func(s string) string {
+		anchor := regexp.MustCompile(`(?s)<xdr:twoCellAnchor.*</xdr:twoCellAnchor>`).FindString(s)
+		return strings.Replace(s, anchor, anchor+anchor, 1)
+	})
+	list := chartsOf(tree, id)
+	if len(list) != 1 {
+		t.Fatalf("charts: %d", len(list))
+	}
+	list[0].From.Col++
+	if err := d.Check(tree, ot.Edit{{Op: ot.OpSet, ID: id, Attrs: ot.Values{chartsKey: mustJSON(list)}}}, ""); err != nil {
+		t.Error(err)
+	}
+	setCharts(t, d, tree, NewCalc(tree, formula.Options{}), id, []Placed{})
+	out, _, _ := savedChart(t, d, tree, "anchored-twice.xlsx")
+	if bytes.Contains(chartPart(t, out, "xl/drawings/drawing1.xml"), []byte("graphicFrame")) || chartPart(t, out, "xl/charts/chart1.xml") != nil {
+		t.Error("an anchor of a chart removed stays")
 	}
 }

@@ -3,6 +3,7 @@ package xlsx
 import (
 	"bytes"
 	"encoding/json"
+	"slices"
 	"strings"
 
 	"github.com/citadellefr/loffice/chart"
@@ -128,6 +129,21 @@ func (c *chartCells) data(ref, own string, text bool) (*chart.Data, bool) {
 	return d, true
 }
 
+// holdsText tells whether a cell of ref holds what is no number.
+func (c *chartCells) holdsText(ref, own string) bool {
+	numbers, ok := c.data(ref, own, false)
+	if !ok {
+		return false
+	}
+	texts, _ := c.data(ref, own, true)
+	for i, n := range numbers.Num {
+		if n == nil && texts.Str[i] != "" {
+			return true
+		}
+	}
+	return false
+}
+
 func (c *chartCells) text(v formula.Value, f *formula.Format) string {
 	switch v.Type {
 	case formula.TypeNumber:
@@ -165,15 +181,17 @@ func refresh(want, had *chart.Chart, own string, now, then *chartCells) {
 		for j := range want.Plots[i].Series {
 			s := &want.Plots[i].Series[j]
 			var h *chart.Series
-			if had != nil && i < len(had.Plots) && j < len(had.Plots[i].Series) {
-				h = &had.Plots[i].Series[j]
+			if had != nil && i < len(had.Plots) {
+				if k := slices.IndexFunc(had.Plots[i].Series, func(o chart.Series) bool { return o.Index == s.Index }); k >= 0 {
+					h = &had.Plots[i].Series[k]
+				}
 			}
 			field := func(get func(*chart.Series) *chart.Data, numbers bool) {
 				d := get(s)
 				if d == nil || d.Ref == "" || d.Levels != nil {
 					return
 				}
-				text := !numbers && d.Num == nil
+				text := !numbers && (d.Num == nil || now.holdsText(d.Ref, own))
 				fresh, ok := now.data(d.Ref, own, text)
 				if !ok {
 					return
