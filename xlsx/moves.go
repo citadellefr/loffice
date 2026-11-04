@@ -13,9 +13,9 @@ import (
 	"github.com/citadellefr/trame/ot"
 )
 
-// ErrTable refuses rows or columns inserted or removed across a table,
-// whose columns and header the workbook would lose.
-var ErrTable = errors.New("xlsx: rows or columns cannot be inserted or removed across a table")
+// ErrTable refuses rows removed from the header of a table or all of its
+// body, which the table cannot be without.
+var ErrTable = errors.New("xlsx: rows cannot be removed from the header or all of the body of a table")
 
 const (
 	relDrawing     = relBase + "drawing"
@@ -69,44 +69,26 @@ func (d *Document) movesOf(tree *ot.Tree) []move {
 	return append([]move(nil), d.moves[:min(max(n, 0), len(d.moves))]...)
 }
 
-// tablesOf are the areas of the tables of a sheet, as its moves left
-// them.
-func (d *Document) tablesOf(sheet string) []formula.Area {
-	d.movesMu.Lock()
-	defer d.movesMu.Unlock()
-	var out []formula.Area
-	for _, a := range d.tables[sheet] {
-		ok := true
-		for _, m := range d.moves {
-			if m.sheet != sheet || !ok {
-				continue
-			}
-			ref, err := formula.Shift(a.String(), "", true, m.rows, m.at, m.n)
-			if a, ok = formula.ParseArea(ref); !ok || err != nil {
-				ok = false
-			}
-		}
-		if ok {
-			out = append(out, a)
-		}
+// checkTables refuses rows removed from the header of a table or all of
+// its body, unless the whole table goes with them.
+func checkTables(tree *ot.Tree, c ot.Change) error {
+	if c.Dim != ot.DimRows || c.Op != ot.OpRem {
+		return nil
 	}
-	return out
-}
-
-// checkTables refuses a change that would cut through a table: columns
-// inserted or removed inside it, rows removed from its header or all of
-// its body.
-func (d *Document) checkTables(c ot.Change) error {
-	n := c.N
-	for _, t := range d.tablesOf(c.ID) {
-		if c.Dim == ot.DimRows {
-			end := c.At + n - 1
-			if c.Op == ot.OpRem && end >= t.R1 && c.At <= t.R2 && !(c.At > t.R1 && end < t.R2) {
-				return ErrTable
-			}
+	n := tree.Node(c.ID)
+	if n == nil {
+		return nil
+	}
+	var tables []Table
+	_ = json.Unmarshal(n.Attrs[tablesKey], &tables)
+	end := c.At + c.N - 1
+	for _, t := range tables {
+		a := t.area()
+		first, last := t.body()
+		if c.At <= a.R1 && end >= a.R2 || end < a.R1 || c.At > a.R2 {
 			continue
 		}
-		if c.Op == ot.OpIns && c.At > t.C1 && c.At <= t.C2 || c.Op == ot.OpRem && c.At+n-1 >= t.C1 && c.At <= t.C2 {
+		if !t.NoHeader && c.At <= a.R1 || c.At <= first && end >= last {
 			return ErrTable
 		}
 	}
@@ -239,8 +221,8 @@ func (m *mover) sheet(e *xmldom.Element, own string) bool {
 var vmlAnchor = regexp.MustCompile(`<x:(Row|Column)>(\d+)</x:(?:Row|Column)>`)
 
 // moveParts moves what the parts around the sheets written hold: the anchors
-// of drawings, the areas of tables and pivot tables, and the
-// formulas of charts and pivot caches.
+// of drawings, the areas of the tables the tree does not hold and of pivot
+// tables, and the formulas of charts and pivot caches.
 func (w *writer) moveParts(sheets []sheet) error {
 	m := w.mover()
 	edit := func(name string, change func(root *xmldom.Element) bool) error {
@@ -278,7 +260,9 @@ func (w *writer) moveParts(sheets []sheet) error {
 			case relDrawing:
 				err = edit(name, func(root *xmldom.Element) bool { return m.anchors(root, own) })
 			case relTable:
-				err = edit(name, func(root *xmldom.Element) bool { return m.areas(root, own) })
+				if !w.tableNames[name] {
+					err = edit(name, func(root *xmldom.Element) bool { return m.areas(root, own) })
+				}
 			case relPivotTable:
 				err = edit(name, func(root *xmldom.Element) bool { return m.areas(root, own) })
 			}

@@ -77,11 +77,13 @@ class CellPainter {
   late final double Function(int row) height;
 
   late final looks = book.looks(sheet);
+  late final tables = book.tables(sheet);
 
-  /// The format of a cell, with what its conditional formats change.
+  /// The format of a cell, with what its conditional formats change and
+  /// what the style of its table gives it.
   CellStyle _style(Cell c) {
     final id = c.fields['s'] as String?;
-    return looks.style(book.style(id), id, c.row, c.col);
+    return tables.style(looks.style(book.style(id), id, c.row, c.col), c.row, c.col);
   }
 
   Rect _rect(int r1, int c1, int r2, int c2) => Rect.fromLTRB(x(c1), y(r1), x(c2) + width(c2) * zoom, y(r2) + height(r2) * zoom);
@@ -131,6 +133,12 @@ class CellPainter {
       final held = {for (final c in cells) (c.row, c.col)};
       for (final c in looks.grid.rows(area.top, area.bottom)) {
         if (c.col >= area.left && c.col <= area.right && !held.contains((c.row, c.col))) cells.add(Cell(c.row, c.col, const {}));
+      }
+    }
+    if (!tables.isEmpty) {
+      final held = {for (final c in cells) (c.row, c.col)};
+      for (final (r, c) in tables.cells(area)) {
+        if (!held.contains((r, c))) cells.add(Cell(r, c, const {}));
       }
     }
     for (final e in colStyles.entries) {

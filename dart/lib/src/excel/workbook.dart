@@ -7,6 +7,7 @@ import '../drawing/color.dart';
 import 'conditional.dart';
 import 'formula_text.dart';
 import 'number_format.dart';
+import 'tables.dart';
 import 'validation.dart';
 
 /// The theme colors of a workbook in the order its cells count them.
@@ -44,6 +45,7 @@ class Workbook {
   final _styles = <String, CellStyle>{};
   final _layouts = <String, (Node, SheetLayout)>{};
   final _looks = <String, (Node, Node?, SheetLooks)>{};
+  final _tables = <String, (Node, SheetTables)>{};
 
   /// The sheets in order, chart sheets included.
   List<Node> get sheets => [
@@ -79,6 +81,16 @@ class Workbook {
     final l = SheetLooks(this, sheet, node);
     _looks[sheet.id] = (sheet, node, l);
     return l;
+  }
+
+  /// The tables of a sheet and what their styles give their cells, kept
+  /// until the sheet changes.
+  SheetTables tables(Node sheet) {
+    final cached = _tables[sheet.id];
+    if (cached != null && identical(cached.$1, sheet)) return cached.$2;
+    final t = SheetTables(this, sheet);
+    _tables[sheet.id] = (sheet, t);
+    return t;
   }
 
   /// The sheet and area a reference or a defined name points to, the
@@ -237,7 +249,8 @@ class CellStyle {
 
   NumberFormat get format => NumberFormat(formatCode);
 
-  CellStyle withFill(Color fill) => CellStyle._(json, formatCode, font, fill, left, right, top, bottom, align);
+  CellStyle copyWith({Color? fill, CellFont? font, Edge? left, Edge? right, Edge? top, Edge? bottom}) =>
+      CellStyle._(json, formatCode, font ?? this.font, fill ?? this.fill, left ?? this.left, right ?? this.right, top ?? this.top, bottom ?? this.bottom, align);
 
   String? get horizontal => align['h'] as String?;
 

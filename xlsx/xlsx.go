@@ -117,11 +117,11 @@ type Document struct {
 	order  []string
 	loaded *ot.Tree
 	// moves are the rows and columns inserted and removed since the
-	// workbook was read, and tables the areas of its tables as read, by
-	// sheet.
+	// workbook was read.
 	movesMu sync.Mutex
 	moves   []move
-	tables  map[string][]formula.Area
+	// tableParts are the parts of the tables read, by id.
+	tableParts map[int]tablePart
 	// cellData is the size of the fields of the cells read.
 	cellData int
 	// trusted are the hashes of the XML the cells carry: only that may be
@@ -160,7 +160,7 @@ func Open(data []byte, limits Limits) (*Document, *ot.Tree, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	d := &Document{limits: limits, original: data, pkg: pkg, sheets: map[string]*sheetPart{}, tables: map[string][]formula.Area{}, trusted: map[uint64]bool{}, seed: maphash.MakeSeed()}
+	d := &Document{limits: limits, original: data, pkg: pkg, sheets: map[string]*sheetPart{}, tableParts: map[int]tablePart{}, trusted: map[uint64]bool{}, seed: maphash.MakeSeed()}
 	root, err := pkg.Relationships("")
 	if err != nil {
 		return nil, nil, err

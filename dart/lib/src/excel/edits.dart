@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:trame/trame.dart';
 
+import 'formula_text.dart';
 import 'print.dart';
 import 'sheet_comments.dart';
 import 'workbook.dart';
@@ -574,6 +575,12 @@ String moveFormula(String f, int rows, int cols) {
       }
       b.write(f.substring(i, (j + 1).clamp(0, f.length)));
       i = j + 1;
+      continue;
+    }
+    if (c == '[') {
+      final end = bracketEnd(f, i);
+      b.write(f.substring(i, end));
+      i = end;
       continue;
     }
     final m = ref.matchAsPrefix(f, i);

@@ -17,6 +17,8 @@ type (
 	refExpr    struct{ ref *Ref }
 	// nameExpr is a defined name, possibly of another sheet.
 	nameExpr struct{ sheet, name string }
+	// structExpr is a structured reference to a table.
+	structExpr struct{ s Structured }
 	// unaryExpr is -x, +x, or @x, the implicit intersection.
 	unaryExpr struct {
 		op byte
@@ -59,6 +61,7 @@ func (boolExpr) expr()    {}
 func (errorExpr) expr()   {}
 func (refExpr) expr()     {}
 func (nameExpr) expr()    {}
+func (structExpr) expr()  {}
 func (unaryExpr) expr()   {}
 func (percentExpr) expr() {}
 func (spillExpr) expr()   {}
@@ -225,7 +228,7 @@ func (p *parser) intersection() (Expr, error) {
 // refLike tells whether an expression may stand for a reference.
 func refLike(e Expr) bool {
 	switch e := e.(type) {
-	case refExpr, nameExpr, callExpr, invokeExpr:
+	case refExpr, nameExpr, structExpr, callExpr, invokeExpr:
 		return true
 	case binaryExpr:
 		return e.op == ":" || e.op == " " || e.op == ","
@@ -278,6 +281,9 @@ func (p *parser) primary() (Expr, error) {
 	case Reference:
 		return refExpr{t.Ref}, nil
 	case Name:
+		if s, ok := ParseStructured(t.Text); ok {
+			return structExpr{s}, nil
+		}
 		sheet, name := "", t.Text
 		if i := strings.LastIndexByte(name, '!'); i >= 0 {
 			_, sheet, _ = splitPrefix(name[:i])
