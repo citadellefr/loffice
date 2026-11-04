@@ -5,6 +5,7 @@ import 'package:flutter/painting.dart';
 import '../chart/chart.dart';
 import '../chart/chart_painter.dart';
 import '../drawing/color.dart';
+import '../drawing/diagram.dart';
 import '../text/text_frame.dart';
 import 'blocks.dart';
 import 'document.dart';
@@ -58,11 +59,19 @@ class PagePainter {
     }
   }
 
-  /// Draws a chart or a picture once loaded; tells whether it could.
+  /// Draws a chart, a diagram or a picture once loaded; tells whether it could.
   bool _object(Canvas canvas, Map<String, Object?> picture, Rect rect) {
     final chart = _charts[picture] ??= ChartSpec.fromJson(picture['chart']);
     if (chart != null) {
       _chart(canvas, chart, rect);
+      return true;
+    }
+    final diagram = _diagrams[picture] ??= _diagram(picture['diagram']);
+    if (diagram != null) {
+      canvas.save();
+      canvas.translate(rect.left, rect.top);
+      diagram.paint(canvas);
+      canvas.restore();
       return true;
     }
     final media = picture['media'] as String?;
@@ -96,22 +105,24 @@ class PagePainter {
     );
   }
 
+  ColorContext get _colors => ColorContext(
+    scheme: {
+      for (final e in (context?.doc.themeColors ?? const <String, String>{}).entries)
+        if (hexColor(e.value) != null) e.key: hexColor(e.value)!,
+    },
+  );
+
+  Fonts get _fonts {
+    final doc = context?.doc, fonts = context?.fonts;
+    return Fonts(theme: (name) => doc?.typeface(name.startsWith('+mj') ? '+major' : '+minor') ?? 'Calibri', substitutes: fonts?.substitutes ?? Fonts.defaultSubstitutes, package: fonts?.package);
+  }
+
+  DiagramPainter? _diagram(Object? json) => DiagramPainter.of(json, colors: _colors, images: images, fonts: _fonts);
+
   void _chart(Canvas canvas, ChartSpec chart, Rect rect) {
-    final doc = context?.doc;
-    final colors = ColorContext(
-      scheme: {
-        for (final e in (doc?.themeColors ?? const <String, String>{}).entries)
-          if (hexColor(e.value) != null) e.key: hexColor(e.value)!,
-      },
-    );
-    final fonts = context?.fonts;
     canvas.save();
     canvas.translate(rect.left, rect.top);
-    ChartPainter(
-      chart,
-      colors: colors,
-      fonts: Fonts(theme: (name) => doc?.typeface(name.startsWith('+mj') ? '+major' : '+minor') ?? 'Calibri', substitutes: fonts?.substitutes ?? Fonts.defaultSubstitutes, package: fonts?.package),
-    ).paint(canvas, rect.size);
+    ChartPainter(chart, colors: _colors, fonts: _fonts).paint(canvas, rect.size);
     canvas.restore();
   }
 
@@ -192,3 +203,4 @@ Map<String, (Paint, double, double)>? jsonBorders(String json) {
 }
 
 final _charts = Expando<ChartSpec>();
+final _diagrams = Expando<DiagramPainter>();

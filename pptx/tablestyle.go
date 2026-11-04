@@ -23,10 +23,10 @@ type TableStylePart struct {
 	B string `json:"b,omitempty"`
 	I string `json:"i,omitempty"`
 	// Font is a typeface, or "+mn-lt" and "+mj-lt" for the theme's.
-	Font    string           `json:"font,omitempty"`
-	Color   *drawingml.Color `json:"color,omitempty"`
-	Fill    *drawingml.Fill  `json:"fill,omitempty"`
-	FillRef *StyleRef        `json:"fillRef,omitempty"`
+	Font    string              `json:"font,omitempty"`
+	Color   *drawingml.Color    `json:"color,omitempty"`
+	Fill    *drawingml.Fill     `json:"fill,omitempty"`
+	FillRef *drawingml.StyleRef `json:"fillRef,omitempty"`
 	// Borders are by edge: "left" "right" "top" "bottom", "insideH"
 	// "insideV" between the cells of the part, "tl2br" "tr2bl" across.
 	Borders map[string]*Border `json:"borders,omitempty"`
@@ -34,8 +34,8 @@ type TableStylePart struct {
 
 // Border is a line of its own or one of the theme's.
 type Border struct {
-	Line *drawingml.Line `json:"ln,omitempty"`
-	Ref  *StyleRef       `json:"ref,omitempty"`
+	Line *drawingml.Line     `json:"ln,omitempty"`
+	Ref  *drawingml.StyleRef `json:"ref,omitempty"`
 }
 
 var tableParts = []string{"wholeTbl", "band1H", "band2H", "band1V", "band2V", "lastCol", "firstCol", "lastRow", "firstRow", "seCell", "swCell", "neCell", "nwCell"}
@@ -105,13 +105,13 @@ func readCellStyle(p *TableStylePart, st *xmldom.Element, media func(string) str
 		p.Fill = drawingml.FillIn(f, media)
 	}
 	if ref := st.Child(aNS, "fillRef"); ref != nil {
-		p.FillRef = &StyleRef{Idx: ref.Get("idx"), Color: drawingml.ColorIn(ref)}
+		p.FillRef = &drawingml.StyleRef{Idx: ref.Get("idx"), Color: drawingml.ColorIn(ref)}
 	}
 	if bdr := st.Child(aNS, "tcBdr"); bdr != nil {
 		for _, edge := range bdr.Elements() {
 			b := &Border{Line: drawingml.ReadLine(edge.Child(aNS, "ln"))}
 			if ref := edge.Child(aNS, "lnRef"); ref != nil {
-				b.Ref = &StyleRef{Idx: ref.Get("idx"), Color: drawingml.ColorIn(ref)}
+				b.Ref = &drawingml.StyleRef{Idx: ref.Get("idx"), Color: drawingml.ColorIn(ref)}
 			}
 			if b.Line == nil && b.Ref == nil {
 				continue

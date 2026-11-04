@@ -386,3 +386,51 @@ func Relative(source, name string) string {
 	}
 	return strings.Repeat("../", len(from)-i) + strings.Join(to[i:], "/")
 }
+
+const (
+	// diagramDrawing is the relationship from a part to the drawing
+	// PowerPoint and Word record of a SmartArt, shaped and laid out.
+	diagramDrawing = "http://schemas.microsoft.com/office/2007/relationships/diagramDrawing"
+	diagramNS      = "http://schemas.microsoft.com/office/drawing/2008/diagram"
+)
+
+// DiagramDrawing is the part holding the drawing of the SmartArt whose data
+// model is the part data: the data names the relationship of source, the
+// part with the graphic, that leads to it. "" when it has none.
+func DiagramDrawing(pkg *opc.Package, source string, rels *Rels, data string) string {
+	content, err := pkg.Read(data)
+	if err != nil {
+		return ""
+	}
+	doc, err := xmldom.Parse(content)
+	if err != nil {
+		return ""
+	}
+	ext := find(doc.Root, "dataModelExt")
+	if ext == nil {
+		return ""
+	}
+	x, ok := rels.byID[ext.Get("relId")]
+	if !ok || x.Type != diagramDrawing || x.External {
+		return ""
+	}
+	name, err := opc.Resolve(source, x.Target)
+	if err != nil {
+		return ""
+	}
+	return name
+}
+
+// find is the first descendant of e in the namespace of the diagram
+// drawings named local.
+func find(e *xmldom.Element, local string) *xmldom.Element {
+	for _, c := range e.Elements() {
+		if c.Space == diagramNS && c.Local == local {
+			return c
+		}
+		if f := find(c, local); f != nil {
+			return f
+		}
+	}
+	return nil
+}
