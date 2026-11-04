@@ -79,3 +79,11 @@ dotnet run --project tools/validate -- corpus/files /tmp/out
 LOFFICE_EDITED=/tmp/edited go test ./pptx -run Edits   # a document edited
 LOFFICE_EDITED=1 dotnet run --project tools/validate -- corpus/files /tmp/edited
 ```
+
+`tools/validate/run.sh` does it for every family, rewritten then edited, as CI
+does. Without `dotnet` in the PATH it gets the SDK from nix, so nothing is
+installed on the machine:
+
+```sh
+tools/validate/run.sh /tmp/validate   # work directory, optional
+```
