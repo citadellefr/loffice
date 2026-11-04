@@ -26,6 +26,9 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 ### formula/value.go
 - **m96** (à_revérifier) Values of type TypeLambda never leave the calculation: a cell, scalar() and the engine's cellValue turn them into #CALC!. — _ag5, t11_
 
+### tools/validate/run.sh
+- **m121** tools/validate/run.sh [dossier [famille...]] lance toute la validation Open XML SDK (réécritures et éditions de opc, pptx, xlsx, legacy, docx) et prend dotnet de nix s'il manque dans le PATH ; il compile Validate.dll une fois dans <dossier>/validate. Les familles peuvent tourner en parallèle avec un même dossier ; opc (3641 fichiers) prend ~25 min, le total ~35 min. — _ag4, t29_
+
 ### xlsx/links.go
 - **m78** (à_revérifier) xlsx : les liens hypertexte sont le champ `link` de la cellule ({"url"|"loc","tip"}), lu par Document.links (xlsx/links.go) qui retire de la feuille les hyperlinks éditables ; ceux sur plus de 1024 cellules ou à adresse non canonique restent dans le XML de la feuille. Une fusion vérifiée par merges.apply (xlsx/merges.go) compare aux fusions de l'arbre. — _ag3, t14_
 
@@ -77,6 +80,9 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 ### internal/xmldom/xmldom_test.go
 - **m37** (à_revérifier) loffice : opc importe internal/xmldom (opc/strict.go). Un test d'internal/xmldom ou d'internal/xmltok (package interne) ne doit donc pas importer opc, sinon il y a un cycle d'import en test. Pour lire un zip dans ces tests, utiliser archive/zip. — _ag1, t7_
 
+### pptx/transition_test.go
+- **m122** `-run Edits` de pptx (CI, run.sh) n'écrit que 2 fichiers édités ; TestTransitions et TestComments écrivent aussi avec LOFFICE_EDITED (saveCorpus) mais sous des noms (comments/two.pptx) sans original : le validateur les ignore. Copier la sortie en <dossier>/poi/aptia.pptx pour la valider. — _ag4, t29_
+
 ### xlsx/
 - **m10** Dans loffice (et dans ses worktrees a4), lancer go avec GOWORK=off : le go.work parent (/home/me/Code/Citadelle/go.work) n'inclut ni loffice ni les worktrees, et go build/vet/test échouent sinon (« directory prefix . does not contain modules listed in go.work »). `go test ./xlsx` sans -short dure ≈ 4 min : le lancer en arrière-plan ou avec un délai long. dotnet, qpdf et soffice ne sont pas installés : nix est disponible (nix shell nixpkgs#dotnet-sdk_8 etc.) pour les obtenir sans toucher au système. — _ag6, t6_
 
@@ -111,7 +117,7 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m94** (à_revérifier) formula.Stored adds _xlpm. in front of LET/LAMBDA parameters and their uses in scope (rewrite.go params()), and _xlfn. in front of LET, LAMBDA, MAP, REDUCE, SCAN, BYROW, BYCOL, MAKEARRAY, ISOMITTED; the parser strips _xlpm. from names without a sheet. — _ag5, t11_
 
 ### mcp/tools.go
-- **m113** loffice MCP : l'outil select (curseur ou présence de l'IA) reste autorisé comme une lecture (Access.Write=false), décision de l'hôte Citadelle : la présence ne modifie pas le document. Aucun tag de version loffice (v0.12.0…) ne doit être posé ni publié sans l'accord transmis par sys:main/orchestra. — _orchestra_
+- **m113** (à_revérifier) loffice MCP : l'outil select (curseur ou présence de l'IA) reste autorisé comme une lecture (Access.Write=false), décision de l'hôte Citadelle : la présence ne modifie pas le document. Aucun tag de version loffice (v0.12.0…) ne doit être posé ni publié sans l'accord transmis par sys:main/orchestra. — _orchestra_
 
 ### opc/strict.go
 - **m36** (à_revérifier) loffice opc : dans un paquet OOXML Strict (Package.Strict()), Read rend chaque partie XML traduite en Transitional (espaces de noms, types de relations, pourcentages DrawingML « 75% » → 75000), et Set/Add retraduisent en Strict. Les lecteurs et writers des formats ne voient donc que du Transitional. Table et liste des attributs pourcentage : opc/strict.go. — _ag1, t7_
