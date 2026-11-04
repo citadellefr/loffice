@@ -16,6 +16,7 @@ if ! command -v dotnet >/dev/null; then
 	exec nix shell nixpkgs#dotnet-sdk_8 -c "$0" "$work" $families
 fi
 
+[ -f "$work/validate/Validate.dll" ] || dotnet build tools/validate -c Release -o "$work/validate" >/dev/null
 status=0
 rewrite() { # directory, package, test
 	rm -rf "$work/$1"
@@ -27,7 +28,7 @@ edit() { # directory, package, test, environment variable
 }
 validate() { # originals, directory, edited
 	echo "== $2"
-	LOFFICE_EDITED=${3:-} dotnet run --project tools/validate -c Release -- "$1" "$work/$2" || status=1
+	LOFFICE_EDITED=${3:-} dotnet "$work/validate/Validate.dll" "$1" "$work/$2" || status=1
 }
 
 for family in $families; do
