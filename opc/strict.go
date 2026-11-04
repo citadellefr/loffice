@@ -3,6 +3,7 @@ package opc
 import (
 	"bytes"
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -43,25 +44,6 @@ var strictNames = [][2]string{
 	{"http://purl.oclc.org/ooxml/drawingml/compatibility", "http://schemas.openxmlformats.org/drawingml/2006/compatibility"},
 }
 
-var toTransitional, toStrict = strictReplacers()
-
-// strictReplacers replace the names where they are attribute values, quoted,
-// which is where namespaces and relationship types are written.
-func strictReplacers() (*strings.Replacer, *strings.Replacer) {
-	var strict, transitional []string
-	for _, n := range strictNames {
-		for _, q := range []string{`"`, `'`} {
-			s, t := q+n[0], q+n[1]
-			if !strings.HasSuffix(s, "/") {
-				s, t = s+q, t+q
-			}
-			strict = append(strict, s, t)
-			transitional = append(transitional, t, s)
-		}
-	}
-	return strings.NewReplacer(strict...), strings.NewReplacer(transitional...)
-}
-
 // isStrict tells whether the package relationships point to a Strict main
 // part.
 func (p *Package) isStrict() bool {
@@ -82,19 +64,85 @@ func (p *Package) Strict() bool {
 	return p.strict
 }
 
+// translateName is a Strict name as Transitional, or the other way round,
+// and whether it is one of the names.
+func translateName(v string, toStrict bool) (string, bool) {
+	for _, n := range strictNames {
+		from, to := n[0], n[1]
+		if toStrict {
+			from, to = to, from
+		}
+		if strings.HasSuffix(from, "/") {
+			if strings.HasPrefix(v, from) {
+				return to + v[len(from):], true
+			}
+		} else if v == from {
+			return to, true
+		}
+	}
+	return "", false
+}
+
 // translate turns an XML part of a Strict package to Transitional, or
-// back to Strict.
-func (p *Package) translate(contentType string, data []byte, r *strings.Replacer) []byte {
+// back to Strict. It changes the namespace declarations, the relationship
+// types and the uri attributes, and the DrawingML percentages, nothing
+// else, the text of the part included.
+func (p *Package) translate(contentType string, data []byte, toStrict bool) []byte {
 	if !p.strict || !strings.HasSuffix(contentType, "xml") {
 		return data
 	}
-	if r == toStrict {
-		return []byte(toStrict.Replace(string(percents(data, true))))
+	marker, drawing := strictMarker, drawingML
+	if toStrict {
+		marker = transitionalMarker
+	} else {
+		drawing = strictDrawingML
 	}
-	return percents([]byte(toTransitional.Replace(string(data))), false)
+	if !bytes.Contains(data, []byte(marker)) {
+		return data
+	}
+	doc, err := xmldom.Parse(data)
+	if err != nil || !translateElement(doc.Root, toStrict, drawing) {
+		return data
+	}
+	return doc.Bytes()
 }
 
-const drawingML = "http://schemas.openxmlformats.org/drawingml/2006/main"
+func translateElement(e *xmldom.Element, toStrict bool, drawing string) bool {
+	changed := false
+	for _, a := range slices.Clone(e.Attrs) {
+		if a.Name == "xmlns" || strings.HasPrefix(a.Name, "xmlns:") || a.Name == "uri" || a.Name == "Type" && e.Local == "Relationship" {
+			if v, ok := translateName(a.Value, toStrict); ok {
+				e.Set(a.Name, v)
+				changed = true
+			}
+		}
+	}
+	if e.Space == drawing {
+		for _, name := range percentages[e.Local] {
+			v, ok := e.Attr(name)
+			if !ok {
+				continue
+			}
+			if p, ok := percent(v, toStrict); ok {
+				e.Set(name, p)
+				changed = true
+			}
+		}
+	}
+	for _, c := range e.Elements() {
+		if translateElement(c, toStrict, drawing) {
+			changed = true
+		}
+	}
+	return changed
+}
+
+const (
+	drawingML          = "http://schemas.openxmlformats.org/drawingml/2006/main"
+	strictDrawingML    = "http://purl.oclc.org/ooxml/drawingml/main"
+	strictMarker       = "purl.oclc.org"
+	transitionalMarker = "schemas.openxmlformats.org"
+)
 
 // percentages are the DrawingML attributes, by element, that Strict writes
 // as percentages and Transitional in thousandths of a percent.
@@ -111,44 +159,6 @@ var percentages = map[string][]string{
 	"srcRect": {"l", "t", "r", "b"}, "fillRect": {"l", "t", "r", "b"}, "tile": {"sx", "sy"},
 	"outerShdw": {"sx", "sy"}, "reflection": {"stA", "stPos", "endA", "endPos", "sx", "sy"},
 	"relOff": {"tx", "ty"},
-}
-
-// percents writes the percentages of the DrawingML elements of a part as
-// Strict does, or as Transitional does.
-func percents(data []byte, strict bool) []byte {
-	if !bytes.Contains(data, []byte(drawingML)) {
-		return data
-	}
-	doc, err := xmldom.Parse(data)
-	if err != nil {
-		return data
-	}
-	if !convertPercents(doc.Root, strict) {
-		return data
-	}
-	return doc.Bytes()
-}
-
-func convertPercents(e *xmldom.Element, strict bool) bool {
-	changed := false
-	if e.Space == drawingML {
-		for _, name := range percentages[e.Local] {
-			v, ok := e.Attr(name)
-			if !ok {
-				continue
-			}
-			if p, ok := percent(v, strict); ok {
-				e.Set(name, p)
-				changed = true
-			}
-		}
-	}
-	for _, c := range e.Elements() {
-		if convertPercents(c, strict) {
-			changed = true
-		}
-	}
-	return changed
 }
 
 // percent is a value in thousandths of a percent as a percentage, or the

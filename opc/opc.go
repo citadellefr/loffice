@@ -191,7 +191,7 @@ func (p *Package) Read(name string) ([]byte, error) {
 			return nil, err
 		}
 	}
-	return p.translate(p.ContentType(name), data, toTransitional), nil
+	return p.translate(p.ContentType(name), data, false), nil
 }
 
 func (p *Package) read(name string) ([]byte, error) {
@@ -237,7 +237,7 @@ func (p *Package) Set(name string, data []byte) error {
 	if pt == nil {
 		return fmt.Errorf("%w: %s", ErrNotFound, name)
 	}
-	pt.file, pt.data = nil, p.translate(p.ContentType(name), data, toStrict)
+	pt.file, pt.data = nil, p.translate(p.ContentType(name), data, true)
 	return nil
 }
 
@@ -251,7 +251,7 @@ func (p *Package) Add(name, contentType string, data []byte) error {
 	if p.index[key] != nil {
 		return fmt.Errorf("%w: part %q already exists", ErrInvalid, name)
 	}
-	pt := &part{name: name, data: p.translate(contentType, data, toStrict), method: zip.Deflate, modified: zipEpoch}
+	pt := &part{name: name, data: p.translate(contentType, data, true), method: zip.Deflate, modified: zipEpoch}
 	p.parts = append(p.parts, pt)
 	p.index[key] = pt
 	if p.types.lookup(name) != contentType {
