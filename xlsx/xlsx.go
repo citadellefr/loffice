@@ -9,8 +9,9 @@
 //	                formula.Iteration of circles), circular (the cells of
 //	                circles found, by sheet)
 //	  sheet "S1"    name, state, frozen, grid, zoom, tab, dw, dh, tail,
-//	                print (a Print), cf (the Conditional formats) and valid
-//	                (the Validations of data), editable; its cells in a grid
+//	                print (a Print), protect (a Protect), cf (the Conditional
+//	                formats) and valid (the Validations of data), editable;
+//	                its cells in a grid
 //	                (see below)
 //	  kept "S4"     a chart, macro or dialog sheet, kept: name, state, and
 //	                the chart a chart sheet shows (package chart)

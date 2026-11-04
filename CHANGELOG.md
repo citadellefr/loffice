@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- `legacy` converts more of the `.xls` workbooks: the fonts within a text,
+  links, notes, how sheets print (margins, headers, footers, breaks, fit),
+  conditional formats, validations, filters on values and the protection of
+  sheets. What stays unconverted (scales, bars and icons, other filter
+  conditions) is still told in the losses. `xlsx` gains the "protect"
+  attribute of a sheet and `Document.RichText`.
 - `formula` calculates the array shaping functions of Excel 365: TAKE, DROP,
   CHOOSECOLS, CHOOSEROWS, EXPAND, VSTACK, HSTACK, TOCOL, TOROW, WRAPCOLS,
   WRAPROWS and TEXTSPLIT, with their French names in the Dart formula text,

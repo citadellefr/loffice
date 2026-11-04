@@ -55,8 +55,8 @@ var (
 	validNoCompare = []string{"list", "custom"}
 )
 
-// maxRules bounds the conditional formats and the validations of a sheet.
-const maxRules = 1000
+// MaxRules bounds the conditional formats and the validations of a sheet.
+const MaxRules = 1000
 
 // The limits of Excel on the messages of a validation, and on the values of
 // a list written out.
@@ -147,43 +147,43 @@ func appendValidation(out []Validation, v *xmldom.Element, ref, f1, f2 string) [
 // checkValidations tells whether validations are those the editor may set.
 func checkValidations(raw json.RawMessage) bool {
 	var list []Validation
-	if json.Unmarshal(raw, &list) != nil || len(list) > maxRules {
+	if json.Unmarshal(raw, &list) != nil || len(list) > MaxRules {
 		return false
 	}
 	for _, v := range list {
-		if !checkAreas(v.Ref) || v.Type != "" && !slices.Contains(validTypes, v.Type) ||
-			v.Err != "" && !slices.Contains(validAlerts, v.Err) ||
-			v.Op != "" && !slices.Contains(validOps, v.Op) ||
-			utf16Len(v.ErrTitle) > maxTitle || utf16Len(v.PromptTitle) > maxTitle ||
-			utf16Len(v.ErrText) > maxPrompt || utf16Len(v.Prompt) > maxPrompt {
-			return false
-		}
-		if v.Err == "" && (v.ErrTitle != "" || v.ErrText != "") {
-			return false
-		}
-		if v.Type == "" {
-			if v.F1 != "" || v.F2 != "" || v.Op != "" || v.Err == "" && v.PromptTitle == "" && v.Prompt == "" {
-				return false
-			}
-			continue
-		}
-		if !checkFormula(v.F1) || v.F2 != "" && !checkFormula(v.F2) {
-			return false
-		}
-		if slices.Contains(validNoCompare, v.Type) {
-			if v.Op != "" || v.F2 != "" {
-				return false
-			}
-			if v.Type == "list" && strings.HasPrefix(v.F1, `"`) && utf16Len(v.F1) > maxList+2 {
-				return false
-			}
-			continue
-		}
-		if between := v.Op == "" || v.Op == "notBetween"; between != (v.F2 != "") {
+		if !v.Valid() {
 			return false
 		}
 	}
 	return true
+}
+
+// Valid tells whether the validation is one the editor may set.
+func (v Validation) Valid() bool {
+	if !checkAreas(v.Ref) || v.Type != "" && !slices.Contains(validTypes, v.Type) ||
+		v.Err != "" && !slices.Contains(validAlerts, v.Err) ||
+		v.Op != "" && !slices.Contains(validOps, v.Op) ||
+		utf16Len(v.ErrTitle) > maxTitle || utf16Len(v.PromptTitle) > maxTitle ||
+		utf16Len(v.ErrText) > maxPrompt || utf16Len(v.Prompt) > maxPrompt {
+		return false
+	}
+	if v.Err == "" && (v.ErrTitle != "" || v.ErrText != "") {
+		return false
+	}
+	if v.Type == "" {
+		return v.F1 == "" && v.F2 == "" && v.Op == "" && (v.Err != "" || v.PromptTitle != "" || v.Prompt != "")
+	}
+	if !checkFormula(v.F1) || v.F2 != "" && !checkFormula(v.F2) {
+		return false
+	}
+	if slices.Contains(validNoCompare, v.Type) {
+		if v.Op != "" || v.F2 != "" {
+			return false
+		}
+		return v.Type != "list" || !strings.HasPrefix(v.F1, `"`) || utf16Len(v.F1) <= maxList+2
+	}
+	between := v.Op == "" || v.Op == "notBetween"
+	return between == (v.F2 != "")
 }
 
 func utf16Len(s string) int { return len(utf16.Encode([]rune(s))) }

@@ -113,17 +113,8 @@ func (d *Document) conditional(rule *xmldom.Element, ref, anchor string) (Condit
 	case "expression":
 		c.Type = "formula"
 	case "cellIs":
-		op := rule.Get("operator")
-		var f string
-		switch {
-		case (op == "between" || op == "notBetween") && len(c.F) == 2:
-			f = "AND(" + anchor + ">=(" + c.F[0] + ")," + anchor + "<=(" + c.F[1] + "))"
-			if op == "notBetween" {
-				f = "NOT(" + f + ")"
-			}
-		case cellOperators[op] != "" && len(c.F) > 0:
-			f = anchor + cellOperators[op] + "(" + c.F[0] + ")"
-		default:
+		f, ok := CellIsFormula(rule.Get("operator"), anchor, c.F)
+		if !ok {
 			return c, false
 		}
 		c.Type, c.F = "formula", []string{f}
@@ -203,6 +194,22 @@ func (d *Document) conditional(rule *xmldom.Element, ref, anchor string) (Condit
 	return c, true
 }
 
+// CellIsFormula is the formula that holds when the cell at anchor compares
+// with the formulas f as the operator of a cellIs rule says.
+func CellIsFormula(op, anchor string, f []string) (string, bool) {
+	switch {
+	case (op == "between" || op == "notBetween") && len(f) == 2:
+		between := "AND(" + anchor + ">=(" + f[0] + ")," + anchor + "<=(" + f[1] + "))"
+		if op == "notBetween" {
+			between = "NOT(" + between + ")"
+		}
+		return between, true
+	case cellOperators[op] != "" && len(f) > 0:
+		return anchor + cellOperators[op] + "(" + f[0] + ")", true
+	}
+	return "", false
+}
+
 // cellOperators are the operators of cellIs rules, as formulas write
 // them.
 var cellOperators = map[string]string{
@@ -259,34 +266,39 @@ var (
 // may set.
 func checkConditionals(raw json.RawMessage) bool {
 	var rules []Conditional
-	if json.Unmarshal(raw, &rules) != nil || len(rules) > maxRules {
+	if json.Unmarshal(raw, &rules) != nil || len(rules) > MaxRules {
 		return false
 	}
 	for _, c := range rules {
-		if !checkAreas(c.Ref) || c.Pri < 1 || c.Style != nil && !c.Style.valid() {
-			return false
-		}
-		for _, f := range c.F {
-			if !checkFormula(f) {
-				return false
-			}
-		}
-		for _, t := range c.Stops {
-			if !slices.Contains(thresholdTypes, t.Type) || t.Val != "" && !checkFormula(t.Val) ||
-				t.Val == "" && t.Type != "min" && t.Type != "max" {
-				return false
-			}
-		}
-		for _, col := range c.Colors {
-			if col == nil || !validColor(col) {
-				return false
-			}
-		}
-		if !checkRule(c) {
+		if !c.Valid() {
 			return false
 		}
 	}
 	return true
+}
+
+// Valid tells whether the conditional format is one the editor may set.
+func (c Conditional) Valid() bool {
+	if !checkAreas(c.Ref) || c.Pri < 1 || c.Style != nil && !c.Style.valid() {
+		return false
+	}
+	for _, f := range c.F {
+		if !checkFormula(f) {
+			return false
+		}
+	}
+	for _, t := range c.Stops {
+		if !slices.Contains(thresholdTypes, t.Type) || t.Val != "" && !checkFormula(t.Val) ||
+			t.Val == "" && t.Type != "min" && t.Type != "max" {
+			return false
+		}
+	}
+	for _, col := range c.Colors {
+		if col == nil || !validColor(col) {
+			return false
+		}
+	}
+	return checkRule(c)
 }
 
 // checkRule tells whether the rule of a conditional format is complete.
