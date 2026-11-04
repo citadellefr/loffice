@@ -515,14 +515,14 @@ func setPlaceholder(e *xmldom.Element, value json.RawMessage) {
 
 // setStyle gives a new shape the references to the theme style describes.
 func setStyle(e *xmldom.Element, value json.RawMessage) {
-	var st Style
+	var st drawingml.Style
 	if value == nil || json.Unmarshal(value, &st) != nil || e.Local == "grp" || e.Local == "pic" {
 		return
 	}
 	style := xmldom.New(pNS, "p:style")
 	for _, r := range []struct {
 		local string
-		ref   *StyleRef
+		ref   *drawingml.StyleRef
 	}{{"lnRef", st.Line}, {"fillRef", st.Fill}, {"effectRef", st.Effect}, {"fontRef", st.Font}} {
 		idx := "0"
 		if r.local == "fontRef" {

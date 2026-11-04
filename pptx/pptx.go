@@ -51,6 +51,7 @@ const (
 	aNS   = drawingml.NS
 	relNS = drawingml.RelNS
 	mcNS  = "http://schemas.openxmlformats.org/markup-compatibility/2006"
+	dgmNS = "http://schemas.openxmlformats.org/drawingml/2006/diagram"
 
 	relOfficeDocument = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
 )
@@ -141,6 +142,10 @@ type reader struct {
 	ids   map[string]bool
 	// tableStyles are the styles the tables name.
 	tableStyles map[string]bool
+	// source and rels are the part whose shapes are read, and its
+	// relationships.
+	source string
+	rels   *partrel.Rels
 }
 
 func (r *reader) add(id, typ, parent, key string, attrs ot.Values, text ot.Delta) {
@@ -307,6 +312,7 @@ func (r *reader) master(name, id, key string, layoutCount *int) error {
 		}
 	}
 	r.add(id, "master", "", key, attrs, nil)
+	r.source, r.rels = name, rels
 	r.shapes(spTree, id, id, spaces)
 
 	layouts := elements(m.Child(pNS, "sldLayoutIdLst"), pNS, "sldLayoutId")
@@ -339,7 +345,7 @@ func shapeTree(root *xmldom.Element, local, name string) (cSld, spTree *xmldom.E
 }
 
 func (r *reader) layout(name, id, master, key string) error {
-	l, _, spaces, err := r.part(name)
+	l, rels, spaces, err := r.part(name)
 	if err != nil {
 		return err
 	}
@@ -358,6 +364,7 @@ func (r *reader) layout(name, id, master, key string) error {
 	r.d.layouts[id] = name
 	r.d.layoutNodes[name] = id
 	r.add(id, "layout", master, key, attrs, nil)
+	r.source, r.rels = name, rels
 	r.shapes(spTree, id, id, spaces)
 	return nil
 }
@@ -389,6 +396,7 @@ func (r *reader) slide(name string, sldID int64, key string) error {
 	putJSON(attrs, "transition", readTransition(s))
 	placeholder := len(r.nodes)
 	r.add(id, "slide", "deck", key, nil, nil)
+	r.source, r.rels = name, rels
 	r.shapes(spTree, id, id, spaces)
 	for _, c := range spTree.Elements() {
 		if isShape(c) {
@@ -589,10 +597,16 @@ func (r *reader) shape(e *xmldom.Element, parent, prefix, key string, spaces map
 		putJSON(attrs, "xfrm", drawingml.ReadXfrm(e.Child(pNS, "xfrm")))
 		kind := frameKind(e)
 		putString(attrs, "frame", kind)
-		if kind == "chart" {
+		switch kind {
+		case "chart":
 			if c := r.d.chart(e); c != nil {
 				attrs["chart"] = c.JSON()
 			}
+		case "diagram":
+			putJSON(attrs, "diagram", r.diagram(e))
+		}
+		if kind == "ole" || kind == "other" {
+			putJSON(attrs, "blip", r.d.preview(e))
 		}
 		tbl := tableOf(e)
 		if tbl == nil {
@@ -615,7 +629,7 @@ func (r *reader) spAttrs(attrs ot.Values, e *xmldom.Element) {
 	for k, v := range drawingml.ShapeProps(e.Child(pNS, "spPr"), r.d.media) {
 		attrs[k] = v
 	}
-	putJSON(attrs, "style", readStyle(e.Child(pNS, "style")))
+	putJSON(attrs, "style", drawingml.ReadStyle(e.Child(pNS, "style")))
 }
 
 // cNvPr is the non-visual properties of a shape.
@@ -659,12 +673,18 @@ func nvAttrs(e *xmldom.Element) ot.Values {
 	return attrs
 }
 
+// graphicData is the content of a graphic frame, nil when it has none.
+func graphicData(frame *xmldom.Element) *xmldom.Element {
+	if g := frame.Child(aNS, "graphic"); g != nil {
+		return g.Child(aNS, "graphicData")
+	}
+	return nil
+}
+
 func frameKind(e *xmldom.Element) string {
 	var uri string
-	if g := e.Child(aNS, "graphic"); g != nil {
-		if gd := g.Child(aNS, "graphicData"); gd != nil {
-			uri = gd.Get("uri")
-		}
+	if gd := graphicData(e); gd != nil {
+		uri = gd.Get("uri")
 	}
 	switch uri {
 	case "http://schemas.openxmlformats.org/drawingml/2006/table":
@@ -681,11 +701,7 @@ func frameKind(e *xmldom.Element) string {
 
 // chart reads the chart a graphic frame shows, nil when it cannot.
 func (d *Document) chart(frame *xmldom.Element) *chart.Chart {
-	g := frame.Child(aNS, "graphic")
-	if g == nil {
-		return nil
-	}
-	gd := g.Child(aNS, "graphicData")
+	gd := graphicData(frame)
 	if gd == nil {
 		return nil
 	}
@@ -702,6 +718,48 @@ func (d *Document) chart(frame *xmldom.Element) *chart.Chart {
 		return nil
 	}
 	return c
+}
+
+// diagram reads the drawing PowerPoint recorded of the SmartArt a graphic
+// frame shows, nil when it has none.
+func (r *reader) diagram(frame *xmldom.Element) *drawingml.Diagram {
+	gd := graphicData(frame)
+	if gd == nil {
+		return nil
+	}
+	ids := gd.Child(dgmNS, "relIds")
+	if ids == nil {
+		return nil
+	}
+	data, ok := r.d.names.Lookup(ids.Get("r:dm"))
+	if !ok || data.External {
+		return nil
+	}
+	name := partrel.DiagramDrawing(r.d.pkg, r.source, r.rels, data.Target)
+	if name == "" {
+		return nil
+	}
+	root, _, _, err := r.part(name)
+	if err != nil {
+		return nil
+	}
+	return drawingml.ReadDiagram(root, r.d.media)
+}
+
+// preview is the picture an object stands for when it cannot be drawn: the
+// one it carries, if any.
+func (d *Document) preview(frame *xmldom.Element) *drawingml.Blip {
+	var pic *xmldom.Element
+	walkElements(frame, func(e *xmldom.Element) bool {
+		if pic == nil && e.Space == pNS && e.Local == "pic" {
+			pic = e
+		}
+		return pic == nil
+	})
+	if pic == nil {
+		return nil
+	}
+	return drawingml.ReadBlip(pic.Child(pNS, "blipFill"), d.media)
 }
 
 func size(e *xmldom.Element) json.RawMessage {
@@ -797,36 +855,6 @@ func colorMapOverride(e *xmldom.Element) map[string]string {
 		return attrMap(m)
 	}
 	return nil
-}
-
-// Style points a shape to the theme's line, fill, effect and font styles,
-// each with a color.
-type Style struct {
-	Line   *StyleRef `json:"ln,omitempty"`
-	Fill   *StyleRef `json:"fill,omitempty"`
-	Effect *StyleRef `json:"effect,omitempty"`
-	Font   *StyleRef `json:"font,omitempty"`
-}
-
-// StyleRef is an index in the theme's list of styles, or "major" or
-// "minor" for a font.
-type StyleRef struct {
-	Idx   string           `json:"idx"`
-	Color *drawingml.Color `json:"color,omitempty"`
-}
-
-func readStyle(e *xmldom.Element) *Style {
-	if e == nil {
-		return nil
-	}
-	ref := func(local string) *StyleRef {
-		c := e.Child(aNS, local)
-		if c == nil {
-			return nil
-		}
-		return &StyleRef{Idx: c.Get("idx"), Color: drawingml.ColorIn(c)}
-	}
-	return &Style{Line: ref("lnRef"), Fill: ref("fillRef"), Effect: ref("effectRef"), Font: ref("fontRef")}
 }
 
 // Theme is what a master's theme gives its slides.

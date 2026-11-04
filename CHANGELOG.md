@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- `pptx` and `docx` expose the drawing PowerPoint and Word record of a
+  SmartArt, read-only: the `diagram` attribute of a `frame` of a slide and the
+  `diagram` of a picture's `img` in Word hold its shapes, as the attributes of
+  the shapes of a slide, with the box of their text. A frame of an OLE object
+  or of another object has the picture it shows as `blip`, and Word reads the
+  fallback of an `mc:AlternateContent` whose choice has nothing to draw. Saving
+  without an edit keeps the files as they are. The Dart editors draw them, on
+  screen and in PDF exports; the grey rectangle stands only for an object with
+  nothing to draw.
 - `xlsx` edits merged cells and links: a cell's `m` is refused when its area
   overlaps another, and a new field `link` (`{"url":"https://…"}`,
   `{"loc":"Sheet2!A1"}`, `"tip"`) is written as Excel writes it, a

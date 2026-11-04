@@ -308,3 +308,39 @@ const _patternBits = <String, List<int>>{
   'lgGrid': [0xFF, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80],
   'dotGrid': [0xAA, 0x00, 0x80, 0x00, 0x80, 0x00, 0x80, 0x00],
 };
+
+/// The fill of a shape: its own, or the entry of [themeFills] its style
+/// points to ([backgroundFills] from index 1001), with the colors "phClr"
+/// resolves in.
+(Map<String, Object?>?, ColorContext) styledFill(
+  Map<String, Object?>? fill,
+  Map<String, Object?>? style,
+  ColorContext colors, {
+  List<Object?> themeFills = const [],
+  List<Object?> backgroundFills = const [],
+}) {
+  final ref = style?['fill'];
+  final refColors = ref is Map<String, Object?> ? colors.withPlaceholder(colors.resolve(ref['color'])) : colors;
+  if (fill != null) return (fill, refColors);
+  if (ref is! Map<String, Object?>) return (null, colors);
+  final idx = int.tryParse('${ref['idx']}') ?? 0;
+  if (idx <= 0) return (null, colors);
+  final list = idx >= 1001 ? backgroundFills : themeFills;
+  final i = idx >= 1001 ? idx - 1001 : idx - 1;
+  return (i < list.length ? list[i] as Map<String, Object?>? : null, refColors);
+}
+
+/// The line of a shape: the entry of [themeLines] its style points to, with
+/// its own properties over it.
+(Map<String, Object?>?, ColorContext) styledLine(Map<String, Object?>? line, Map<String, Object?>? style, ColorContext colors, {List<Object?> themeLines = const []}) {
+  final ref = style?['ln'];
+  var ctx = colors;
+  Map<String, Object?>? out;
+  if (ref is Map<String, Object?>) {
+    final idx = int.tryParse('${ref['idx']}') ?? 0;
+    if (idx > 0 && idx <= themeLines.length) out = themeLines[idx - 1] as Map<String, Object?>?;
+    ctx = colors.withPlaceholder(colors.resolve(ref['color']));
+  }
+  if (line != null) out = {...?out, ...line};
+  return (out, ctx);
+}
