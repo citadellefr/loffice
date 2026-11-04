@@ -106,6 +106,24 @@ func TestWholeColumnMemory(t *testing.T) {
 	}
 }
 
+func TestOffsetAreasOfLongSheet(t *testing.T) {
+	b := &mapBook{sheets: []string{"Feuil1"}, cells: map[[3]int]Value{}}
+	for r := 1; r <= 100_000; r++ {
+		b.cells[[3]int{0, r, 1}] = Num(1)
+	}
+	for _, tc := range []struct{ f, want string }{
+		{"COUNTIFS(A1:A100000,\">0\",A80001:A180000,\">0\")", "20000"},
+		{"SUMIF(A1:A100000,\">0\",A80001:A80001)", "20000"},
+		{"SUMIFS(A80001:A180000,A1:A100000,1)", "20000"},
+		{"COUNTIFS(A80001:A180000,\"\",A1:A100000,1)", "80000"},
+		{"COUNTIF(A80001:A180000,\"\")", "80000"},
+	} {
+		if got := eval(t, b, English, tc.f).show(); got != tc.want {
+			t.Errorf("%s = %s, want %s", tc.f, got, tc.want)
+		}
+	}
+}
+
 func TestLookupLongSheet(t *testing.T) {
 	if testing.Short() {
 		t.Skip("300 000 rows")
