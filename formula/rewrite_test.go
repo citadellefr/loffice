@@ -126,6 +126,7 @@ func TestStored(t *testing.T) {
 		"IFERROR(A1,#N/A)":                   "IFERROR(A1,#N/A)",
 		"NORM.S.DIST(T.TEST(A:A,B:B,2,1),1)": "_xlfn.NORM.S.DIST(_xlfn.T.TEST(A:A,B:B,2,1),1)",
 		"MMULT(MUNIT(2),A1:B2)":              "MMULT(_xlfn.MUNIT(2),A1:B2)",
+		"TAKE(VSTACK(A1,B1),1)":              "_xlfn.TAKE(_xlfn.VSTACK(A1,B1),1)",
 	} {
 		if got := Stored(f); got != want {
 			t.Errorf("%s: %s, want %s", f, got, want)
