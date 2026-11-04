@@ -305,6 +305,14 @@ class SheetEdits {
     return printSetup(sheet, {'rows': changed(setup.rowBreaks, row), 'cols': changed(setup.colBreaks, col)});
   }
 
+  // charts
+
+  /// Sets the charts of a sheet, all of them: what the list leaves out is
+  /// removed.
+  Edit setCharts(Node sheet, List<Map<String, Object?>> charts) => Edit([
+    Change.set(sheet.id, attributes: {'charts': charts.isEmpty ? null : charts}),
+  ]);
+
   // conditional formats and validations
 
   /// The conditional formats of a sheet, the first the one that counts.

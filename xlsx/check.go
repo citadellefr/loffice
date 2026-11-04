@@ -25,7 +25,7 @@ const (
 // editable are the attributes a change may set, by node type.
 var editable = map[string]map[string]bool{
 	"book":  {"names": true, "iterate": true},
-	"sheet": {"name": true, "state": true, "frozen": true, "grid": true, "rtl": true, "zoom": true, "tab": true, "dw": true, "dh": true, "filter": true, "print": true, "cf": true, "valid": true},
+	"sheet": {"name": true, "state": true, "frozen": true, "grid": true, "rtl": true, "zoom": true, "tab": true, "dw": true, "dh": true, "filter": true, "print": true, "cf": true, "valid": true, chartsKey: true},
 	"kept":  {"name": true, "state": true},
 }
 
@@ -62,7 +62,7 @@ func (d *Document) Check(tree *ot.Tree, e ot.Edit, author string) error {
 		case ot.OpNew:
 			switch {
 			case c.Type == "sheet" && c.Parent == "book":
-				if c.Cells == nil || !d.checkAttrs("sheet", c.Attrs) || !d.checkCells(typeOf, c.Cells, nil, author) || !merged.apply(tree, c.ID, c.Cells) {
+				if c.Cells == nil || !d.checkAttrs("sheet", c.ID, c.Attrs) || !d.checkCells(typeOf, c.Cells, nil, author) || !merged.apply(tree, c.ID, c.Cells) {
 					return ErrReadOnly
 				}
 			case c.Type == "xf" && c.Parent == "":
@@ -81,7 +81,7 @@ func (d *Document) Check(tree *ot.Tree, e ot.Edit, author string) error {
 			if t == "" {
 				continue
 			}
-			if c.Key != "" && t != "sheet" && t != "kept" || !d.checkAttrs(t, c.Attrs) {
+			if c.Key != "" && t != "sheet" && t != "kept" || !d.checkAttrs(t, c.ID, c.Attrs) {
 				return ErrReadOnly
 			}
 			if names, ok := c.Attrs["names"]; ok && !checkNames(typeOf, names) {
@@ -105,7 +105,7 @@ func (d *Document) Check(tree *ot.Tree, e ot.Edit, author string) error {
 	return nil
 }
 
-func (d *Document) checkAttrs(typ string, attrs ot.Values) bool {
+func (d *Document) checkAttrs(typ, id string, attrs ot.Values) bool {
 	for k, v := range attrs {
 		if !editable[typ][k] {
 			return false
@@ -152,6 +152,8 @@ func (d *Document) checkAttrs(typ string, attrs ot.Values) bool {
 			ok = checkConditionals(v)
 		case validKey:
 			ok = checkValidations(v)
+		case chartsKey:
+			ok = d.checkCharts(id, v)
 		}
 		if !ok {
 			return false

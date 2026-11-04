@@ -1,8 +1,9 @@
 // Package chart reads the charts of Office documents, the parts a
 // DrawingML graphic frame points to, into what a client needs to draw
 // them: plots and their series with the values Office cached, axes,
-// title, legend and the fills and lines of each. Charts are drawn, not
-// edited: the part stays as it is in the package.
+// title, legend and the fills and lines of each. New writes a chart and
+// Patch edits one: only what changed is rewritten, the rest of the part
+// stays as it is in the package.
 package chart
 
 import (

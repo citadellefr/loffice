@@ -427,7 +427,7 @@ class _RibbonMeasureState extends State<RibbonMeasure> {
 
   void _submit() {
     final n = double.tryParse(_controller.text.replaceAll(widget.unit, '').replaceAll(',', '.').trim());
-    if (n != null && n >= 0 && widget.onChanged != null && (widget.value == null || (n * widget.scale - widget.value!).abs() > 0.01)) {
+    if (n != null && n >= 0 && widget.onChanged != null && (widget.value == null || (n - widget.value! / widget.scale).abs() >= 0.005)) {
       widget.onChanged!(n * widget.scale);
     }
     _show();

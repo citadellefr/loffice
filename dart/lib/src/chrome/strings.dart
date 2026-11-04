@@ -323,6 +323,36 @@ class LofficeStrings {
   String get hide => 'Masquer';
   String get unhide => 'Afficher';
   String get chartSheet => 'Le graphique de cette feuille ne peut pas s’afficher ici.';
+  String get charts => 'Graphiques';
+  String get chartDesign => 'Création de graphique';
+  String get chartFormat => 'Format';
+  String get chartTypeGroup => 'Type';
+  String get changeChartType => 'Modifier le type de graphique';
+  List<(String, String)> get chartTypes => const [
+    ('column', 'Histogramme groupé'),
+    ('bar', 'Barres groupées'),
+    ('line', 'Courbes'),
+    ('pie', 'Secteurs'),
+    ('scatter', 'Nuage de points'),
+    ('area', 'Aires'),
+  ];
+  String get chartData => 'Données';
+  String get selectData => 'Sélectionner les données';
+  String get chartLayouts => 'Dispositions du graphique';
+  String get chartTitle => 'Titre du graphique';
+  String get showChartTitle => 'Afficher le titre';
+  String get chartTitleText => 'Texte (vide : titre automatique)';
+  String get legend => 'Légende';
+  List<(String, String)> get legendPositions => const [('none', 'Aucune'), ('r', 'Droite'), ('l', 'Gauche'), ('t', 'Haut'), ('b', 'Bas')];
+  String get axisTitles => 'Titres des axes';
+  String get categoryAxis => 'Axe des catégories';
+  String get valueAxis => 'Axe des valeurs';
+  String get seriesName => 'Nom de la série';
+  String get seriesValues => 'Valeurs de la série';
+  String get categoryLabels => 'Étiquettes des catégories';
+  String get addSeries => 'Ajouter une série';
+  String get removeSeries => 'Supprimer la série';
+  String get deleteChart => 'Supprimer le graphique';
   String get calculating => 'Calcul…';
   String get dataValidation => 'Validation des données';
   String get notInList => 'Cette valeur ne correspond pas aux restrictions de validation des données définies pour cette cellule.';

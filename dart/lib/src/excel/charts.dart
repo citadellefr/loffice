@@ -9,26 +9,29 @@ import '../text/text_frame.dart';
 import 'number_format.dart';
 import 'workbook.dart';
 
-const _emuPerPixel = 9525.0;
+const emuPerPixel = 9525.0;
 
 /// A chart a sheet holds, as the Go package reads those of its drawing
 /// into its "charts".
 class SheetChart {
-  SheetChart._(this.spec, this._json);
+  SheetChart._(this.index, this.spec, this._json);
 
   /// The charts of a sheet, read once for each version of it.
   static List<SheetChart> of(Node sheet) => _cache[sheet] ??= () {
     final all = sheet.attributes['charts'];
     if (all is! List<Object?>) return const <SheetChart>[];
     return [
-      for (final c in all)
+      for (final (i, c) in all.indexed)
         if (c is Map<String, Object?>)
-          if (ChartSpec.fromJson(c['chart']) case final spec?) SheetChart._(spec, c),
+          if (ChartSpec.fromJson(c['chart']) case final spec?) SheetChart._(i, spec, c),
     ];
   }();
 
   static final _cache = Expando<List<SheetChart>>();
 
+  /// Its place in the list the sheet holds, which a chart without an id
+  /// is known by.
+  final int index;
   final ChartSpec spec;
   final Map<String, Object?> _json;
 
@@ -37,16 +40,23 @@ class SheetChart {
     Offset? corner(Object? json) {
       if (json is! Map<String, Object?>) return null;
       final col = ((json['col'] as num?) ?? 0).toInt() + 1, row = ((json['row'] as num?) ?? 0).toInt() + 1;
-      final dx = ((json['dx'] as num?) ?? 0) / _emuPerPixel, dy = ((json['dy'] as num?) ?? 0) / _emuPerPixel;
+      final dx = ((json['dx'] as num?) ?? 0) / emuPerPixel, dy = ((json['dy'] as num?) ?? 0) / emuPerPixel;
       return Offset(l.x(col) + math.min(dx, l.width(col)), l.y(row) + math.min(dy, l.height(row)));
     }
 
-    double emu(String key) => ((_json[key] as num?) ?? 0) / _emuPerPixel;
+    double emu(String key) => ((_json[key] as num?) ?? 0) / emuPerPixel;
     final from = corner(_json['from']), to = corner(_json['to']);
     final size = Size(emu('w'), emu('h'));
     if (from != null && to != null) return Rect.fromPoints(from, to);
     return (from ?? Offset(emu('x'), emu('y'))) & size;
   }
+}
+
+/// The anchor of a point of the sheet, in pixels at 100 %: the column and
+/// the row it lies in, counted from 0, and how far from their corner.
+Map<String, Object?> chartAnchor(SheetLayout l, Offset p) {
+  final col = l.colAt(p.dx), row = l.rowAt(p.dy);
+  return {'col': col - 1, 'row': row - 1, 'dx': ((p.dx - l.x(col)) * emuPerPixel).round(), 'dy': ((p.dy - l.y(row)) * emuPerPixel).round()};
 }
 
 /// Paints a chart of a workbook with the values its cells hold now, in a
