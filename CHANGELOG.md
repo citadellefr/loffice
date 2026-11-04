@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.12.0 — 2026-11-04
+
 - The PDF export of the Dart package writes what it left blank: pattern fills
   as tiling patterns of the preset's pixels, tiled pictures as tiling
   patterns of the picture, opaque PNG pictures as they are (Flate with its
