@@ -33,7 +33,8 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m96** (à_revérifier) Values of type TypeLambda never leave the calculation: a cell, scalar() and the engine's cellValue turn them into #CALC!. — _ag5, t11_
 
 ### tools/validate/run.sh
-- **m121** tools/validate/run.sh [dossier [famille...]] lance toute la validation Open XML SDK (réécritures et éditions de opc, pptx, xlsx, legacy, docx) et prend dotnet de nix s'il manque dans le PATH ; il compile Validate.dll une fois dans <dossier>/validate. Les familles peuvent tourner en parallèle avec un même dossier ; opc (3641 fichiers) prend ~25 min, le total ~35 min. — _ag4, t29_
+- **m121** (à_revérifier) tools/validate/run.sh [dossier [famille...]] lance toute la validation Open XML SDK (réécritures et éditions de opc, pptx, xlsx, legacy, docx) et prend dotnet de nix s'il manque dans le PATH ; il compile Validate.dll une fois dans <dossier>/validate. Les familles peuvent tourner en parallèle avec un même dossier ; opc (3641 fichiers) prend ~25 min, le total ~35 min. — _ag4, t29_
+- **m167** Validation Open XML locale sans dotnet installé : `nix shell nixpkgs#dotnet-sdk_8 -c dotnet build tools/validate -c Release -o /tmp/v` puis `LOFFICE_EDITED=1 dotnet /tmp/v/Validate.dll corpus/files <dossier de docx réécrits>` ; corpus/files est un lien : find ne le suit pas, utiliser un glob Go. — _ag1, t36_
 
 ### xlsx/links.go
 - **m78** (à_revérifier) xlsx : les liens hypertexte sont le champ `link` de la cellule ({"url"|"loc","tip"}), lu par Document.links (xlsx/links.go) qui retire de la feuille les hyperlinks éditables ; ceux sur plus de 1024 cellules ou à adresse non canonique restent dans le XML de la feuille. Une fusion vérifiée par merges.apply (xlsx/merges.go) compare aux fusions de l'arbre. — _ag3, t14_
@@ -95,6 +96,9 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 ### formula/fn_special.go
 - **m27** math.Erfcinv de Go perd ses chiffres dans la queue (il calcule Erfinv(1-x)) : pour une normale inverse précise à 1e-9, affiner le résultat par Halley sur la CDF calculée avec Erfc (normInv, formula/fn_special.go). — _ag2, t8_
 
+### formula/fn_stats.go
+- **m169** formula : depuis les tables compactes, deux aires de même forme n'ont pas forcément la même longueur de Cells (c.table tient les lignes de la feuille + une vide répétée, selon R1). Pour lire plusieurs aires en parallèle (SUMIF, COUNTIFS), itérer sur Rows*Cols avec At(i/Cols, i%Cols), jamais indexer Cells[i] d'une table par l'indice d'une autre. — _ag4, t33_
+
 ### internal/xmldom/xmldom_test.go
 - **m37** loffice : opc importe internal/xmldom (opc/strict.go). Un test d'internal/xmldom ou d'internal/xmltok (package interne) ne doit donc pas importer opc, sinon il y a un cycle d'import en test. Pour lire un zip dans ces tests, utiliser archive/zip. — _ag1, t7_
 
@@ -131,9 +135,10 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 
 ### agent/edit.go
 - **m152** Record.Lost (agent) liste ce qu'UndoMine a annulé sans pouvoir le refaire : les notes d'une slide et les commentaires d'autrui, que le Check pptx interdit de recréer. L'outil MCP undo_mine l'affiche avec « Not restored ». — _ag2, t26_
+- **m166** loffice agent : le planner ne supprime directement que les insertions de l'agent faites pour le même utilisateur (docx.BehalfOf == lot, ou même date que le lot) ; sinon la suppression est une révision de suivi (jamais d'effacement sans trace). — _ag1, t36_
 
 ### agent/state.go
-- **m51** Le paquet loffice/agent donne aux paragraphes des ids pN qui suivent leur marque, et aux tableaux des ids tN. Ces ids et les versions (jeton de session-n) ne valent que pour un même Agent : une autre session renumérote. Le Journal (Options.Journal) transmet de session en session le « au nom de » des révisions. — _ag5, t23_
+- **m51** (à_revérifier) Le paquet loffice/agent donne aux paragraphes des ids pN qui suivent leur marque, et aux tableaux des ids tN. Ces ids et les versions (jeton de session-n) ne valent que pour un même Agent : une autre session renumérote. Le Journal (Options.Journal) transmet de session en session le « au nom de » des révisions. — _ag5, t23_
 
 ### chart/edit.go
 - **m141** Dans chart.Patch et refresh, une série est identifiée par son index (c:idx), pas par sa position : un client qui ajoute une série doit lui donner un index que le tracé n'a pas, sinon elle reprend l'élément de cet index avec sa mise en forme. Dart : ChartEdits.setSeries. — _ag1, t18_
@@ -141,8 +146,11 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 ### dart/lib/src/excel/formula_text.dart
 - **m29** (à_revérifier) Les noms français de T.TEST et CHISQ.TEST sont T.TEST et CHISQ.TEST (non traduits) ; leurs noms de compatibilité sont TEST.STUDENT et TEST.KHIDEUX. — _ag2, t8_
 
+### docx/behalf.go
+- **m165** loffice docx : l'attribution « au nom de » d'une révision de l'agent est un nœud `behalf` (parent doc, id déterministe docx.BehalfNode(auteur, date, utilisateur)) écrit dans w:docVars de settings.xml (variable loffice.behalf.<id>) ; docx.BehalfOf(tree, auteur, date) la relit. Check refuse un nœud behalf d'un autre auteur, sa suppression et sa modification ; l'id déterministe fait refuser par le hub un doublon. Agent.date() saute les dates déjà prises. Options.Journal ne sert plus qu'à la monotonie des dates. — _ag1, t36_
+
 ### formula/engine.go
-- **m60** formula/engine.go : Engine.run calcule une liste de formules (all) par tour de déversement. La détection des cercles (Kahn puis Tarjan, circle, again) s'applique à all, pas à e.dirty. join remet cf.circle à nil à chaque tour. Le recalcul again ne vide pas e.filled, qui garde les cellules qu'un déversement a libérées. — _ag6, t6_
+- **m60** (à_revérifier) formula/engine.go : Engine.run calcule une liste de formules (all) par tour de déversement. La détection des cercles (Kahn puis Tarjan, circle, again) s'applique à all, pas à e.dirty. join remet cf.circle à nil à chaque tour. Le recalcul again ne vide pas e.filled, qui garde les cellules qu'un déversement a libérées. — _ag6, t6_
 - **m147** (à_revérifier) formula.Engine.Known(circular) donne au nouvel engin les cercles de celui qu'il remplace et marque le scan fait : il sert à Calc.Follow quand l'édition ne fait que renommer des feuilles ou régler l'itération (mêmes positions, mêmes lectures), sinon Circular() refait un scan complet. — _ag3, t34_
 
 ### formula/eval.go
@@ -199,4 +207,4 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 
 ### agent/
 - **m4** (à_revérifier) Coédition IA dans PowerPoint et Excel (sans suivi des modifications) : l'IA écrit directement, de façon visible (curseur et nom de l'IA, surlignage temporaire de ce qu'elle vient de modifier), avec « annuler les miennes » qui retire seulement ses éditions. Dans Word, suivi des modifications signé de son nom. — _orchestra_
-- **m114** Coédition IA (décision de l'humain, 04/11) : l'IA écrit en direct dans le document même quand d'autres personnes l'ont ouvert ; aucune attente ni verrou parce que des humains sont présents dans la salle. — _orchestra_
+- **m114** (à_revérifier) Coédition IA (décision de l'humain, 04/11) : l'IA écrit en direct dans le document même quand d'autres personnes l'ont ouvert ; aucune attente ni verrou parce que des humains sont présents dans la salle. — _orchestra_
