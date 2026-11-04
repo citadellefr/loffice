@@ -21,16 +21,16 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m61** (à_revérifier) formula : une fonction récente d'Excel doit être déclarée dans `newer` (formula/rewrite.go, remplie par init ; contient en plus ANCHORARRAY et SINGLE) et dans `_newer`/`_windowed` de dart/lib/src/excel/formula_text.dart, qui doivent rester alignés ; sinon une formule saisie est enregistrée sans son préfixe _xlfn. Ne pas confondre avec `prefixes` de fn_eng.go (préfixes du système métrique). — _ag6, t6_
 
 ### formula/structured.go
-- **m90** formula : les références structurées sont calculées si le Book implémente l'interface formula.Tables (Table(name), TableAt(sheet,row,col)). resolve(tb, s, pos) donne la zone, et Engine.reads s'en sert pour les dépendances. Sans Tables, l'évaluation rend ErrUnsupported. — _ag6, t17_
+- **m90** (à_revérifier) formula : les références structurées sont calculées si le Book implémente l'interface formula.Tables (Table(name), TableAt(sheet,row,col)). resolve(tb, s, pos) donne la zone, et Engine.reads s'en sert pour les dépendances. Sans Tables, l'évaluation rend ErrUnsupported. — _ag6, t17_
 
 ### formula/value.go
-- **m96** Values of type TypeLambda never leave the calculation: a cell, scalar() and the engine's cellValue turn them into #CALC!. — _ag5, t11_
+- **m96** (à_revérifier) Values of type TypeLambda never leave the calculation: a cell, scalar() and the engine's cellValue turn them into #CALC!. — _ag5, t11_
 
 ### xlsx/links.go
 - **m78** (à_revérifier) xlsx : les liens hypertexte sont le champ `link` de la cellule ({"url"|"loc","tip"}), lu par Document.links (xlsx/links.go) qui retire de la feuille les hyperlinks éditables ; ceux sur plus de 1024 cellules ou à adresse non canonique restent dans le XML de la feuille. Une fusion vérifiée par merges.apply (xlsx/merges.go) compare aux fusions de l'arbre. — _ag3, t14_
 
 ### xlsx/tables.go
-- **m89** xlsx : les tableaux (ListObjects) sont l'attribut "tables" de leur feuille. Un tableau d'ID 0 ou inconnu est créé à la sauvegarde (writetables.go), et un tableau lu absent de l'attribut voit sa part supprimée. Le décalage par insertion ou suppression de lignes et colonnes est fait par le suivi serveur (Calc.Follow, tablefollow.go, Table.shifted). Le mover de moves.go ne décale plus que les tableaux que l'arbre ne porte pas. — _ag6, t17_
+- **m89** (à_revérifier) xlsx : les tableaux (ListObjects) sont l'attribut "tables" de leur feuille. Un tableau d'ID 0 ou inconnu est créé à la sauvegarde (writetables.go), et un tableau lu absent de l'attribut voit sa part supprimée. Le décalage par insertion ou suppression de lignes et colonnes est fait par le suivi serveur (Calc.Follow, tablefollow.go, Table.shifted). Le mover de moves.go ne décale plus que les tableaux que l'arbre ne porte pas. — _ag6, t17_
 
 ### xlsx/tables_test.go
 - **m107** Pour tester une édition xlsx comme le serveur la traite : moveRows (Check, Apply, Moved) puis Calc.Follow(e, nil). Le helper sent() de xlsx/tables_test.go le fait ; apply() de edit_test.go ne lance ni Moved ni Follow. — _ag6, t17_
@@ -93,7 +93,7 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 ## contrat
 
 ### agent/
-- **m5** Contraintes de l'hôte (serveur Citadelle, Héraut) pour le MCP de loffice : voie principale = http.Handler monté par le serveur, Héraut l'appelle en HTTP depuis son conteneur (stdio = dev local seulement) ; autorisation à deux niveaux par une fonction de l'hôte à chaque requête (service appelant autorisé par l'admin, modèle Services v3, + droits de l'utilisateur « au nom de » sur ce document ; l'IA n'a aucun droit propre) ; écriture refusée si l'utilisateur n'a pas consenti ; auteur Word = nom stable de l'IA, demandeur en métadonnée du lot, UndoMine par demandeur ; aperçu→application avec version/ETag, échec sans écrasement ; délais de plusieurs dizaines de secondes ; rien d'exposé ni d'affiché si l'hôte n'active pas l'IA. — _orchestra_
+- **m5** (à_revérifier) Contraintes de l'hôte (serveur Citadelle, Héraut) pour le MCP de loffice : voie principale = http.Handler monté par le serveur, Héraut l'appelle en HTTP depuis son conteneur (stdio = dev local seulement) ; autorisation à deux niveaux par une fonction de l'hôte à chaque requête (service appelant autorisé par l'admin, modèle Services v3, + droits de l'utilisateur « au nom de » sur ce document ; l'IA n'a aucun droit propre) ; écriture refusée si l'utilisateur n'a pas consenti ; auteur Word = nom stable de l'IA, demandeur en métadonnée du lot, UndoMine par demandeur ; aperçu→application avec version/ETag, échec sans écrasement ; délais de plusieurs dizaines de secondes ; rien d'exposé ni d'affiché si l'hôte n'active pas l'IA. — _orchestra_
 
 ### agent/state.go
 - **m51** Le paquet loffice/agent donne aux paragraphes des ids pN qui suivent leur marque, et aux tableaux des ids tN. Ces ids et les versions (jeton de session-n) ne valent que pour un même Agent : une autre session renumérote. Le Journal (Options.Journal) transmet de session en session le « au nom de » des révisions. — _ag5, t23_
@@ -109,6 +109,9 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 
 ### formula/rewrite.go
 - **m94** (à_revérifier) formula.Stored adds _xlpm. in front of LET/LAMBDA parameters and their uses in scope (rewrite.go params()), and _xlfn. in front of LET, LAMBDA, MAP, REDUCE, SCAN, BYROW, BYCOL, MAKEARRAY, ISOMITTED; the parser strips _xlpm. from names without a sheet. — _ag5, t11_
+
+### mcp/tools.go
+- **m113** loffice MCP : l'outil select (curseur ou présence de l'IA) reste autorisé comme une lecture (Access.Write=false), décision de l'hôte Citadelle : la présence ne modifie pas le document. Aucun tag de version loffice (v0.12.0…) ne doit être posé ni publié sans l'accord transmis par sys:main/orchestra. — _orchestra_
 
 ### opc/strict.go
 - **m36** (à_revérifier) loffice opc : dans un paquet OOXML Strict (Package.Strict()), Read rend chaque partie XML traduite en Transitional (espaces de noms, types de relations, pourcentages DrawingML « 75% » → 75000), et Set/Add retraduisent en Strict. Les lecteurs et writers des formats ne voient donc que du Transitional. Table et liste des attributs pourcentage : opc/strict.go. — _ag1, t7_
@@ -142,3 +145,4 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 
 ### agent/
 - **m4** (à_revérifier) Coédition IA dans PowerPoint et Excel (sans suivi des modifications) : l'IA écrit directement, de façon visible (curseur et nom de l'IA, surlignage temporaire de ce qu'elle vient de modifier), avec « annuler les miennes » qui retire seulement ses éditions. Dans Word, suivi des modifications signé de son nom. — _orchestra_
+- **m114** Coédition IA (décision de l'humain, 04/11) : l'IA écrit en direct dans le document même quand d'autres personnes l'ont ouvert ; aucune attente ni verrou parce que des humains sont présents dans la salle. — _orchestra_
