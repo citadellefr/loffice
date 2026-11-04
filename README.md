@@ -29,6 +29,7 @@ license.
 | [`drawingml`](drawingml) | The DrawingML of all three formats: colors, fills, lines, geometries, positions and text bodies, read as JSON and text flows, written back as patches of the XML they came from. |
 | [`pptx`](pptx) | Presentations as trees: masters, layouts, slides, shapes, tables of rows and cells, and notes; table styles, Office's built-in ones included. Only what changed is written back; a copied shape keeps its pictures and links. |
 | [`xlsx`](xlsx) | Workbooks as trees: sheets, grids of cells and cell formats. Only the sheets that changed are written back; what the file keeps as XML moves with the rows and columns inserted and removed. CSV files are read as workbooks of one sheet and written back as they were read. |
+| [`agent`](agent) | An AI in a room, as one more participant: it reads a document as Markdown or CriticMarkup, and edits it by batches of revisions signed with its name. |
 | [`docx`](docx) | Word documents as trees: the body and the headers and footers as blocks, paragraphs as flows whose attributes are their formatting and that of their characters, tables of rows and cells; styles, lists and sections read for the editor. Only the parts that changed are written back, and what the model does not cover rides along in the nodes. |
 | [`legacy`](legacy) | The documents of Office 97 to 2003, converted once into those of today: Excel workbooks (`.xls`) with their cells, formulas, formats, sizes, merged cells, frozen panes and names. What a file held that its conversion leaves out is told, never lost in silence. |
 | [`formula`](formula) | Excel formulas parsed and calculated in the French locale, 223 functions, number formats, and an engine that calculates again only what a change reaches. |
@@ -39,12 +40,40 @@ license.
 | `internal/xmldom` | A tree of XML elements that keep the bytes they were read from: only what changed is written anew. |
 | `internal/xmlcanon` | Whether two XML parts mean the same thing to Office, whatever their prefixes, quoting or layout: how rewritten parts are checked. |
 
+## AI participants
+
+`agent.Join` puts a program in a document's room through the hub, as anyone
+else: its edits pass the same checks, are rebased over what people type
+meanwhile, and its cursor shows. It reads a Word document as Markdown, or as
+CriticMarkup with its revisions and comments, every block given an id
+(`[p3]`, `[t1]`), and finds headings and text. It edits by batches applied
+whole or not at all, which `Preview` shows first: replacing text, inserting
+paragraphs written in Markdown, deleting, formatting, commenting, accepting
+and rejecting revisions. Its changes of text are revisions signed with its
+name unless the batch is direct. Each batch names the user the agent acts
+for, and `UndoMine` rejects what it did for one of them. A batch prepared on
+a version whose blocks changed since fails without writing; the host's
+`Allow` can refuse any write before it is sent. The agent keeps up with the
+room however long its model thinks. PowerPoint and Excel will take the same
+batches.
+
 ## Protocol
 
 Edits and how they are reconciled are those of
 [trame](https://github.com/citadellefr/trame#protocol), which also holds the
 session of the Dart package. A document is a tree of nodes; what each format
 makes of its file is described by the package that reads it.
+
+## Limits
+
+`loffice.NewHub(store, options, limits)` takes the `loffice.Limits` of the
+files it opens, and `loffice.Convert` those of the files it converts; the
+format packages take theirs as an argument of `Open` (`opc.Limits`,
+`xlsx.Limits`, `legacy.Limits`). A zero field takes its default, which holds
+every file of the test corpus (but its zip bomb): a file of 32 MiB as stored,
+4096 parts, 64 MiB for a part and 128 MiB for all of them once decompressed,
+64 MiB of cell data in a workbook, 4 Mi cells in a workbook of Office 97 to
+2003. A file over a limit is refused with `loffice.ErrTooLarge`.
 
 ## Tests
 

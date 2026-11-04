@@ -18,24 +18,27 @@ import (
 )
 
 // Limits bound what Open accepts, against zip bombs. Zero fields take the
-// defaults.
+// defaults, which suit a small server: the largest package of the test
+// corpus has 1714 parts, a part of 46 MiB and 46 MiB in all.
 type Limits struct {
+	// MaxParts is the number of parts, 4096 by default.
 	MaxParts int
-	// MaxPartSize and MaxTotalSize bound uncompressed sizes. The sizes an
-	// archive declares are enforced while reading, so it cannot lie.
+	// MaxPartSize and MaxTotalSize bound uncompressed sizes, 64 MiB and
+	// 128 MiB by default. The sizes an archive declares are enforced while
+	// reading, so it cannot lie.
 	MaxPartSize  int64
 	MaxTotalSize int64
 }
 
 func (l Limits) withDefaults() Limits {
 	if l.MaxParts <= 0 {
-		l.MaxParts = 10_000
+		l.MaxParts = 4096
 	}
 	if l.MaxPartSize <= 0 {
-		l.MaxPartSize = 256 << 20
+		l.MaxPartSize = 64 << 20
 	}
 	if l.MaxTotalSize <= 0 {
-		l.MaxTotalSize = 512 << 20
+		l.MaxTotalSize = 128 << 20
 	}
 	return l
 }
@@ -59,6 +62,7 @@ type Package struct {
 	index   map[string]*part
 	types   *contentTypes
 	comment string
+	strict  bool
 }
 
 type part struct {
@@ -119,7 +123,7 @@ func Open(data []byte, limits Limits) (*Package, error) {
 		p.parts = append(p.parts, pt)
 		p.index[key] = pt
 	}
-	raw, err := p.Read(contentTypesName)
+	raw, err := p.read(contentTypesName)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalid, err)
 	}
@@ -133,6 +137,7 @@ func Open(data []byte, limits Limits) (*Package, error) {
 			pt.name = p.types.Rules[i].PartName[1:]
 		}
 	}
+	p.strict = p.isStrict()
 	return p, nil
 }
 
@@ -165,8 +170,17 @@ func (p *Package) Has(name string) bool {
 	return p.index[strings.ToLower(name)] != nil
 }
 
-// Read returns the uncompressed content of a part.
+// Read returns the uncompressed content of a part, as Transitional in a
+// Strict package.
 func (p *Package) Read(name string) ([]byte, error) {
+	data, err := p.read(name)
+	if err != nil {
+		return nil, err
+	}
+	return p.translate(p.ContentType(name), data, toTransitional), nil
+}
+
+func (p *Package) read(name string) ([]byte, error) {
 	pt := p.index[strings.ToLower(name)]
 	if pt == nil {
 		return nil, fmt.Errorf("%w: %s", ErrNotFound, name)
@@ -202,13 +216,14 @@ func (p *Package) ContentType(name string) string {
 	return p.types.lookup(name)
 }
 
-// Set replaces the content of an existing part.
+// Set replaces the content of an existing part, written back to Strict in
+// a Strict package.
 func (p *Package) Set(name string, data []byte) error {
 	pt := p.index[strings.ToLower(name)]
 	if pt == nil {
 		return fmt.Errorf("%w: %s", ErrNotFound, name)
 	}
-	pt.file, pt.data = nil, data
+	pt.file, pt.data = nil, p.translate(p.ContentType(name), data, toStrict)
 	return nil
 }
 
@@ -222,7 +237,7 @@ func (p *Package) Add(name, contentType string, data []byte) error {
 	if p.index[key] != nil {
 		return fmt.Errorf("%w: part %q already exists", ErrInvalid, name)
 	}
-	pt := &part{name: name, data: data, method: zip.Deflate, modified: zipEpoch}
+	pt := &part{name: name, data: p.translate(contentType, data, toStrict), method: zip.Deflate, modified: zipEpoch}
 	p.parts = append(p.parts, pt)
 	p.index[key] = pt
 	if p.types.lookup(name) != contentType {

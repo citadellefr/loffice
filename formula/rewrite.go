@@ -162,3 +162,48 @@ func Drop(f, sheet string) (string, error) {
 		return true
 	})
 }
+
+// newer are the prefixes files give the functions newer than their format.
+var newer = map[string]string{"FILTER": "_xlfn._xlws.", "SORT": "_xlfn._xlws."}
+
+func init() {
+	for _, name := range []string{"AGGREGATE", "ANCHORARRAY", "BETA.DIST", "BINOM.DIST", "CEILING.MATH",
+		"CEILING.PRECISE", "CHISQ.DIST", "CHISQ.DIST.RT", "CHISQ.TEST", "COMBINA", "CONCAT", "CONFIDENCE.NORM",
+		"CONFIDENCE.T", "COVARIANCE.P", "COVARIANCE.S", "DAYS", "EXPON.DIST", "F.DIST", "F.DIST.RT", "FLOOR.MATH",
+		"FLOOR.PRECISE", "FORECAST.LINEAR", "GAMMA.DIST", "IFNA", "IFS", "ISO.CEILING", "ISOWEEKNUM",
+		"LOGNORM.DIST", "MAXIFS", "MINIFS", "MODE.SNGL", "MUNIT", "NORM.DIST", "NORM.INV", "NORM.S.DIST",
+		"NORM.S.INV", "NUMBERVALUE", "PERCENTILE.EXC", "PERCENTILE.INC", "PERCENTRANK.INC", "POISSON.DIST",
+		"QUARTILE.EXC", "QUARTILE.INC", "RANDARRAY", "RANK.AVG", "RANK.EQ", "SEQUENCE", "SINGLE", "SORTBY",
+		"STDEV.P", "STDEV.S", "SWITCH", "T.DIST", "T.DIST.2T", "T.DIST.RT", "T.INV", "T.INV.2T", "T.TEST",
+		"TEXTAFTER", "TEXTBEFORE", "TEXTJOIN", "UNICHAR", "UNICODE", "UNIQUE", "VAR.P", "VAR.S", "XLOOKUP",
+		"XMATCH", "XOR"} {
+		newer[name] = "_xlfn."
+	}
+}
+
+// Stored is f as files store it: the functions newer than the format
+// with their prefix, _xlfn.SEQUENCE, and A1# as _xlfn.ANCHORARRAY(A1).
+func Stored(f string) string {
+	if !strings.ContainsAny(f, "(#") {
+		return f
+	}
+	tokens, err := Tokens(f)
+	if err != nil {
+		return f
+	}
+	var b strings.Builder
+	for i, t := range tokens {
+		spill := i+1 < len(tokens) && tokens[i+1].Kind == Operator && tokens[i+1].Text == "#"
+		switch {
+		case t.Kind == Function && strings.ToUpper(t.Text) == FunctionName(t.Text):
+			b.WriteString(newer[strings.ToUpper(t.Text[:len(t.Text)-1])])
+		case (t.Kind == Reference || t.Kind == Name) && spill:
+			b.WriteString("_xlfn.ANCHORARRAY(" + t.Text + ")")
+			continue
+		case t.Kind == Operator && t.Text == "#" && i > 0 && (tokens[i-1].Kind == Reference || tokens[i-1].Kind == Name):
+			continue
+		}
+		b.WriteString(t.Text)
+	}
+	return b.String()
+}

@@ -46,7 +46,7 @@ func TestCorpusOpen(t *testing.T) {
 			t.Fatal(err)
 		}
 		start := time.Now()
-		_, tree, err := Open(data)
+		_, tree, err := Open(data, Limits{})
 		took := time.Since(start)
 		if took > slowest {
 			slowest, slowestName = took, f
@@ -77,7 +77,7 @@ func TestCorpusSave(t *testing.T) {
 	saved := 0
 	for _, f := range workbooks(t) {
 		data, _ := os.ReadFile(f)
-		d, tree, err := Open(data)
+		d, tree, err := Open(data, Limits{})
 		if err != nil {
 			continue
 		}
@@ -98,7 +98,7 @@ func TestCorpusRewrite(t *testing.T) {
 	files := 0
 	for _, f := range workbooks(t) {
 		data, _ := os.ReadFile(f)
-		d, tree, err := Open(data)
+		d, tree, err := Open(data, Limits{})
 		if err != nil {
 			continue
 		}
@@ -107,7 +107,7 @@ func TestCorpusRewrite(t *testing.T) {
 			t.Fatalf("%s: %v", f, err)
 		}
 		files++
-		_, again, err := Open(saved)
+		_, again, err := Open(saved, Limits{})
 		if err != nil {
 			t.Fatalf("%s: rewritten workbook does not open: %v", f, err)
 		}
@@ -158,11 +158,11 @@ func sameTree(a, b *ot.Tree) error {
 // samePackage checks that two packages hold the same parts, byte for byte.
 func samePackage(t *testing.T, name string, a, b []byte) {
 	t.Helper()
-	pa, err := opc.Open(a, Limits)
+	pa, err := opc.Open(a, opc.Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	pb, err := opc.Open(b, Limits)
+	pb, err := opc.Open(b, opc.Limits{})
 	if err != nil {
 		t.Fatalf("%s: saved package does not open: %v", name, err)
 	}
@@ -188,7 +188,7 @@ func TestCorpusIteration(t *testing.T) {
 	if err != nil {
 		t.Skip("no corpus: go run ./tools/corpus")
 	}
-	_, tree, err := Open(data)
+	_, tree, err := Open(data, Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}

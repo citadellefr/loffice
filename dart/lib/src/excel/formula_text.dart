@@ -3,11 +3,17 @@
 /// files call them "_xlfn.XLOOKUP".
 const _functions = <String, String>{
   'ABS': 'ABS',
+  'ACCRINT': 'INTERET.ACC',
+  'ACCRINTM': 'INTERET.ACC.MAT',
   'ACOS': 'ACOS',
   'ACOSH': 'ACOSH',
   'ADDRESS': 'ADRESSE',
   'AGGREGATE': 'AGREGAT',
   'AND': 'ET',
+  'ARABIC': 'CHIFFRE.ARABE',
+  'AREAS': 'ZONES',
+  'ARRAYTOTEXT': 'TABLEAUENTEXTE',
+  'ASC': 'ASC',
   'ASIN': 'ASIN',
   'ASINH': 'ASINH',
   'ATAN': 'ATAN',
@@ -18,13 +24,23 @@ const _functions = <String, String>{
   'AVERAGEA': 'AVERAGEA',
   'AVERAGEIF': 'MOYENNE.SI',
   'AVERAGEIFS': 'MOYENNE.SI.ENS',
+  'BESSELJ': 'BESSELJ',
   'BETA.DIST': 'LOI.BETA.N',
   'BETADIST': 'LOI.BETA',
+  'BIN2DEC': 'BINDEC',
+  'BIN2HEX': 'BINHEX',
+  'BIN2OCT': 'BINOCT',
   'BINOM.DIST': 'LOI.BINOMIALE.N',
   'BINOMDIST': 'LOI.BINOMIALE',
+  'BITAND': 'BITET',
+  'BITLSHIFT': 'BITDECALG',
+  'BITOR': 'BITOU',
+  'BITRSHIFT': 'BITDECALD',
+  'BITXOR': 'BITOUEXCLUSIF',
   'CEILING': 'PLAFOND',
   'CEILING.MATH': 'PLAFOND.MATH',
   'CEILING.PRECISE': 'PLAFOND.PRECIS',
+  'CELL': 'CELLULE',
   'CHAR': 'CAR',
   'CHIDIST': 'LOI.KHIDEUX',
   'CHISQ.DIST': 'LOI.KHIDEUX.N',
@@ -43,6 +59,7 @@ const _functions = <String, String>{
   'CONFIDENCE': 'INTERVALLE.CONFIANCE',
   'CONFIDENCE.NORM': 'INTERVALLE.CONFIANCE.NORMAL',
   'CONFIDENCE.T': 'INTERVALLE.CONFIANCE.STUDENT',
+  'CONVERT': 'CONVERT',
   'CORREL': 'COEFFICIENT.CORRELATION',
   'COS': 'COS',
   'COSH': 'COSH',
@@ -51,22 +68,41 @@ const _functions = <String, String>{
   'COUNTBLANK': 'NB.VIDE',
   'COUNTIF': 'NB.SI',
   'COUNTIFS': 'NB.SI.ENS',
+  'COUPDAYBS': 'NB.JOURS.COUPON.PREC',
+  'COUPDAYS': 'NB.JOURS.COUPON',
+  'COUPDAYSNC': 'NB.JOURS.COUPON.SUIV',
+  'COUPNCD': 'DATE.COUPON.SUIV',
+  'COUPNUM': 'NB.COUPONS',
+  'COUPPCD': 'DATE.COUPON.PREC',
   'COVAR': 'COVARIANCE',
   'COVARIANCE.P': 'COVARIANCE.PEARSON',
   'COVARIANCE.S': 'COVARIANCE.STANDARD',
+  'CUMIPMT': 'CUMUL.INTER',
+  'CUMPRINC': 'CUMUL.PRINCPER',
   'DATE': 'DATE',
   'DATEDIF': 'DATEDIF',
   'DATEVALUE': 'DATEVAL',
   'DAY': 'JOUR',
   'DAYS': 'JOURS',
   'DAYS360': 'JOURS360',
+  'DB': 'DB',
   'DDB': 'DDB',
+  'DEC2BIN': 'DECBIN',
+  'DEC2HEX': 'DECHEX',
+  'DEC2OCT': 'DECOCT',
   'DEGREES': 'DEGRES',
+  'DELTA': 'DELTA',
   'DEVSQ': 'SOMME.CARRES.ECARTS',
+  'DISC': 'TAUX.ESCOMPTE',
   'DOLLAR': 'DEVISE',
+  'DOLLARDE': 'PRIX.DEC',
+  'DOLLARFR': 'PRIX.FRAC',
+  'DURATION': 'DUREE',
   'EDATE': 'MOIS.DECALER',
   'EFFECT': 'TAUX.EFFECTIF',
   'EOMONTH': 'FIN.MOIS',
+  'ERF': 'ERF',
+  'ERFC': 'ERFC',
   'ERROR.TYPE': 'TYPE.ERREUR',
   'EVEN': 'PAIR',
   'EXACT': 'EXACT',
@@ -80,30 +116,40 @@ const _functions = <String, String>{
   'FALSE': 'FAUX',
   'FDIST': 'LOI.F',
   'FIND': 'TROUVE',
+  'FILTER': 'FILTRE',
   'FIXED': 'CTXT',
   'FLOOR': 'PLANCHER',
   'FLOOR.MATH': 'PLANCHER.MATH',
   'FLOOR.PRECISE': 'PLANCHER.PRECIS',
   'FORECAST': 'PREVISION',
   'FORECAST.LINEAR': 'PREVISION.LINEAIRE',
+  'FORMULATEXT': 'FORMULETEXTE',
   'FREQUENCY': 'FREQUENCE',
   'FV': 'VC',
+  'FVSCHEDULE': 'VC.PAIEMENTS',
   'GAMMA.DIST': 'LOI.GAMMA.N',
   'GAMMADIST': 'LOI.GAMMA',
   'GCD': 'PGCD',
   'GEOMEAN': 'MOYENNE.GEOMETRIQUE',
+  'GESTEP': 'SUP.SEUIL',
   'GROWTH': 'CROISSANCE',
   'HARMEAN': 'MOYENNE.HARMONIQUE',
+  'HEX2BIN': 'HEXBIN',
+  'HEX2DEC': 'HEXDEC',
+  'HEX2OCT': 'HEXOCT',
   'HLOOKUP': 'RECHERCHEH',
   'HOUR': 'HEURE',
+  'HYPERLINK': 'LIEN_HYPERTEXTE',
   'IF': 'SI',
   'IFERROR': 'SIERREUR',
   'IFNA': 'SI.NON.DISP',
   'IFS': 'SI.CONDITIONS',
   'INDEX': 'INDEX',
   'INDIRECT': 'INDIRECT',
+  'INFO': 'INFORMATIONS',
   'INT': 'ENT',
   'INTERCEPT': 'ORDONNEE.ORIGINE',
+  'INTRATE': 'TAUX.INTERET',
   'IPMT': 'INTPER',
   'IRR': 'TRI',
   'ISBLANK': 'ESTVIDE',
@@ -124,7 +170,9 @@ const _functions = <String, String>{
   'LARGE': 'GRANDE.VALEUR',
   'LCM': 'PPCM',
   'LEFT': 'GAUCHE',
+  'LEFTB': 'GAUCHEB',
   'LEN': 'NBCAR',
+  'LENB': 'LENB',
   'LINEST': 'DROITEREG',
   'LN': 'LN',
   'LOG': 'LOG',
@@ -139,23 +187,28 @@ const _functions = <String, String>{
   'MAXA': 'MAXA',
   'MAXIFS': 'MAX.SI.ENS',
   'MDETERM': 'DETERMAT',
+  'MDURATION': 'DUREE.MODIFIEE',
   'MEDIAN': 'MEDIANE',
   'MID': 'STXT',
+  'MIDB': 'STXTB',
   'MIN': 'MIN',
   'MINA': 'MINA',
   'MINIFS': 'MIN.SI.ENS',
   'MINUTE': 'MINUTE',
   'MINVERSE': 'INVERSEMAT',
+  'MIRR': 'TRIM',
   'MMULT': 'PRODUITMAT',
   'MOD': 'MOD',
   'MODE': 'MODE',
   'MODE.SNGL': 'MODE.SIMPLE',
   'MONTH': 'MOIS',
   'MROUND': 'ARRONDI.AU.MULTIPLE',
+  'MULTINOMIAL': 'MULTINOMIALE',
   'MUNIT': 'MATRICE.UNITAIRE',
   'N': 'N',
   'NA': 'NA',
   'NETWORKDAYS': 'NB.JOURS.OUVRES',
+  'NETWORKDAYS.INTL': 'NB.JOURS.OUVRES.INTL',
   'NOMINAL': 'TAUX.NOMINAL',
   'NORM.DIST': 'LOI.NORMALE.N',
   'NORM.INV': 'LOI.NORMALE.INVERSE.N',
@@ -170,6 +223,9 @@ const _functions = <String, String>{
   'NPER': 'NPM',
   'NPV': 'VAN',
   'NUMBERVALUE': 'VALEURNOMBRE',
+  'OCT2BIN': 'OCTBIN',
+  'OCT2DEC': 'OCTDEC',
+  'OCT2HEX': 'OCTHEX',
   'ODD': 'IMPAIR',
   'OFFSET': 'DECALER',
   'OR': 'OU',
@@ -186,6 +242,8 @@ const _functions = <String, String>{
   'POISSON.DIST': 'LOI.POISSON.N',
   'POWER': 'PUISSANCE',
   'PPMT': 'PRINCPER',
+  'PRICE': 'PRIX.TITRE',
+  'PRICEDISC': 'PRIX.TITRE.ESCOMPTE',
   'PRODUCT': 'PRODUIT',
   'PROPER': 'NOMPROPRE',
   'PV': 'VA',
@@ -195,22 +253,31 @@ const _functions = <String, String>{
   'QUOTIENT': 'QUOTIENT',
   'RADIANS': 'RADIANS',
   'RAND': 'ALEA',
+  'RANDARRAY': 'TABLEAU.ALEA',
   'RANDBETWEEN': 'ALEA.ENTRE.BORNES',
   'RANK': 'RANG',
   'RANK.AVG': 'MOYENNE.RANG',
   'RANK.EQ': 'EQUATION.RANG',
   'RATE': 'TAUX',
+  'RECEIVED': 'VALEUR.ENCAISSEMENT',
   'REPLACE': 'REMPLACER',
   'REPT': 'REPT',
   'RIGHT': 'DROITE',
+  'RIGHTB': 'DROITEB',
+  'ROMAN': 'ROMAIN',
   'ROUND': 'ARRONDI',
   'ROUNDDOWN': 'ARRONDI.INF',
   'ROUNDUP': 'ARRONDI.SUP',
   'ROW': 'LIGNE',
   'ROWS': 'LIGNES',
+  'RRI': 'TAUX.INT.EQUIV',
   'RSQ': 'COEFFICIENT.DETERMINATION',
   'SEARCH': 'CHERCHE',
   'SECOND': 'SECONDE',
+  'SEQUENCE': 'SEQUENCE',
+  'SERIESSUM': 'SOMME.SERIES',
+  'SHEET': 'FEUILLE',
+  'SHEETS': 'FEUILLES',
   'SIGN': 'SIGNE',
   'SIN': 'SIN',
   'SINH': 'SINH',
@@ -218,6 +285,8 @@ const _functions = <String, String>{
   'SLN': 'AMORLIN',
   'SLOPE': 'PENTE',
   'SMALL': 'PETITE.VALEUR',
+  'SORT': 'TRIER',
+  'SORTBY': 'TRIERPAR',
   'SQRT': 'RACINE',
   'SQRTPI': 'RACINE.PI',
   'STANDARDIZE': 'CENTREE.REDUITE',
@@ -234,6 +303,9 @@ const _functions = <String, String>{
   'SUMIFS': 'SOMME.SI.ENS',
   'SUMPRODUCT': 'SOMMEPROD',
   'SUMSQ': 'SOMME.CARRES',
+  'SUMX2MY2': 'SOMME.X2MY2',
+  'SUMX2PY2': 'SOMME.X2PY2',
+  'SUMXMY2': 'SOMME.XMY2',
   'SWITCH': 'SI.MULTIPLE',
   'SYD': 'SYD',
   'T': 'T',
@@ -245,6 +317,9 @@ const _functions = <String, String>{
   'T.TEST': 'T.TEST',
   'TAN': 'TAN',
   'TANH': 'TANH',
+  'TBILLEQ': 'TAUX.ESCOMPTE.R',
+  'TBILLPRICE': 'PRIX.BON.TRESOR',
+  'TBILLYIELD': 'RENDEMENT.BON.TRESOR',
   'TDIST': 'LOI.STUDENT',
   'TEXT': 'TEXTE',
   'TEXTAFTER': 'TEXTE.APRES',
@@ -264,39 +339,120 @@ const _functions = <String, String>{
   'TYPE': 'TYPE',
   'UNICHAR': 'UNICAR',
   'UNICODE': 'UNICODE',
+  'UNIQUE': 'UNIQUE',
   'UPPER': 'MAJUSCULE',
   'VALUE': 'CNUM',
+  'VALUETOTEXT': 'VALEURENTEXTE',
   'VAR': 'VAR',
   'VAR.P': 'VAR.P.N',
   'VAR.S': 'VAR.S',
   'VARA': 'VARA',
   'VARP': 'VAR.P',
   'VARPA': 'VARPA',
+  'VDB': 'VDB',
   'VLOOKUP': 'RECHERCHEV',
   'WEEKDAY': 'JOURSEM',
   'WEEKNUM': 'NO.SEMAINE',
   'WORKDAY': 'SERIE.JOUR.OUVRE',
+  'WORKDAY.INTL': 'SERIE.JOUR.OUVRE.INTL',
+  'XIRR': 'TRI.PAIEMENTS',
   'XLOOKUP': 'RECHERCHEX',
   'XMATCH': 'EQUIVX',
+  'XNPV': 'VAN.PAIEMENTS',
   'XOR': 'OUX',
   'YEAR': 'ANNEE',
   'YEARFRAC': 'FRACTION.ANNEE',
+  'YIELD': 'RENDEMENT.TITRE',
+  'YIELDDISC': 'RENDEMENT.SIMPLE',
 };
 
 /// The functions newer than the file format, which files call with the
-/// prefix "_xlfn.".
+/// prefix "_xlfn.", and those among them that take "_xlfn._xlws." as well.
 const _newer = {
-  'AGGREGATE', 'BETA.DIST', 'BINOM.DIST', 'CEILING.MATH', 'CEILING.PRECISE', 'CHISQ.DIST', 'CHISQ.DIST.RT', //
-  'CHISQ.TEST', 'COMBINA', 'CONCAT', 'CONFIDENCE.NORM', 'CONFIDENCE.T', 'COVARIANCE.P', 'COVARIANCE.S',
-  'DAYS', 'EXPON.DIST', 'F.DIST', 'F.DIST.RT', 'FLOOR.MATH', 'FLOOR.PRECISE', 'FORECAST.LINEAR',
-  'GAMMA.DIST', 'IFNA', 'IFS', 'ISO.CEILING', 'ISOWEEKNUM', 'LOGNORM.DIST', 'MAXIFS', 'MINIFS', 'MODE.SNGL',
-  'MUNIT', 'NORM.DIST', 'NORM.INV', 'NORM.S.DIST', 'NORM.S.INV', 'NUMBERVALUE', 'PERCENTILE.EXC',
-  'PERCENTILE.INC', 'PERCENTRANK.INC', 'POISSON.DIST', 'QUARTILE.EXC', 'QUARTILE.INC', 'RANK.AVG', 'RANK.EQ',
-  'STDEV.P', 'STDEV.S', 'SWITCH', 'T.DIST', 'T.DIST.2T', 'T.DIST.RT', 'T.INV', 'T.INV.2T', 'T.TEST',
-  'TEXTAFTER', 'TEXTBEFORE', 'TEXTJOIN', 'UNICHAR', 'UNICODE', 'VAR.P', 'VAR.S', 'XLOOKUP', 'XMATCH', 'XOR',
+  'AGGREGATE',
+  'ARABIC',
+  'ARRAYTOTEXT',
+  'BETA.DIST',
+  'BINOM.DIST',
+  'BITAND',
+  'BITLSHIFT',
+  'BITOR',
+  'BITRSHIFT',
+  'BITXOR',
+  'CEILING.MATH',
+  'CEILING.PRECISE',
+  'CHISQ.DIST',
+  'CHISQ.DIST.RT',
+  'CHISQ.TEST',
+  'COMBINA',
+  'CONCAT',
+  'CONFIDENCE.NORM',
+  'CONFIDENCE.T',
+  'COVARIANCE.P',
+  'COVARIANCE.S',
+  'DAYS',
+  'EXPON.DIST',
+  'F.DIST',
+  'F.DIST.RT',
+  'FLOOR.MATH',
+  'FLOOR.PRECISE',
+  'FORECAST.LINEAR',
+  'FORMULATEXT',
+  'GAMMA.DIST',
+  'IFNA',
+  'IFS',
+  'ISO.CEILING',
+  'ISOWEEKNUM',
+  'LOGNORM.DIST',
+  'MAXIFS',
+  'MINIFS',
+  'MODE.SNGL',
+  'MUNIT',
+  'NORM.DIST',
+  'NORM.INV',
+  'NORM.S.DIST',
+  'NORM.S.INV',
+  'NUMBERVALUE',
+  'PERCENTILE.EXC',
+  'PERCENTILE.INC',
+  'PERCENTRANK.INC',
+  'POISSON.DIST',
+  'QUARTILE.EXC',
+  'QUARTILE.INC',
+  'RANDARRAY',
+  'RANK.AVG',
+  'RANK.EQ',
+  'RRI',
+  'SEQUENCE',
+  'SHEET',
+  'SHEETS',
+  'SORTBY',
+  'STDEV.P',
+  'STDEV.S',
+  'SWITCH',
+  'T.DIST',
+  'T.DIST.2T',
+  'T.DIST.RT',
+  'T.INV',
+  'T.INV.2T',
+  'T.TEST',
+  'TEXTAFTER',
+  'TEXTBEFORE',
+  'TEXTJOIN',
+  'UNICHAR',
+  'UNICODE',
+  'UNIQUE',
+  'VALUETOTEXT',
+  'VAR.P',
+  'VAR.S',
+  'XLOOKUP',
+  'XMATCH',
+  'XOR',
 };
 
-const _errors = <String, String>{'#NULL!': '#NUL!', '#VALUE!': '#VALEUR!', '#NAME?': '#NOM?', '#NUM!': '#NOMBRE!'};
+const _windowed = {'FILTER', 'SORT'};
+
+const _errors = <String, String>{'#NULL!': '#NUL!', '#VALUE!': '#VALEUR!', '#NAME?': '#NOM?', '#NUM!': '#NOMBRE!', '#SPILL!': '#PROPAGATION!', '#CALC!': '#CALC!'};
 
 final _english = {for (final e in _functions.entries) e.value: e.key};
 final _englishErrors = {for (final e in _errors.entries) e.value: e.key};
@@ -317,16 +473,20 @@ String formulaFromFrench(String f) => _translate(f, toFrench: false);
 
 bool _letter(int c) => c >= 0x41 && c <= 0x5A || c >= 0x61 && c <= 0x7A || c == 0x5F || c == 0x5C || c > 0x7F;
 
+final _spilled = RegExp(r'''\(((?:(?:'(?:[^']|'')+'|[^'"()!,;\s]+)!)?[^'"()!,;\s]+)\)''');
+
 bool _digit(int c) => c >= 0x30 && c <= 0x39;
 
 String _translate(String f, {required bool toFrench}) {
   final b = StringBuffer();
   var braces = 0;
+  var operand = 0;
   var i = 0;
   while (i < f.length) {
     final c = f.codeUnitAt(i);
     // text and quoted sheet names are kept as they are
     if (c == 0x22 || c == 0x27) {
+      operand = b.length;
       var j = i + 1;
       while (j < f.length) {
         if (f.codeUnitAt(j) == c) {
@@ -394,6 +554,26 @@ String _translate(String f, {required bool toFrench}) {
       final word = f.substring(i, k);
       final call = k < f.length && f[k] == '(';
       final upper = word.toUpperCase();
+      final spilled = toFrench && upper == '_XLFN.ANCHORARRAY' ? _spilled.matchAsPrefix(f, k) : null;
+      if (spilled != null) {
+        b
+          ..write(spilled[1])
+          ..write('#');
+        i = k + spilled[0]!.length;
+        continue;
+      }
+      if (i == 0 || f[i - 1] != '!') operand = b.length;
+      if (!toFrench && !call && k < f.length && f[k] == '#' && !word.endsWith('!')) {
+        final before = b.toString();
+        b
+          ..clear()
+          ..write(before.substring(0, operand))
+          ..write('_xlfn.ANCHORARRAY(')
+          ..write(before.substring(operand))
+          ..write('$word)');
+        i = k + 1;
+        continue;
+      }
       if (call) {
         b.write(toFrench ? _toFrench(upper) : _fromFrench(upper, word));
       } else if (upper == 'TRUE' || upper == 'FALSE' || upper == 'VRAI' || upper == 'FAUX') {
@@ -448,11 +628,12 @@ String _toFrench(String name) {
   for (final p in ['_XLFN._XLWS.', '_XLFN.', '_XLWS.']) {
     if (bare.startsWith(p)) bare = bare.substring(p.length);
   }
-  return _functions[bare] ?? bare;
+  return _functions[bare] ?? name;
 }
 
 String _fromFrench(String upper, String word) {
   final english = _english[upper] ?? (_functions.containsKey(upper) ? upper : null);
   if (english == null) return upper.startsWith('_XLFN.') ? word : upper;
+  if (_windowed.contains(english)) return '_xlfn._xlws.$english';
   return _newer.contains(english) ? '_xlfn.$english' : english;
 }

@@ -126,7 +126,7 @@ func (b *book) sheet(stream []byte, index int, key string) (ot.Change, error) {
 		case depth == 0:
 			s.read(rec.id, rec.data)
 		}
-		if b.cells > MaxCells {
+		if b.cells > b.limits.MaxCells {
 			return ot.Change{}, ErrTooLarge
 		}
 	}
@@ -145,12 +145,12 @@ func (s *sheet) at(at [2]int, xf int) *cell {
 }
 
 // get is the cell at a place, made when the sheet has none there. Past
-// MaxCells it is one the sheet does not keep.
+// Limits.MaxCells it is one the sheet does not keep.
 func (s *sheet) get(at [2]int) *cell {
 	c := s.cells[at]
 	if c == nil {
 		c = &cell{}
-		if s.b.cells++; s.b.cells <= MaxCells {
+		if s.b.cells++; s.b.cells <= s.b.limits.MaxCells {
 			s.cells[at] = c
 		}
 	}
@@ -429,7 +429,7 @@ func (s *sheet) change(index int, key string) (ot.Change, error) {
 	for at, c := range s.cells {
 		if fields := mustJSON(c); len(fields) > 2 {
 			cells = append(cells, ot.Cell{Row: at[0], Col: at[1], Fields: fields})
-			if s.b.size += len(fields); s.b.size > xlsx.MaxCellData {
+			if s.b.size += len(fields); s.b.size > s.b.limits.MaxCellData {
 				return ot.Change{}, ErrTooLarge
 			}
 		}

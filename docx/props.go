@@ -611,8 +611,6 @@ var pbdrProp = prop{"pbdr",
 		}
 	}}
 
-var twips = integer(-31680, 31680)
-
 var paraProps = []prop{
 	valProp("pstyle", "pStyle", "val", pPrOrder, name, ""),
 	onOff("keepNext", "keepNext", pPrOrder, ""),

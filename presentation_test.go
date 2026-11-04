@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/citadellefr/loffice/opc"
 	"github.com/citadellefr/loffice/pptx"
 	"github.com/citadellefr/trame/ot"
 	"github.com/citadellefr/trame/trametest"
@@ -20,7 +21,7 @@ func TestPresentationsAreEditedAndSaved(t *testing.T) {
 	}
 	store := trametest.NewStore()
 	store.Data["deck.pptx"] = data
-	h := NewHub(store, fastOptions())
+	h := NewHub(store, fastOptions(), Limits{})
 
 	c, _, doc := join(t, h, "deck.pptx", Peer{ID: "1"})
 	var nodes ot.Edit
@@ -48,7 +49,7 @@ func TestPresentationsAreEditedAndSaved(t *testing.T) {
 	<-store.Saves
 	c.Expect("saved")
 
-	_, tree, err := pptx.Open([]byte(store.File("deck.pptx")))
+	_, tree, err := pptx.Open([]byte(store.File("deck.pptx")), opc.Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}

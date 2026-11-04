@@ -69,7 +69,7 @@ func TestRefused(t *testing.T) {
 		"0904060000001000":                 ErrTooOld,
 		"d0cf11e0a1b11ae10000":             ErrInvalid,
 	} {
-		if _, _, err := Workbook(unhex(t, data)); !errors.Is(err, want) {
+		if _, _, err := Workbook(unhex(t, data), Limits{}); !errors.Is(err, want) {
 			t.Errorf("%s: %v, want %v", data, err, want)
 		}
 	}

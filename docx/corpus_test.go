@@ -35,7 +35,7 @@ func documents(t *testing.T) []string {
 
 // save is Save, every part rewritten when force is set.
 func save(d *Document, tree *ot.Tree, force bool) ([]byte, error) {
-	pkg, err := opc.Open(d.original, Limits)
+	pkg, err := opc.Open(d.original, opc.Limits{})
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +54,7 @@ func TestCorpusOpenAndSave(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		d, tree, err := Open(data)
+		d, tree, err := Open(data, opc.Limits{})
 		if err != nil {
 			refused++
 			reason := err.Error()
@@ -80,11 +80,11 @@ func TestCorpusOpenAndSave(t *testing.T) {
 // samePackage checks that two packages hold the same parts, byte for byte.
 func samePackage(t *testing.T, name string, a, b []byte) {
 	t.Helper()
-	pa, err := opc.Open(a, Limits)
+	pa, err := opc.Open(a, opc.Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	pb, err := opc.Open(b, Limits)
+	pb, err := opc.Open(b, opc.Limits{})
 	if err != nil {
 		t.Fatalf("%s: saved package does not open: %v", name, err)
 	}
@@ -107,7 +107,7 @@ func TestCorpusRewrite(t *testing.T) {
 	var files int
 	for _, f := range documents(t) {
 		data, _ := os.ReadFile(f)
-		d, tree, err := Open(data)
+		d, tree, err := Open(data, opc.Limits{})
 		if err != nil {
 			continue
 		}
@@ -116,7 +116,7 @@ func TestCorpusRewrite(t *testing.T) {
 			t.Fatalf("%s: %v", f, err)
 		}
 		files++
-		_, again, err := Open(saved)
+		_, again, err := Open(saved, opc.Limits{})
 		if err != nil {
 			t.Fatalf("%s: rewritten package does not open: %v", f, err)
 		}
@@ -165,7 +165,7 @@ func TestCorpusEdit(t *testing.T) {
 	var files int
 	for _, f := range documents(t) {
 		data, _ := os.ReadFile(f)
-		d, tree, err := Open(data)
+		d, tree, err := Open(data, opc.Limits{})
 		if err != nil {
 			continue
 		}
@@ -192,7 +192,7 @@ func TestCorpusEdit(t *testing.T) {
 			t.Fatalf("%s: %v", f, err)
 		}
 		files++
-		_, again, err := Open(saved)
+		_, again, err := Open(saved, opc.Limits{})
 		if err != nil {
 			t.Fatalf("%s: edited package does not open: %v", f, err)
 		}

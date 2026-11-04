@@ -17,7 +17,7 @@ func TestWorkbooksAreCalculatedAndSaved(t *testing.T) {
 	}
 	store := trametest.NewStore()
 	store.Data["book.xlsx"] = data
-	h := NewHub(store, fastOptions())
+	h := NewHub(store, fastOptions(), Limits{})
 	a, _, _ := join(t, h, "book.xlsx", Peer{ID: "1"})
 	b, _, _ := join(t, h, "book.xlsx", Peer{ID: "2"})
 	a.Expect("join")
@@ -48,7 +48,7 @@ func TestWorkbooksAreCalculatedAndSaved(t *testing.T) {
 		t.Fatalf("follow-up of rows inserted: %s", f.D)
 	}
 	<-store.Saves
-	_, tree, err := xlsx.Open([]byte(store.File("book.xlsx")))
+	_, tree, err := xlsx.Open([]byte(store.File("book.xlsx")), xlsx.Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +66,7 @@ func TestWorkbooksAreCalculatedAndSaved(t *testing.T) {
 func TestCSVFilesAreCalculatedAndSaved(t *testing.T) {
 	store := trametest.NewStore()
 	store.Data["ventes.csv"] = []byte("Article;Prix\r\nCafé;2,50\r\nThé;1,5\r\n")
-	h := NewHub(store, fastOptions())
+	h := NewHub(store, fastOptions(), Limits{})
 	a, _, _ := join(t, h, "ventes.csv", Peer{ID: "1"})
 	a.Send(`{"t":"op","n":1,"v":0,"d":[{"o":"cel","id":"S1","c":[[4,2,{"f":"SUM(B2:B3)"}]]}]}`)
 	a.Expect("ack")

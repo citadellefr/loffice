@@ -22,11 +22,11 @@ func converted(t *testing.T, name string) (*ot.Tree, []Loss) {
 	if err != nil {
 		t.Skip("no corpus: go run ./tools/corpus")
 	}
-	book, lost, err := Workbook(data)
+	book, lost, err := Workbook(data, Limits{})
 	if err != nil {
 		t.Fatalf("%s: %v", name, err)
 	}
-	_, tree, err := xlsx.Open(book)
+	_, tree, err := xlsx.Open(book, xlsx.Limits{})
 	if err != nil {
 		t.Fatalf("%s: %v", name, err)
 	}
@@ -139,7 +139,7 @@ func TestWorkbookRefused(t *testing.T) {
 		if err != nil {
 			t.Skip("no corpus: go run ./tools/corpus")
 		}
-		if _, _, err := Workbook(data); !errors.Is(err, want) {
+		if _, _, err := Workbook(data, Limits{}); !errors.Is(err, want) {
 			t.Errorf("%s: %v, want %v", name, err, want)
 		}
 	}
@@ -152,9 +152,7 @@ func TestWorkbookTooLarge(t *testing.T) {
 	if err != nil {
 		t.Skip("no corpus: go run ./tools/corpus")
 	}
-	defer func(n int) { MaxCells = n }(MaxCells)
-	MaxCells = 10
-	if _, _, err := Workbook(data); !errors.Is(err, ErrTooLarge) {
+	if _, _, err := Workbook(data, Limits{MaxCells: 10}); !errors.Is(err, ErrTooLarge) {
 		t.Fatalf("%v", err)
 	}
 }
@@ -169,11 +167,11 @@ func FuzzWorkbook(f *testing.F) {
 	}
 	f.Add([]byte{})
 	f.Fuzz(func(t *testing.T, data []byte) {
-		book, _, err := Workbook(data)
+		book, _, err := Workbook(data, Limits{})
 		if err != nil {
 			return
 		}
-		if _, _, err := xlsx.Open(book); err != nil {
+		if _, _, err := xlsx.Open(book, xlsx.Limits{}); err != nil {
 			t.Fatalf("the converted workbook does not open: %v", err)
 		}
 	})
@@ -208,7 +206,7 @@ func TestCorpusWorkbooks(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		book, losses, err := Workbook(data)
+		book, losses, err := Workbook(data, Limits{})
 		if err != nil {
 			if !errors.Is(err, ErrInvalid) && !errors.Is(err, ErrEncrypted) && !errors.Is(err, ErrTooOld) && !errors.Is(err, ErrEmpty) {
 				t.Errorf("%s: %v", f, err)
@@ -216,7 +214,7 @@ func TestCorpusWorkbooks(t *testing.T) {
 			refused[err.Error()]++
 			continue
 		}
-		_, tree, err := xlsx.Open(book)
+		_, tree, err := xlsx.Open(book, xlsx.Limits{})
 		if err != nil {
 			t.Fatalf("%s: the converted workbook does not open: %v", f, err)
 		}

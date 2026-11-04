@@ -14,7 +14,7 @@ import (
 // resolved.
 func withComments(t testing.TB, body string) []byte {
 	t.Helper()
-	pkg, err := opc.Open(build(t, body), Limits)
+	pkg, err := opc.Open(build(t, body), opc.Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ const commented = `<w:p><w:r><w:t xml:space="preserve">Un </w:t></w:r><w:comment
 	`<w:r><w:commentReference w:id="0"/></w:r><w:commentRangeStart w:id="7"/><w:r><w:t>.</w:t></w:r></w:p>`
 
 func TestReadComments(t *testing.T) {
-	_, tree, err := Open(withComments(t, commented))
+	_, tree, err := Open(withComments(t, commented), opc.Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestReadComments(t *testing.T) {
 
 func TestEditComments(t *testing.T) {
 	data := withComments(t, commented)
-	d, tree, err := Open(data)
+	d, tree, err := Open(data, opc.Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +155,7 @@ func TestAddComment(t *testing.T) {
 	if !strings.Contains(rels, relComments) || !strings.Contains(rels, relCommentsExtended) {
 		t.Errorf("relationships\n%s", rels)
 	}
-	_, again, err := Open(saved)
+	_, again, err := Open(saved, opc.Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +165,7 @@ func TestAddComment(t *testing.T) {
 }
 
 func TestDeleteComment(t *testing.T) {
-	d, tree, err := Open(withComments(t, commented))
+	d, tree, err := Open(withComments(t, commented), opc.Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}

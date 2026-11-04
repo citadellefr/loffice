@@ -85,7 +85,7 @@ func skeleton(t testing.TB, workbook, sheet, styles, shared []byte) []byte {
 // package is the original; rewritten sheet by sheet, it reads back as the
 // same tree.
 func exercise(t *testing.T, data []byte) {
-	d, tree, err := Open(data)
+	d, tree, err := Open(data, Limits{})
 	if err != nil {
 		return
 	}
@@ -98,7 +98,7 @@ func exercise(t *testing.T, data []byte) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, again, err := Open(saved)
+	_, again, err := Open(saved, Limits{})
 	if err != nil {
 		t.Fatalf("rewritten workbook does not open: %v", err)
 	}
@@ -135,7 +135,7 @@ func TestDeepFormula(t *testing.T) {
 	deep := strings.Repeat("(", 100000) + "1" + strings.Repeat(")", 100000)
 	sheet := `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1"><f>` + deep + `</f><v>1</v></c></row></sheetData></worksheet>`
 	data := skeleton(t, []byte(fuzzWorkbook), []byte(sheet), []byte(fuzzStyles), []byte(fuzzStrings))
-	d, tree, err := Open(data)
+	d, tree, err := Open(data, Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +151,7 @@ func TestDeepFormula(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := opc.Open(saved, Limits)
+	p, err := opc.Open(saved, opc.Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}

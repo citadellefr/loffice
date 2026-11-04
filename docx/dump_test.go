@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/citadellefr/loffice/internal/partrel"
+	"github.com/citadellefr/loffice/opc"
 )
 
 // TestDump writes the trees and pictures of documents to $LOFFICE_DUMP, for
@@ -23,7 +24,7 @@ func TestDump(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		d, tree, err := Open(data)
+		d, tree, err := Open(data, opc.Limits{})
 		if err != nil {
 			t.Logf("%s: %v", name, err)
 			continue

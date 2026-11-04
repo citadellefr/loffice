@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/citadellefr/loffice/opc"
 	"github.com/citadellefr/trame/ot"
 )
 
@@ -126,7 +127,7 @@ func TestTableEdits(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	_, again, err := Open(saved)
+	_, again, err := Open(saved, opc.Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}

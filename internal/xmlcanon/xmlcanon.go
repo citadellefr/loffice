@@ -172,7 +172,7 @@ func resolvePrefixes(s *xmltok.Scanner, value []byte) []byte {
 // literal line breaks and tabs read as spaces, but not those written as
 // character references.
 func normalize(raw []byte) []byte {
-	if bytes.IndexAny(raw, "\t\n\r") < 0 {
+	if !bytes.ContainsAny(raw, "\t\n\r") {
 		return raw
 	}
 	v := bytes.ReplaceAll(raw, []byte("\r\n"), []byte(" "))

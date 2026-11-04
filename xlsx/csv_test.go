@@ -101,7 +101,7 @@ func TestCSVEdited(t *testing.T) {
 		cell(4, 2, `{"f":"SUM(B2:B3)"}`),
 		cell(4, 4, `{"v":"émoji 😀"}`),
 	}}}
-	if err := c.Check(tree, e); err != nil {
+	if err := c.Check(tree, e, ""); err != nil {
 		t.Fatal(err)
 	}
 	if err := tree.Apply(e); err != nil {
@@ -133,7 +133,7 @@ func TestCSVCheck(t *testing.T) {
 		{{Op: ot.OpNew, ID: "S2", Type: "sheet", Parent: "book", Key: "W", Attrs: ot.Values{"name": json.RawMessage(`"Deux"`)}, Cells: []ot.Cell{}}},
 		{{Op: ot.OpDel, ID: csvSheet}},
 	} {
-		if err := c.Check(tree, e); err != ErrCSVSheets {
+		if err := c.Check(tree, e, ""); err != ErrCSVSheets {
 			t.Errorf("%v: %v", e, err)
 		}
 	}
@@ -142,7 +142,7 @@ func TestCSVCheck(t *testing.T) {
 		{{Op: ot.OpCel, ID: csvSheet, Cells: []ot.Cell{cell(1, 1, `{"src":null}`)}}},
 		{{Op: ot.OpIns, ID: csvSheet, Dim: ot.DimRows, At: 1, N: 2}},
 	} {
-		if err := c.Check(tree, e); err != nil {
+		if err := c.Check(tree, e, ""); err != nil {
 			t.Errorf("%v: %v", e, err)
 		}
 	}
@@ -199,7 +199,7 @@ func TestCSVRows(t *testing.T) {
 		{{Op: ot.OpCel, ID: csvSheet, Cells: []ot.Cell{cell(1, 1, `{"v":"titre"}`)}}},
 		{{Op: ot.OpRem, ID: csvSheet, Dim: ot.DimRows, At: 4, N: 1}},
 	} {
-		if err := c.Check(tree, e); err != nil {
+		if err := c.Check(tree, e, ""); err != nil {
 			t.Fatal(err)
 		}
 		if err := tree.Apply(e); err != nil {

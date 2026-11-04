@@ -164,16 +164,104 @@ func TestCalcSheets(t *testing.T) {
 	}
 }
 
+func spillTree(t *testing.T) (*ot.Tree, *Calc) {
+	t.Helper()
+	tree, err := ot.NewTree(ot.Edit{
+		{Op: ot.OpNew, ID: "book", Type: "book", Key: "V"},
+		{Op: ot.OpNew, ID: "S1", Type: "sheet", Parent: "book", Key: "K", Attrs: ot.Values{"name": json.RawMessage(`"Feuil1"`)}, Cells: []ot.Cell{cell(9, 9, `{"v":0}`)}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tree, NewCalc(tree, formula.Options{})
+}
+
+func cells(t *testing.T, tree *ot.Tree, col int, rows ...int) string {
+	t.Helper()
+	var out []string
+	for _, r := range rows {
+		out = append(out, fieldsAt(tree, "S1", r, col))
+	}
+	return strings.Join(out, "|")
+}
+
+// A dynamic array spills over the cells below, is blocked by a value
+// there, takes the ground back when it is cleared, and shrinks with the
+// array.
+func TestCalcSpill(t *testing.T) {
+	tree, c := spillTree(t)
+	got := edit(t, tree, c, ot.Edit{{Op: ot.OpCel, ID: "S1", Cells: []ot.Cell{
+		cell(1, 1, `{"f":"SEQUENCE(3)"}`), cell(1, 2, `{"f":"SUM(A1#)"}`)}}})
+	if want := `[{"o":"cel","id":"S1","c":[[1,1,{"cm":1,"f":"_xlfn.SEQUENCE(3)","fa":"A1:A3","v":1}],[1,2,{"f":"SUM(_xlfn.ANCHORARRAY(A1))","v":6}],[2,1,{"v":2}],[3,1,{"v":3}]]}]`; got != want {
+		t.Fatalf("got %s\nwant %s", got, want)
+	}
+	if got, want := cells(t, tree, 1, 1, 2, 3), `{"cm":1,"f":"_xlfn.SEQUENCE(3)","fa":"A1:A3","v":1}|{"v":2}|{"v":3}`; got != want {
+		t.Fatalf("spilled: %s", got)
+	}
+	if got := fieldsAt(tree, "S1", 1, 2); got != `{"f":"SUM(_xlfn.ANCHORARRAY(A1))","v":6}` {
+		t.Fatalf("B1 = %s", got)
+	}
+
+	edit(t, tree, c, ot.Edit{{Op: ot.OpCel, ID: "S1", Cells: []ot.Cell{cell(3, 1, `{"v":"x"}`)}}})
+	if got, want := cells(t, tree, 1, 1, 2, 3), `{"cm":1,"e":"#SPILL!","f":"_xlfn.SEQUENCE(3)","fa":"A1"}||{"v":"x"}`; got != want {
+		t.Fatalf("blocked: %s", got)
+	}
+
+	edit(t, tree, c, ot.Edit{{Op: ot.OpCel, ID: "S1", Cells: []ot.Cell{cell(3, 1, `{"v":null}`)}}})
+	if got, want := cells(t, tree, 1, 1, 2, 3), `{"cm":1,"f":"_xlfn.SEQUENCE(3)","fa":"A1:A3","v":1}|{"v":2}|{"v":3}`; got != want {
+		t.Fatalf("cleared: %s", got)
+	}
+	if got := fieldsAt(tree, "S1", 1, 2); got != `{"f":"SUM(_xlfn.ANCHORARRAY(A1))","v":6}` {
+		t.Fatalf("B1 after the spill came back = %s", got)
+	}
+
+	edit(t, tree, c, ot.Edit{{Op: ot.OpCel, ID: "S1", Cells: []ot.Cell{cell(1, 1, `{"f":"SEQUENCE(2)"}`)}}})
+	if got, want := cells(t, tree, 1, 1, 2, 3), `{"cm":1,"f":"_xlfn.SEQUENCE(2)","fa":"A1:A2","v":1}|{"v":2}|`; got != want {
+		t.Fatalf("shrunk: %s", got)
+	}
+	if got := fieldsAt(tree, "S1", 1, 2); got != `{"f":"SUM(_xlfn.ANCHORARRAY(A1))","v":3}` {
+		t.Fatalf("B1 after the spill shrank = %s", got)
+	}
+
+	edit(t, tree, c, ot.Edit{{Op: ot.OpCel, ID: "S1", Cells: []ot.Cell{cell(5, 5, `{"f":"1+1"}`)}}})
+	if got := fieldsAt(tree, "S1", 5, 5); got != `{"f":"1+1","v":2}` {
+		t.Fatalf("scalar: %s", got)
+	}
+
+	edit(t, tree, c, ot.Edit{{Op: ot.OpCel, ID: "S1", Cells: []ot.Cell{cell(3, 1, `{"f":"1+1"}`)}}})
+	edit(t, tree, c, ot.Edit{{Op: ot.OpCel, ID: "S1", Cells: []ot.Cell{cell(1, 1, `{"f":"SEQUENCE(3)"}`)}}})
+	if got, want := cells(t, tree, 1, 1, 2, 3), `{"cm":1,"e":"#SPILL!","f":"_xlfn.SEQUENCE(3)","fa":"A1"}||{"f":"1+1","v":2}`; got != want {
+		t.Fatalf("blocked by a scalar: %s", got)
+	}
+	edit(t, tree, c, ot.Edit{{Op: ot.OpCel, ID: "S1", Cells: []ot.Cell{cell(3, 1, `{"f":null,"v":null}`)}}})
+	if got, want := cells(t, tree, 1, 1, 2, 3), `{"cm":1,"f":"_xlfn.SEQUENCE(3)","fa":"A1:A3","v":1}|{"v":2}|{"v":3}`; got != want {
+		t.Fatalf("freed by the scalar: %s", got)
+	}
+}
+
 // 10 000 formulas read the cell changed: the server calculates them again
 // and sets their values in the tree.
 func BenchmarkFollow(b *testing.B) {
+	benchmarkFollow(b, false)
+}
+
+// The same formulas typed by the client, dynamic as in Excel 365.
+func BenchmarkFollowTyped(b *testing.B) {
+	benchmarkFollow(b, true)
+}
+
+func benchmarkFollow(b *testing.B, typed bool) {
 	cells := []ot.Cell{{Row: 1, Col: 1, Fields: json.RawMessage(`{"v":1}`)}}
 	for i := 2; i <= 10000; i++ {
 		cells = append(cells, ot.Cell{Row: i, Col: 1, Fields: json.RawMessage(`{"v":` + strconv.Itoa(i) + `}`)})
 	}
+	var formulas []ot.Cell
 	for i := 1; i <= 10000; i++ {
 		f := fmt.Sprintf(`{"f":"$A$1*%d+SUM(A1:A%d)","v":0}`, i, min(i, 50))
-		cells = append(cells, ot.Cell{Row: i, Col: 2, Fields: json.RawMessage(f)})
+		formulas = append(formulas, ot.Cell{Row: i, Col: 2, Fields: json.RawMessage(f)})
+	}
+	if !typed {
+		cells = append(cells, formulas...)
 	}
 	tree, err := ot.NewTree(ot.Edit{
 		{Op: ot.OpNew, ID: "book", Type: "book", Key: "V"},
@@ -183,6 +271,13 @@ func BenchmarkFollow(b *testing.B) {
 		b.Fatal(err)
 	}
 	c := NewCalc(tree, formula.Options{})
+	if typed {
+		e := ot.Edit{{Op: ot.OpCel, ID: "S1", Cells: formulas}}
+		if err := tree.Apply(e); err != nil {
+			b.Fatal(err)
+		}
+		c.Follow(e, nil)
+	}
 	i := 0
 	for b.Loop() {
 		i++
@@ -256,7 +351,7 @@ func TestCalcPr(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d, tree, err := Open(blank)
+	d, tree, err := Open(blank, Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -267,7 +362,7 @@ func TestCalcPr(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if d, tree, err = Open(data); err != nil {
+		if d, tree, err = Open(data, Limits{}); err != nil {
 			t.Fatal(err)
 		}
 		if got := string(tree.Node("book").Attrs["iterate"]); got != strings.TrimSuffix(iterate, "null") {
@@ -275,7 +370,7 @@ func TestCalcPr(t *testing.T) {
 		}
 	}
 	bad := ot.Edit{{Op: ot.OpSet, ID: "book", Attrs: ot.Values{"iterate": json.RawMessage(`{"count":0,"delta":0.001}`)}}}
-	if err := d.Check(tree, bad); err == nil {
+	if err := d.Check(tree, bad, ""); err == nil {
 		t.Fatal("no iteration taken")
 	}
 }

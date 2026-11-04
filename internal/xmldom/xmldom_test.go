@@ -1,13 +1,13 @@
 package xmldom
 
 import (
+	"archive/zip"
 	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/citadellefr/loffice/opc"
 )
 
 const sample = `<?xml version="1.0"?>
@@ -69,15 +69,20 @@ func TestCorpus(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		p, err := opc.Open(data, opc.Limits{})
+		z, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 		if err != nil {
 			continue
 		}
-		for _, name := range p.Names() {
-			if !strings.HasSuffix(name, ".xml") && !strings.HasSuffix(name, ".rels") {
+		for _, zf := range z.File {
+			if !strings.HasSuffix(zf.Name, ".xml") && !strings.HasSuffix(zf.Name, ".rels") {
 				continue
 			}
-			part, err := p.Read(name)
+			r, err := zf.Open()
+			if err != nil {
+				continue
+			}
+			part, err := io.ReadAll(r)
+			r.Close()
 			if err != nil {
 				continue
 			}
@@ -87,7 +92,7 @@ func TestCorpus(t *testing.T) {
 			}
 			parts++
 			if got := doc.Bytes(); !bytes.Equal(got, part) {
-				t.Fatalf("%s %s written back differently", f, name)
+				t.Fatalf("%s %s written back differently", f, zf.Name)
 			}
 		}
 	}

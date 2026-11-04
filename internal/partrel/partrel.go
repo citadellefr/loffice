@@ -8,6 +8,7 @@ package partrel
 import (
 	"crypto/sha256"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"hash/crc32"
 	"iter"
@@ -25,6 +26,9 @@ const (
 	Image     = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
 	Hyperlink = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"
 )
+
+// ErrNoMedia is returned for a picture a document does not have.
+var ErrNoMedia = errors.New("loffice: no such picture")
 
 // Rel is a relationship an element of the document points to.
 type Rel struct {

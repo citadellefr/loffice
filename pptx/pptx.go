@@ -57,11 +57,9 @@ const (
 
 var ErrNotPresentation = errors.New("pptx: not a presentation")
 
-// Limits of the packages Open accepts.
-var Limits = opc.Limits{}
-
 // Document is a presentation open for editing.
 type Document struct {
+	limits   opc.Limits
 	original []byte
 	mu       sync.Mutex // guards pkg once open
 	pkg      *opc.Package
@@ -97,13 +95,15 @@ type slidePart struct {
 	sldID int64
 }
 
-// Open reads a presentation.
-func Open(data []byte) (*Document, *ot.Tree, error) {
-	pkg, err := opc.Open(data, Limits)
+// Open reads a presentation. limits bound its package; zero fields take
+// the defaults of opc.
+func Open(data []byte, limits opc.Limits) (*Document, *ot.Tree, error) {
+	pkg, err := opc.Open(data, limits)
 	if err != nil {
 		return nil, nil, err
 	}
 	d := &Document{
+		limits:      limits,
 		original:    data,
 		pkg:         pkg,
 		names:       partrel.NewNames(pkg),

@@ -96,7 +96,7 @@ func (c *Context) Eval(e Expr) Value {
 			return Num(n / 100)
 		})
 	case spillExpr:
-		return c.Eval(e.x)
+		return c.spill(c.Eval(e.x))
 	case binaryExpr:
 		return c.binary(e)
 	case callExpr:
@@ -147,6 +147,27 @@ func (c *Context) ref(r *Ref) Value {
 		v.Refs = append(v.Refs, Area3{s, area})
 	}
 	return v
+}
+
+// spill is the area the dynamic formula of a cell spills over, A1#.
+func (c *Context) spill(v Value) Value {
+	if v.Type == TypeError {
+		return v
+	}
+	if v.Type != TypeRange || len(v.Refs) != 1 || v.Refs[0].R1 != v.Refs[0].R2 || v.Refs[0].C1 != v.Refs[0].C2 {
+		return ErrRef
+	}
+	b, ok := c.Book.(interface {
+		Spill(sheet, row, col int) (Value, bool)
+	})
+	if !ok {
+		return ErrRef
+	}
+	a := v.Refs[0]
+	if s, ok := b.Spill(a.Sheet, a.R1, a.C1); ok {
+		return s
+	}
+	return ErrRef
 }
 
 func (c *Context) name(e nameExpr) Value {

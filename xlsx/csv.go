@@ -551,13 +551,13 @@ func (c *CSV) quote(s string, text bool) string {
 
 // Check tells whether an edit only changes what a CSV file can hold as a
 // workbook: its one sheet, and formats.
-func (c *CSV) Check(tree *ot.Tree, e ot.Edit) error {
+func (c *CSV) Check(tree *ot.Tree, e ot.Edit, author string) error {
 	for _, ch := range e {
 		if ch.Op == ot.OpNew && ch.Type == "sheet" || ch.Op == ot.OpDel && ch.ID == csvSheet {
 			return ErrCSVSheets
 		}
 	}
-	return c.doc.Check(tree, e)
+	return c.doc.Check(tree, e, author)
 }
 
 // Save writes the sheet back as a CSV file.

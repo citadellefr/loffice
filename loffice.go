@@ -8,6 +8,8 @@ import (
 	"context"
 	"errors"
 
+	"github.com/citadellefr/loffice/internal/partrel"
+	"github.com/citadellefr/loffice/opc"
 	"github.com/citadellefr/trame"
 )
 
@@ -31,7 +33,10 @@ var (
 	// ErrGone is returned (possibly wrapped) by Store.Save when the file no
 	// longer exists: see trame.ErrGone.
 	ErrGone    = trame.ErrGone
-	ErrNoMedia = errors.New("loffice: no such picture")
+	ErrNoMedia = partrel.ErrNoMedia
+	// ErrTooLarge is a file the hub refuses for its size, or a package
+	// that holds more than its Limits allow.
+	ErrTooLarge = opc.ErrTooLarge
 	// ErrPicture is a picture a document does not take: not a PNG, JPEG or
 	// GIF file, too large, or a format without pictures.
 	ErrPicture = errors.New("loffice: this picture cannot be added")
@@ -45,8 +50,10 @@ type Hub struct {
 	*trame.Hub
 }
 
-func NewHub(store Store, opt Options) *Hub {
-	return &Hub{trame.NewHub(store, open, opt)}
+// NewHub makes a hub that keeps its files in store. limits bound the files
+// it opens: see Limits.
+func NewHub(store Store, opt Options, limits Limits) *Hub {
+	return &Hub{trame.NewHub(store, limits.withDefaults().open, opt)}
 }
 
 // Media is a picture of a document, by the name its nodes give it, and its

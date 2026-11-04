@@ -33,7 +33,9 @@ var editable = map[string]map[string]bool{
 // their settings and cells, and cell formats added to those of the
 // workbook. An edit that inserts or removes rows or columns does nothing
 // else, so that the formulas it moves are those of the workbook before it.
-func (d *Document) Check(tree *ot.Tree, e ot.Edit) error {
+// The author is the editor's, as docx and pptx take it: a workbook has no
+// use for it.
+func (d *Document) Check(tree *ot.Tree, e ot.Edit, _ string) error {
 	created := map[string]string{}
 	typeOf := func(id string) string {
 		if t, ok := created[id]; ok {
@@ -276,6 +278,8 @@ func (d *Document) checkCell(k string, v json.RawMessage, typeOf func(string) st
 	case "ca":
 		var b bool
 		return json.Unmarshal(v, &b) == nil
+	case "cm":
+		return string(v) == "1"
 	case "m":
 		var m [2]int
 		return json.Unmarshal(v, &m) == nil && m[0] >= 1 && m[1] >= 1 && m[0] <= formula.MaxRows && m[1] <= formula.MaxCols

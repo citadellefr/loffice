@@ -17,7 +17,7 @@ func openCorpus(t *testing.T, name string) (*Document, *ot.Tree) {
 	if err != nil {
 		t.Skip("no corpus: go run ./tools/corpus")
 	}
-	d, tree, err := Open(data)
+	d, tree, err := Open(data, Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +66,7 @@ func TestFilterKept(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pkg, _ := opc.Open(saved, Limits)
+	pkg, _ := opc.Open(saved, opc.Limits{})
 	xml, _ := pkg.Read(d.sheets[sheet].name)
 	for _, want := range []string{`<autoFilter ref="A1:E6">`, `<filterColumn colId="0"><filters><filter val="a"/></filters></filterColumn>`,
 		`<filterColumn colId="2"><customFilters`} {
@@ -78,7 +78,7 @@ func TestFilterKept(t *testing.T) {
 	// cleared
 	apply(t, d, tree, ot.Edit{{Op: ot.OpSet, ID: sheet, Attrs: ot.Values{filterKey: json.RawMessage(`null`)}}})
 	saved, _ = d.Save(tree)
-	pkg, _ = opc.Open(saved, Limits)
+	pkg, _ = opc.Open(saved, opc.Limits{})
 	xml, _ = pkg.Read(d.sheets[sheet].name)
 	if strings.Contains(string(xml), "autoFilter") {
 		t.Errorf("filter left in %s", xml)

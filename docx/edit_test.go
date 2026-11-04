@@ -52,7 +52,7 @@ func build(t testing.TB, body string) []byte {
 
 func open(t *testing.T, body string) (*Document, *ot.Tree) {
 	t.Helper()
-	d, tree, err := Open(build(t, body))
+	d, tree, err := Open(build(t, body), opc.Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func open(t *testing.T, body string) (*Document, *ot.Tree) {
 // part is a part of a saved document.
 func partOf(t *testing.T, data []byte, name string) string {
 	t.Helper()
-	pkg, err := opc.Open(data, Limits)
+	pkg, err := opc.Open(data, opc.Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +156,7 @@ func TestReadFlow(t *testing.T) {
 
 func TestUntouchedIsSame(t *testing.T) {
 	data := build(t, `<w:p><w:r><w:t>Hello</w:t></w:r></w:p>`)
-	d, tree, err := Open(data)
+	d, tree, err := Open(data, opc.Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,7 +198,7 @@ func TestEditText(t *testing.T) {
 	if partOf(t, saved, "word/header1.xml") != partOf(t, build(t, ""), "word/header1.xml") {
 		t.Error("the header was rewritten")
 	}
-	_, again, err := Open(saved)
+	_, again, err := Open(saved, opc.Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -276,7 +276,7 @@ func TestNewHeader(t *testing.T) {
 	if types := partOf(t, saved, "[Content_Types].xml"); !strings.Contains(types, `/word/footer1.xml`) {
 		t.Errorf("content types\n%s", types)
 	}
-	if _, again, err := Open(saved); err != nil || again.Node("f1") == nil {
+	if _, again, err := Open(saved, opc.Limits{}); err != nil || again.Node("f1") == nil {
 		t.Fatalf("read back: %v", err)
 	}
 }
@@ -418,7 +418,7 @@ func TestClientObjects(t *testing.T) {
 	if rels := partOf(t, saved, "word/_rels/document.xml.rels"); !strings.Contains(rels, `Id="rId7" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.org/a?b=1" TargetMode="External"`) {
 		t.Errorf("rels\n%s", rels)
 	}
-	_, again, err := Open(saved)
+	_, again, err := Open(saved, opc.Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -467,7 +467,7 @@ func TestBuiltinStylesAndLists(t *testing.T) {
 	if !strings.Contains(partOf(t, saved, "word/_rels/document.xml.rels"), `relationships/numbering" Target="numbering.xml"`) {
 		t.Error("no relationship to the numbering")
 	}
-	_, again, err := Open(saved)
+	_, again, err := Open(saved, opc.Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -542,7 +542,7 @@ func TestAddPicture(t *testing.T) {
 	if !strings.Contains(partOf(t, saved, "word/_rels/document.xml.rels"), `Id="rId7" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/bref1.png"`) {
 		t.Error("no relationship to the picture")
 	}
-	_, again, err := Open(saved)
+	_, again, err := Open(saved, opc.Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
