@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:loffice/src/excel/filter.dart';
 import 'package:loffice/src/excel/number_format.dart';
 import 'package:loffice/src/excel/sheet_view.dart';
+import 'package:loffice/src/excel/tables.dart';
 import 'package:loffice/src/excel/workbook.dart';
 import 'package:trame/trame.dart';
 
@@ -37,7 +38,7 @@ void main() {
           MaterialApp(
             home: RepaintBoundary(
               key: key,
-              child: SheetView(book: book, sheet: sheets[i], selection: SheetSelection(), locale: NumberLocale.fr, filter: SheetFilter.of(sheets[i])),
+              child: SheetView(book: book, sheet: sheets[i], selection: SheetSelection(), locale: NumberLocale.fr, filter: SheetFilter.of(sheets[i]), tables: SheetTable.of(sheets[i])),
             ),
           ),
         );

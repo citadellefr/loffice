@@ -452,14 +452,7 @@ const _newer = {
 
 const _windowed = {'FILTER', 'SORT'};
 
-const _errors = <String, String>{
-  '#NULL!': '#NUL!',
-  '#VALUE!': '#VALEUR!',
-  '#NAME?': '#NOM?',
-  '#NUM!': '#NOMBRE!',
-  '#SPILL!': '#PROPAGATION!',
-  '#CALC!': '#CALC!',
-};
+const _errors = <String, String>{'#NULL!': '#NUL!', '#VALUE!': '#VALEUR!', '#NAME?': '#NOM?', '#NUM!': '#NOMBRE!', '#SPILL!': '#PROPAGATION!', '#CALC!': '#CALC!'};
 
 final _english = {for (final e in _functions.entries) e.value: e.key};
 final _englishErrors = {for (final e in _errors.entries) e.value: e.key};
@@ -477,6 +470,37 @@ String formulaToFrench(String f) => _translate(f, toFrench: true);
 /// A formula as files write it, from the way the French version shows it.
 /// Names written in English are taken as well.
 String formulaFromFrench(String f) => _translate(f, toFrench: false);
+
+/// Where the part of a structured reference that opens at [i] ends: its
+/// brackets nest, and an apostrophe escapes the character after it.
+int bracketEnd(String f, int i) {
+  var depth = 0;
+  for (var j = i; j < f.length; j++) {
+    switch (f[j]) {
+      case "'":
+        j++;
+      case '[':
+        depth++;
+      case ']':
+        if (--depth == 0) return j + 1;
+    }
+  }
+  return f.length;
+}
+
+const _tableItems = {'All': 'Tout', 'Data': 'Données', 'Headers': 'En-têtes', 'Totals': 'Totaux', 'This Row': 'Cette ligne'};
+final _frenchItems = {for (final e in _tableItems.entries) e.key.toLowerCase(): e.value};
+final _englishItems = {
+  for (final e in _tableItems.entries) ...{e.key.toLowerCase(): e.key, e.value.toLowerCase(): e.key},
+};
+final _itemPattern = RegExp(r'\[#([^\[\]]*)\]');
+
+/// A structured reference with the items of tables translated, everything
+/// else in its brackets as it is.
+String _translateItems(String reference, {required bool toFrench}) => reference.replaceAllMapped(_itemPattern, (m) {
+  final name = (toFrench ? _frenchItems : _englishItems)[m[1]!.trim().toLowerCase()];
+  return name == null ? m[0]! : '[#$name]';
+});
 
 bool _letter(int c) => c >= 0x41 && c <= 0x5A || c >= 0x61 && c <= 0x7A || c == 0x5F || c == 0x5C || c > 0x7F;
 
@@ -510,13 +534,9 @@ String _translate(String f, {required bool toFrench}) {
       continue;
     }
     if (c == 0x5B) {
-      var depth = 0, j = i;
-      for (; j < f.length; j++) {
-        if (f[j] == '[') depth++;
-        if (f[j] == ']' && --depth == 0) break;
-      }
-      b.write(f.substring(i, (j + 1).clamp(0, f.length)));
-      i = j + 1;
+      final end = bracketEnd(f, i);
+      b.write(_translateItems(f.substring(i, end), toFrench: toFrench));
+      i = end;
       continue;
     }
     if (c == 0x23) {

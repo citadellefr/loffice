@@ -22,6 +22,8 @@ import 'lists.dart';
 import 'number_format.dart';
 import 'print.dart';
 import 'sheet_view.dart';
+import 'table_dialog.dart';
+import 'tables.dart';
 import 'workbook.dart';
 
 /// An Excel editor on a session whose document is a workbook: the ribbon,
@@ -218,7 +220,10 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     final input = parseInput(typed, locale: _locale, date1904: _wb.date1904);
     final current = sheet.grid?.cell(r, c) ?? const {};
     final changed = input.fields.entries.any((e) => current[e.key] != e.value);
-    if (changed) _edit(_edits.setCells(sheet, [(r, c, input.fields)], format: input.format));
+    if (!changed) return;
+    final edit = _edits.setCells(sheet, [(r, c, input.fields)], format: input.format);
+    final grown = input.fields['v'] != null || input.fields['f'] != null ? growTableEdit(sheet, r, c) : null;
+    _edit(grown == null ? edit : Edit([...edit.changes, ...grown.changes]));
   }
 
   /// Says, as Excel does, that a value is not one of the list's, and
@@ -940,6 +945,40 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     _gridFocus.requestFocus();
   }
 
+  // tables
+
+  SheetTable? get _activeTable {
+    final sheet = _sheet;
+    if (sheet == null) return null;
+    final (r, c) = _selection.active;
+    return SheetTable.of(sheet).where((t) => t.area.contains(r, c)).firstOrNull;
+  }
+
+  Future<void> _insertTable() async {
+    final sheet = _sheet;
+    if (sheet == null) return;
+    final a = _selection.area;
+    final chosen = await showTableDialog(context, book: _wb, sheet: sheet, area: a.single ? currentRegion(sheet, a.top, a.left) : a, strings: _s);
+    if (chosen == null || !mounted) return;
+    if (_edit(insertTableEdit(_wb, sheet, chosen.$1, headers: chosen.$2, locale: _locale))) _selection.selectArea(chosen.$1);
+    _gridFocus.requestFocus();
+  }
+
+  void _sortTable(SheetTable table, int col, Rect at) async {
+    final choice = await showMenu<bool>(
+      context: context,
+      position: RelativeRect.fromLTRB(at.left, at.bottom, at.left, at.bottom),
+      items: [
+        PopupMenuItem(value: false, child: Text(_s.sortAscending)),
+        PopupMenuItem(value: true, child: Text(_s.sortDescending)),
+      ],
+    );
+    final sheet = _sheet;
+    if (choice == null || sheet == null || !mounted) return;
+    _edit(_edits.sort(sheet, CellArea(table.dataTop, table.area.left, table.dataBottom, table.area.right), col, descending: choice));
+    _gridFocus.requestFocus();
+  }
+
   void _goToName() {
     final area = parseArea(_nameBox.text.trim().toUpperCase());
     if (area != null) _selection.selectArea(area);
@@ -948,6 +987,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
 
   Future<void> _cellsMenu(Offset at, {bool rows = false, bool cols = false}) async {
     final editable = !_session.readOnly;
+    final table = _activeTable;
     final choice = await showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(at.dx, at.dy, at.dx, at.dy),
@@ -961,6 +1001,11 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
         PopupMenuItem(value: 'deleteRows', enabled: editable, child: Text(_s.deleteRows)),
         PopupMenuItem(value: 'deleteCols', enabled: editable, child: Text(_s.deleteColumns)),
         PopupMenuItem(value: 'clear', enabled: editable, child: Text(_s.clearContents)),
+        if (table != null) ...[
+          const PopupMenuDivider(),
+          CheckedPopupMenuItem(value: 'totals', enabled: editable, checked: table.totals, child: Text(_s.totalRow)),
+          PopupMenuItem(value: 'convert', enabled: editable, child: Text(_s.convertToRange)),
+        ],
         if (rows || cols) ...[
           const PopupMenuDivider(),
           PopupMenuItem(value: 'hide', enabled: editable, child: Text(_s.hide)),
@@ -988,6 +1033,10 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
         _delete(rows: false);
       case 'clear':
         _edit(_edits.clear(sheet, a));
+      case 'totals':
+        _edit(totalsEdit(sheet, table!, !table.totals));
+      case 'convert':
+        _edit(changeTable(sheet, table!, null));
       case 'hide':
         _edit(_edits.resize(sheet, cols ? dimCols : dimRows, [for (var i = cols ? a.left : a.top; i <= (cols ? a.right : a.bottom); i++) i], 0));
       case 'unhide':
@@ -1068,6 +1117,8 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
                           prompt: _prompt,
                           filter: SheetFilter.of(sheet),
                           onFilter: _session.readOnly ? null : _openFilter,
+                          tables: SheetTable.of(sheet),
+                          onTableFilter: _session.readOnly ? null : _sortTable,
                         ),
                       ),
                     ),
@@ -1425,6 +1476,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
             RibbonButton(icon: const Icon(Icons.table_rows_outlined), label: _s.insertRows, onPressed: editable ? () => _insert(rows: true) : null),
             RibbonButton(icon: const Icon(Icons.view_column_outlined), label: _s.insertColumns, onPressed: editable ? () => _insert(rows: false) : null),
           ]),
+          RibbonGroup(_s.tables, [RibbonButton(icon: const Icon(Icons.table_chart_outlined), label: _s.table, large: true, onPressed: editable ? _insertTable : null)]),
         ]),
         if (!_wb.csv) _printTab(editable),
         RibbonTab(_s.formulas, [

@@ -59,7 +59,7 @@ class SheetLooks {
     if (filledBy != null && filledBy < (scale[0]! as int)) return style;
     final colors = [for (final c in _rule(scale[0])['colors'] as List<Object?>? ?? const []) book.color(c) ?? const Color(0xFFFFFFFF)];
     final fill = scaleColor(colors, (scale[1]! as num).toDouble());
-    return fill == null ? style : style.withFill(fill);
+    return fill == null ? style : style.copyWith(fill: fill);
   }
 
   /// The data bar of a cell: its length in percent of the cell, and its

@@ -25,7 +25,7 @@ void main() {
       (r'_xlfn.ANCHORARRAY(Feuil2!$B$2)', r'Feuil2!$B$2#'),
       ("_xlfn.ANCHORARRAY('Feuil 2'!B2)", "'Feuil 2'!B2#"),
       ('_xlfn.ANCHORARRAY(Taux)+1', 'Taux#+1'),
-      ('_xlfn.CONCAT("A1#",Table1[#All])', 'CONCAT("A1#";Table1[#All])'),
+      ('_xlfn.CONCAT("A1#",Table1[#All])', 'CONCAT("A1#";Table1[#Tout])'),
       ('_xlfn.NORM.DIST(A1,0,1,TRUE)', 'LOI.NORMALE.N(A1;0;1;VRAI)'),
       ('NORMDIST(A1,0,1,TRUE)', 'LOI.NORMALE(A1;0;1;VRAI)'),
       ('_xlfn.T.TEST(A:A,B:B,2,1)', 'T.TEST(A:A;B:B;2;1)'),
@@ -60,7 +60,7 @@ void main() {
       ('SOMME(A1#)', 'SUM(_xlfn.ANCHORARRAY(A1))'),
       (r'SOMME(A1:Feuil2!$B$2#)', r'SUM(A1:_xlfn.ANCHORARRAY(Feuil2!$B$2))'),
       ("SOMME('Feuil 2'!B2#)", "SUM(_xlfn.ANCHORARRAY('Feuil 2'!B2))"),
-      ('SOMME(Taux#;Table1[#All])+#N/A', 'SUM(_xlfn.ANCHORARRAY(Taux),Table1[#All])+#N/A'),
+      ('SOMME(Taux#;Table1[#Tout])+#N/A', 'SUM(_xlfn.ANCHORARRAY(Taux),Table1[#All])+#N/A'),
       ('CONCAT("A1#";B1)', '_xlfn.CONCAT("A1#",B1)'),
       ('Feuil1!#REF!+1', 'Feuil1!#REF!+1'),
       ('loi.normale.n(1;0;1;VRAI)', '_xlfn.NORM.DIST(1,0,1,TRUE)'),
@@ -74,8 +74,48 @@ void main() {
     }
   });
 
+  test('structured references keep their columns and translate their items', () {
+    for (final (file, shown) in [
+      ('SUM(Tableau1[Prix])', 'SOMME(Tableau1[Prix])'),
+      ('Tableau1[[#This Row],[Qté]]*2', 'Tableau1[[#Cette ligne],[Qté]]*2'),
+      ('SUM(Tableau1[[#Data],[Prix]:[Qté]])', 'SOMME(Tableau1[[#Données],[Prix]:[Qté]])'),
+      ('Tableau1[[#Headers],[Nom]]', 'Tableau1[[#En-têtes],[Nom]]'),
+      ('SUM(Tableau1[[#Totals],[Prix]])', 'SOMME(Tableau1[[#Totaux],[Prix]])'),
+      ('ROWS(Tableau1[#All])', 'LIGNES(Tableau1[#Tout])'),
+      ('SUM(Tableau1[SUM, (1); x])', 'SOMME(Tableau1[SUM, (1); x])'),
+      ("SUM(Tableau1['[Prix']])", "SOMME(Tableau1['[Prix']])"),
+    ]) {
+      expect(formulaToFrench(file), shown, reason: file);
+    }
+  });
+
+  test('structured references typed in French', () {
+    for (final (typed, file) in [
+      ('SOMME(Tableau1[Prix])', 'SUM(Tableau1[Prix])'),
+      ('Tableau1[@Qté]*2', 'Tableau1[@Qté]*2'),
+      ('Tableau1[[#Cette ligne],[Qté]]*2', 'Tableau1[[#This Row],[Qté]]*2'),
+      ('SOMME(Tableau1[[#données],[Prix]:[Qté]])', 'SUM(Tableau1[[#Data],[Prix]:[Qté]])'),
+      ('Tableau1[[#En-têtes],[Nom]]', 'Tableau1[[#Headers],[Nom]]'),
+      ('SOMME(Tableau1[[#Totaux],[Prix]])', 'SUM(Tableau1[[#Totals],[Prix]])'),
+      ('LIGNES(Tableau1[#Tout])', 'ROWS(Tableau1[#All])'),
+      ('LIGNES(Tableau1[#All])', 'ROWS(Tableau1[#All])'),
+      ('SOMME(Tableau1[Total, SI; x])', 'SUM(Tableau1[Total, SI; x])'),
+    ]) {
+      expect(formulaFromFrench(typed), file, reason: typed);
+    }
+  });
+
   test('round trip', () {
-    for (final f in ['SUMIFS(C:C,A:A,">5",B:B,"x")', '_xlfn.IFS(A1>1,"a",TRUE,"b")', 'VLOOKUP(A2,Data!A:D,4,FALSE)', '_xlfn.T.INV.2T(A1,5)', '_xlfn.CHISQ.TEST(A1:B2,D1:E2)']) {
+    for (final f in [
+      'SUMIFS(C:C,A:A,">5",B:B,"x")',
+      '_xlfn.IFS(A1>1,"a",TRUE,"b")',
+      'VLOOKUP(A2,Data!A:D,4,FALSE)',
+      '_xlfn.T.INV.2T(A1,5)',
+      '_xlfn.CHISQ.TEST(A1:B2,D1:E2)',
+      'SUM(Tableau1[[#Totals],[Prix]])+Tableau1[[#This Row],[Qté]]',
+      'ROWS(Tableau1[#All])',
+      'IF(Tableau1[@Nom]="a",1,2)',
+    ]) {
       expect(formulaFromFrench(formulaToFrench(f)), f);
     }
   });

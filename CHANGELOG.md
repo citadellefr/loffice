@@ -23,6 +23,14 @@
   an error returned, its stack logged. A calculation that failed starts
   over from the sheets and sends the formula cells as they are.
 - The hub serves `.dotm`, `.xltm`, `.potx` and `.potm`.
+- Tables of xlsx are editable: the `tables` attribute of a sheet may be set
+  to create a table, delete it or turn its total row on, and rows and
+  columns may be inserted or removed across a table, its area, autoFilter,
+  columns and calculated column formulas following. `formula` calculates
+  structured references (`Table1[Col]`, `[@Col]`, `Table1[#Totals]`…), which
+  follow a column renamed. The Dart editor has Insertion > Tableau, draws the
+  built-in table styles, grows a table typed under its last row, and turns
+  its total row on or converts it to a range from the menu of its cells.
 
 ## 0.11.1 — 2026-10-15
 
