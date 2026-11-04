@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- `mcp` serves the `agent` over MCP (2025-06-18, written by hand): an
+  `http.Handler` of the streamable transport for a host to mount beside its
+  hub, and `Serve` for standard input and output, which `cmd/loffice-mcp`
+  runs on the files of a directory. Sixteen tools (`doc_read`, `doc_search`,
+  `text_replace`, `batch` with `dry_run` and `version`, `revision_accept`,
+  `undo_mine`…) with their JSON schemas. The host's `Authorize` is asked on
+  every request who calls and for which user, on which document, and
+  refuses before anything is sent.
+- `agent.Apply` returns the error of its context when it is cancelled while
+  the hub does not answer, and leaves nothing behind.
+
 - `xlsx` edits merged cells and links: a cell's `m` is refused when its area
   overlaps another, and a new field `link` (`{"url":"https://…"}`,
   `{"loc":"Sheet2!A1"}`, `"tip"`) is written as Excel writes it, a

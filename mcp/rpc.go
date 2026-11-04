@@ -37,6 +37,8 @@ const instructions = "Read and edit Word documents with other people in them. Ev
 	"edit with the block ids it gives, and preview a batch with dry_run before applying it. " +
 	"If a call fails, its message says what to do; nothing is written then."
 
+const internalError = "internal error: nothing was written that you can rely on; read the document again and retry"
+
 type message struct {
 	JSONRPC string          `json:"jsonrpc"`
 	ID      json.RawMessage `json:"id,omitempty"`
@@ -193,7 +195,7 @@ func (s *Server) invoke(ctx context.Context, t *tool, args *params, decodeErr er
 	defer func() {
 		if r := recover(); r != nil {
 			slog.Error("mcp: tool panicked", "tool", t.name, "panic", r, "stack", string(debug.Stack()))
-			res = text("internal error: nothing was written that you can rely on; read the document again and retry", true)
+			res = text(internalError, true)
 		}
 	}()
 	ctx, cancel := context.WithTimeout(ctx, s.cfg.Timeout)

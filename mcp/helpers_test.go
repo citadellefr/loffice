@@ -26,7 +26,7 @@ const docKey = "rapport.docx"
 // host is what a host of the server brings: a hub with the sample
 // document, and an Authorize that remembers what it was asked.
 type host struct {
-	t     *testing.T
+	t     testing.TB
 	hub   *loffice.Hub
 	store *trametest.Store
 	srv   *Server
@@ -37,7 +37,7 @@ type host struct {
 	callers []string
 }
 
-func newHost(t *testing.T) *host {
+func newHost(t testing.TB) *host {
 	t.Helper()
 	data, err := os.ReadFile("../agent/testdata/sample.docx")
 	if err != nil {
