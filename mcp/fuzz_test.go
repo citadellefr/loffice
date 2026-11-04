@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"testing"
 	"time"
 )
@@ -62,11 +63,44 @@ var seeds = []struct{ tool, args string }{
 	{"doc_read", `{"on_behalf_of":null,"doc":7}`},
 }
 
+// fuzzHost is the host the inputs of a fuzz target run against, made anew
+// now and then so that a document that every edit makes larger does not
+// grow without end.
+type fuzzHost struct {
+	t    testing.TB
+	mu   sync.Mutex
+	host *host
+	runs int
+}
+
+func newFuzzHost(t testing.TB) *fuzzHost {
+	f := &fuzzHost{t: t}
+	t.Cleanup(func() { f.mu.Lock(); defer f.mu.Unlock(); f.host.close() })
+	f.host = f.make()
+	return f
+}
+
+func (f *fuzzHost) make() *host {
+	h := makeHost(f.t)
+	h.srv.cfg.Timeout = 10 * time.Second
+	return h
+}
+
+// next is the host for the next input.
+func (f *fuzzHost) next() *host {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.runs++; f.runs%200 == 0 {
+		go f.host.close()
+		f.host = f.make()
+	}
+	return f.host
+}
+
 // FuzzTools calls every tool with hostile arguments against one document:
 // a tool that panics, or leaves the server in no state to answer, fails.
 func FuzzTools(f *testing.F) {
-	h := newHost(f)
-	h.srv.cfg.Timeout = 10 * time.Second
+	h := newFuzzHost(f)
 	for _, s := range seeds {
 		f.Add(s.tool, s.args)
 	}
@@ -86,14 +120,13 @@ func FuzzTools(f *testing.F) {
 		if err != nil {
 			t.Skip()
 		}
-		answered(t, h, body)
+		answered(t, h.next(), body)
 	})
 }
 
 // FuzzMessages sends hostile messages, tools/call included.
 func FuzzMessages(f *testing.F) {
-	h := newHost(f)
-	h.srv.cfg.Timeout = 10 * time.Second
+	h := newFuzzHost(f)
 	for _, s := range seeds {
 		f.Add(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"` + s.tool + `","arguments":` + s.args + `}}`)
 	}
@@ -104,7 +137,7 @@ func FuzzMessages(f *testing.F) {
 	f.Add(`{"jsonrpc":"2.0","id":{},"method":"ping"}`)
 	f.Add(`[{"jsonrpc":"2.0","id":1,"method":"ping"}]`)
 	f.Add(`{"jsonrpc":"2.0","id":4,"result":{}}`)
-	f.Fuzz(func(t *testing.T, body string) { answered(t, h, []byte(body)) })
+	f.Fuzz(func(t *testing.T, body string) { answered(t, h.next(), []byte(body)) })
 }
 
 // answered checks that a message got the answer a client may rely on.

@@ -39,13 +39,20 @@ type host struct {
 
 func newHost(t testing.TB) *host {
 	t.Helper()
+	h := makeHost(t)
+	h.t = t
+	t.Cleanup(h.srv.Close)
+	return h
+}
+
+func makeHost(t interface{ Fatal(...any) }) *host {
 	data, err := os.ReadFile("../agent/testdata/sample.docx")
 	if err != nil {
 		t.Fatal(err)
 	}
 	store := trametest.NewStore()
 	store.Data[docKey] = data
-	h := &host{t: t, store: store, hub: loffice.NewHub(store, loffice.Options{}, loffice.Limits{})}
+	h := &host{store: store, hub: loffice.NewHub(store, loffice.Options{}, loffice.Limits{})}
 	h.srv, err = New(Config{
 		Hub:  h.hub,
 		Name: "Héraut",
@@ -68,8 +75,15 @@ func newHost(t testing.TB) *host {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(h.srv.Close)
 	return h
+}
+
+// close takes the AI out and flushes the hub.
+func (h *host) close() {
+	h.srv.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	_ = h.hub.Close(ctx)
 }
 
 func (h *host) accesses() []Access {
