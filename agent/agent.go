@@ -301,24 +301,35 @@ func (a *Agent) applied(e ot.Edit, v uint64) {
 
 // submit sends an edit made on the agent's document and waits for the hub
 // to apply it, or refuse it. Callers hold a.sending and a.mu, which submit
-// releases.
-func (a *Agent) submit(e ot.Edit) (*flight, error) {
+// releases. If ctx ends first, the flight comes back with the error: the hub
+// may still apply the edit, and the callers keep a.sending until it has.
+func (a *Agent) submit(ctx context.Context, e ot.Edit) (*flight, error) {
 	a.n++
 	f := &flight{n: a.n, base: a.s.version, edit: e, done: make(chan error, 1)}
 	a.flight = f
 	a.mu.Unlock()
 	d, err := json.Marshal(e)
+	if err == nil {
+		frame := `{"t":"op","n":` + strconv.FormatUint(f.n, 10) + `,"v":` + strconv.FormatUint(f.base, 10) + `,"d":` + string(d) + `}`
+		err = a.conn.send([]byte(frame))
+	}
 	if err != nil {
+		a.mu.Lock()
+		if a.flight == f {
+			a.flight = nil
+		}
+		a.mu.Unlock()
 		return nil, err
 	}
-	frame := `{"t":"op","n":` + strconv.FormatUint(f.n, 10) + `,"v":` + strconv.FormatUint(f.base, 10) + `,"d":` + string(d) + `}`
-	if err := a.conn.send([]byte(frame)); err != nil {
-		return nil, err
+	select {
+	case err := <-f.done:
+		if err != nil {
+			return nil, err
+		}
+		return f, nil
+	case <-ctx.Done():
+		return f, context.Cause(ctx)
 	}
-	if err := <-f.done; err != nil {
-		return nil, err
-	}
-	return f, nil
 }
 
 // Cursor is where the agent shows it is: a selection of a flow, from base
