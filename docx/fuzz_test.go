@@ -1,6 +1,9 @@
 package docx
 
 import (
+	"archive/zip"
+	"bytes"
+	"io"
 	"os"
 	"testing"
 
@@ -62,41 +65,91 @@ func FuzzOpen(f *testing.F) {
 	}
 	main, _ := blank.Read("word/document.xml")
 	f.Add(uint8(0), main)
-	base, err := skeleton(f, fuzzBody).Bytes()
+	base := stored(f, skeleton(f, fuzzBody))
+	f.Fuzz(func(t *testing.T, which uint8, data []byte) { fuzzOpen(t, base, which, data) })
+}
+
+// stored is the package with its parts uncompressed, which parts replaced
+// later stay: FuzzOpen compresses nothing.
+func stored(t testing.TB, pkg *opc.Package) []byte {
+	t.Helper()
+	data, err := pkg.Bytes()
 	if err != nil {
-		f.Fatal(err)
+		t.Fatal(err)
 	}
-	f.Fuzz(func(t *testing.T, which uint8, data []byte) {
-		pkg, err := opc.Open(base, opc.Limits{})
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	zw := zip.NewWriter(&out)
+	for _, f := range zr.File {
+		w, err := zw.CreateHeader(&zip.FileHeader{Name: f.Name, Method: zip.Store})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := pkg.Set(fuzzed[int(which)%len(fuzzed)], data); err != nil {
-			t.Fatal(err)
-		}
-		in, err := pkg.Bytes()
+		r, err := f.Open()
 		if err != nil {
 			t.Fatal(err)
 		}
-		d, tree, err := Open(in, opc.Limits{})
+		_, err = io.Copy(w, r)
+		r.Close()
 		if err != nil {
-			return
+			t.Fatal(err)
 		}
-		saved, err := save(d, tree, true)
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return out.Bytes()
+}
+
+func fuzzOpen(t testing.TB, base []byte, which uint8, data []byte) {
+	pkg, err := opc.Open(base, opc.Limits{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pkg.Set(fuzzed[int(which)%len(fuzzed)], data); err != nil {
+		t.Fatal(err)
+	}
+	in, err := pkg.Bytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, tree, err := Open(in, opc.Limits{})
+	if err != nil {
+		return
+	}
+	saved, err := save(d, tree, true)
+	if err != nil {
+		t.Fatalf("rewrite: %v", err)
+	}
+	if _, _, err := Open(saved, opc.Limits{}); err != nil {
+		t.Fatalf("rewritten package does not open: %v", err)
+	}
+	if e := edits(tree); len(e) > 0 && d.Check(tree, e, "Bref") == nil && tree.Apply(e) == nil {
+		saved, err := d.Save(tree)
 		if err != nil {
-			t.Fatalf("rewrite: %v", err)
+			t.Fatalf("save: %v", err)
 		}
 		if _, _, err := Open(saved, opc.Limits{}); err != nil {
-			t.Fatalf("rewritten package does not open: %v", err)
+			t.Fatalf("edited package does not open: %v", err)
 		}
-		if e := edits(tree); len(e) > 0 && d.Check(tree, e, "Bref") == nil && tree.Apply(e) == nil {
-			saved, err := d.Save(tree)
-			if err != nil {
-				t.Fatalf("save: %v", err)
-			}
-			if _, _, err := Open(saved, opc.Limits{}); err != nil {
-				t.Fatalf("edited package does not open: %v", err)
-			}
+	}
+}
+
+func BenchmarkFuzzOpen(b *testing.B) {
+	pkg := skeleton(b, fuzzBody)
+	base := stored(b, pkg)
+	var err error
+	seeds := make([][]byte, len(fuzzed))
+	for i, name := range fuzzed {
+		if seeds[i], err = pkg.Read(name); err != nil {
+			b.Fatal(err)
 		}
-	})
+	}
+	b.ResetTimer()
+	for i := 0; b.Loop(); i++ {
+		fuzzOpen(b, base, uint8(i%len(fuzzed)), seeds[i%len(fuzzed)])
+	}
 }
