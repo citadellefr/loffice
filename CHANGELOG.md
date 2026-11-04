@@ -11,7 +11,8 @@
   selection and its recent edits (`recent` in its presence) for editors to
   highlight. `UndoMine` takes back only its edits, rebased over those of
   others, and fails with `ErrChanged` when someone changed the same content
-  since.
+  since. It sets back the formulas that deleting rows or columns broke, and
+  tells in `Record.Lost` the notes and others' comments it cannot make again.
 
 - `formula` calculates the array shaping functions of Excel 365: TAKE, DROP,
   CHOOSECOLS, CHOOSEROWS, EXPAND, VSTACK, HSTACK, TOCOL, TOROW, WRAPCOLS,

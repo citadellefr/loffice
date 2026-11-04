@@ -167,6 +167,13 @@ func TestRangeInvalid(t *testing.T) {
 	if _, _, err := a.Range("Données", "A1:XFD1000"); !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "read less") {
 		t.Error(err)
 	}
+	apply(t, a, Edit{Op: "cells", Sheet: "Données", Range: "ALL2000", Values: [][]any{{"loin"}}})
+	if _, _, err := a.Range("Données", ""); !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "A1:ALL2000") {
+		t.Error(err)
+	}
+	if _, _, err := a.Range("Données", "ALL2000"); err != nil {
+		t.Error(err)
+	}
 	if _, _, err := a.Range("Nowhere", ""); !errors.Is(err, ErrGone) || !strings.Contains(err.Error(), `"Données"`) {
 		t.Error(err)
 	}
@@ -450,6 +457,65 @@ func TestUndoSheetHumanLines(t *testing.T) {
 		if got := cell(t, a, "Données", ref); got != want {
 			t.Errorf("%s: %+v, want %+v", ref, got, want)
 		}
+	}
+}
+
+func TestUndoSheetFormulas(t *testing.T) {
+	_, a := newBook(t)
+	apply(t, a, Edit{Op: "cells", Sheet: "Données", Range: "D1", Values: [][]any{{"=A2+1"}}})
+	waitCell(t, a, Cell{Ref: "D1", Value: 4.0, Formula: "=A2+1"})
+	apply(t, a, Edit{Op: "delete_rows", Sheet: "Données", Range: "2"})
+	waitCell(t, a, Cell{Ref: "A2", Value: 2.0, Formula: "=SUM(A1:A1)"})
+	if rec, err := a.UndoMine(t.Context(), "u1"); err != nil || len(rec.Edits) != 2 {
+		t.Fatalf("%+v %v", rec, err)
+	}
+	waitCell(t, a, Cell{Ref: "A3", Value: 5.0, Formula: "=SUM(A1:A2)"})
+	if c := cell(t, a, "Données", "D1"); c != (Cell{Ref: "D1"}) {
+		t.Errorf("%+v", c)
+	}
+	if c := cell(t, a, "Données", "A2"); c.Value != 3.0 {
+		t.Errorf("%+v", c)
+	}
+}
+
+func TestUndoSheetFormulasKept(t *testing.T) {
+	_, a := newBook(t)
+	apply(t, a, Edit{Op: "cells", Sheet: "Données", Range: "D1", Values: [][]any{{"=A2+1"}}})
+	apply(t, a, Edit{Op: "delete_rows", Sheet: "Données", Range: "2"})
+	waitCell(t, a, Cell{Ref: "A2", Value: 2.0, Formula: "=SUM(A1:A1)"})
+	if _, err := a.Apply(t.Context(), Batch{OnBehalfOf: "u2", Edits: []Edit{{Op: "cells", Sheet: "Données", Range: "A5", Values: [][]any{{1.0}}}}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.UndoMine(t.Context(), "u1"); err != nil {
+		t.Fatal(err)
+	}
+	waitCell(t, a, Cell{Ref: "A3", Value: 5.0, Formula: "=SUM(A1:A2)"})
+}
+
+func TestUndoSheetLaterRow(t *testing.T) {
+	r, a := newBook(t)
+	alice := r.human("Alice")
+	id := sheetID(t, a)
+	apply(t, a, Edit{Op: "delete_rows", Sheet: "Données", Range: "1"})
+	waitCell(t, a, Cell{Ref: "A2", Value: 3.0, Formula: "=SUM(A1:A1)"})
+	a.mu.Lock()
+	seen := a.s.version
+	a.mu.Unlock()
+	for alice.v < seen {
+		alice.next("op")
+	}
+	if f := alice.edit(typeCell(id, 1, 2, `{"v":"Alice"}`)); f.T != "ack" {
+		t.Fatalf("%+v", f)
+	}
+	if _, err := a.UndoMine(t.Context(), "u1"); err != nil {
+		t.Fatal(err)
+	}
+	waitCell(t, a, Cell{Ref: "A3", Value: 5.0, Formula: "=SUM(A1:A2)"})
+	if c := cell(t, a, "Données", "B2"); c.Value != "Alice" {
+		t.Errorf("%+v", c)
+	}
+	if c := cell(t, a, "Données", "A1"); c.Value != 2.0 {
+		t.Errorf("%+v", c)
 	}
 }
 

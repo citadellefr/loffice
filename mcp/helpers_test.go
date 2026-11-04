@@ -51,7 +51,7 @@ func newHost(t testing.TB) *host {
 
 func makeHost(t interface{ Fatal(...any) }) *host {
 	store := trametest.NewStore()
-	for key, file := range map[string]string{docKey: "../agent/testdata/sample.docx", deckKey: "../testdata/pptx/transitional.pptx", bookKey: "../testdata/xlsx/transitional.xlsx"} {
+	for key, file := range map[string]string{docKey: "../agent/testdata/sample.docx", deckKey: "../agent/testdata/deck.pptx", bookKey: "../testdata/xlsx/transitional.xlsx"} {
 		data, err := os.ReadFile(file)
 		if err != nil {
 			t.Fatal(err)

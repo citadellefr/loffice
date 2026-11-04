@@ -45,6 +45,11 @@ func TestPresentationTools(t *testing.T) {
 	if len(list.Slides) == 0 || len(list.Layouts) == 0 {
 		t.Fatalf("%+v", list)
 	}
+	for _, l := range list.Layouts {
+		if !strings.HasPrefix(l.ID, "L") {
+			t.Fatalf("a layout that is not one: %+v", l)
+		}
+	}
 	slide := list.Slides[0].ID
 	read := decode[struct{ Slide agent.Slide }](t, ok(t, c, "slide_read", u(map[string]any{"slide": slide})))
 	shape := ""
@@ -73,6 +78,12 @@ func TestPresentationTools(t *testing.T) {
 
 	ok(t, c, "shape_text_set", u(map[string]any{"shape": shape, "text": "Nouveau titre\nSous-titre"}))
 	eventually(t, "the room did not get the new text", func() bool { return textOf(watcher, shape) == "Nouveau titre\nSous-titre" })
+
+	ok(t, c, "notes_set", u(map[string]any{"slide": slide, "text": "Notes de l'IA"}))
+	eventually(t, "the room did not get the notes", func() bool {
+		_, s, err := watcher.Slide(slide)
+		return err == nil && s.Notes == "Notes de l'IA"
+	})
 
 	ok(t, c, "shape_add", u(map[string]any{"slide": slide, "box": map[string]any{"x": 50, "y": 300, "w": 400, "h": 60}, "text": "Une zone de texte"}))
 	ok(t, c, "comment_add", u(map[string]any{"block": slide, "text": "À relire."}))
@@ -108,6 +119,13 @@ func TestPresentationTools(t *testing.T) {
 	eventually(t, "undo_mine did not take back the text", func() bool { return textOf(watcher, shape) == before })
 	if got := decode[struct{ Slide agent.Slide }](t, ok(t, c, "slide_read", u(map[string]any{"slide": slide}))); len(got.Slide.Shapes) != len(read.Slide.Shapes) || len(got.Slide.Comments) != len(read.Slide.Comments) {
 		t.Fatalf("undo_mine left shapes or comments: %+v", got.Slide)
+	} else if got.Slide.Notes != read.Slide.Notes {
+		t.Fatalf("undo_mine left the notes: %+v", got.Slide)
+	}
+
+	ok(t, c, "slide_delete", u(map[string]any{"slide": slide}))
+	if got := ok(t, c, "undo_mine", u(nil)); !strings.Contains(got, "Undid 1 of") || !strings.Contains(got, "Not restored") || !strings.Contains(got, "the notes of slide "+slide) {
+		t.Fatal(got)
 	}
 }
 
@@ -162,6 +180,10 @@ func TestWorkbookTools(t *testing.T) {
 	if !strings.HasPrefix(preview, "Nothing changed.") || !strings.Contains(preview, "aperçu") || value("B1") != 10.0 {
 		t.Fatal(preview)
 	}
+	ok(t, c, "cells_set", u(map[string]any{"sheet": "Feuil1", "range": "G1:G5", "values": [][]any{{strings.Repeat("x", 30000)}, {strings.Repeat("x", 30000)}, {strings.Repeat("x", 30000)}, {strings.Repeat("x", 30000)}, {strings.Repeat("x", 30000)}}}))
+	if msg := fails(t, c, "range_read", u(map[string]any{"sheet": "Feuil1"})); !strings.Contains(msg, "read less") {
+		t.Fatal(msg)
+	}
 	if msg := fails(t, c, "rows_insert", u(map[string]any{"sheet": "Nulle", "range": "1"})); !strings.Contains(msg, "Nulle") {
 		t.Fatal(msg)
 	}
@@ -169,11 +191,11 @@ func TestWorkbookTools(t *testing.T) {
 		t.Fatal(msg)
 	}
 
-	if got := ok(t, c, "undo_mine", u(nil)); !strings.Contains(got, "Undid 6 of") {
+	if got := ok(t, c, "undo_mine", u(nil)); !strings.Contains(got, "Undid 7 of") {
 		t.Fatal(got)
 	}
 	eventually(t, "undo_mine did not take back the cells", func() bool {
 		return cell(watcher, "A1").Value == first.Value && cell(watcher, "B1").Value == 42.0 && cell(watcher, "C1").Value == "texte" &&
-			cell(watcher, "D1").Value == nil && cell(watcher, "D1").Formula == "" && cell(watcher, "E1").Formula == "" && cell(watcher, "B3").Value == nil
+			cell(watcher, "D1").Value == nil && cell(watcher, "D1").Formula == "" && cell(watcher, "E1").Formula == "" && cell(watcher, "B3").Value == nil && cell(watcher, "G1").Value == nil
 	})
 }

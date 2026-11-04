@@ -94,6 +94,8 @@ type Record struct {
 	OnBehalfOf string    `json:"onBehalfOf"`
 	Date       time.Time `json:"date"`
 	Edits      []Edit    `json:"edits"`
+	// Lost is what UndoMine took back but could not make again.
+	Lost []string `json:"lost,omitempty"`
 }
 
 // Preview is what a batch would change, the blocks it touches in
@@ -183,7 +185,7 @@ func (a *Agent) Apply(ctx context.Context, b Batch) (Record, error) {
 func (a *Agent) record(f *flight, b Batch, date time.Time) Record {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	rec := Record{a.versionOf(f.version), b.OnBehalfOf, date, slices.Clone(b.Edits)}
+	rec := Record{Version: a.versionOf(f.version), OnBehalfOf: b.OnBehalfOf, Date: date, Edits: slices.Clone(b.Edits)}
 	a.journal = append(a.journal, rec)
 	return rec
 }

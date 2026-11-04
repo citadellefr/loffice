@@ -113,8 +113,13 @@ func (a *Agent) Slide(id string) (version string, slide Slide, err error) {
 func (s *state) layouts() []*ot.Node {
 	var out []*ot.Node
 	for _, m := range s.tree.Children("") {
-		if m.Type == "master" {
-			out = append(out, s.tree.Children(m.ID)...)
+		if m.Type != "master" {
+			continue
+		}
+		for _, l := range s.tree.Children(m.ID) {
+			if l.Type == "layout" {
+				out = append(out, l)
+			}
 		}
 	}
 	return out
@@ -448,14 +453,20 @@ func raw(v any) json.RawMessage {
 	return b
 }
 
-// restorable tells whether the Check lets a change that takes back the
-// agent's be made again: not the notes of a slide, nor the comment of
-// someone else.
-func (a *Agent) restorable(c ot.Change) bool {
+// unrestorable tells what a change that takes back the agent's would make
+// again that the Check lets nobody make: the notes of a slide, or the
+// comment of someone else. It is "" for the others.
+func (a *Agent) unrestorable(c ot.Change) string {
 	if c.Op != ot.OpNew {
-		return true
+		return ""
 	}
-	return c.Type != "notes" && (c.Type != "comment" || str(c.Attrs, "author") == a.peer.Name)
+	switch author := str(c.Attrs, "author"); {
+	case c.Type == "notes":
+		return "the notes of slide " + c.Parent
+	case c.Type == "comment" && author != a.peer.Name:
+		return fmt.Sprintf("the comment of %s on slide %s", author, c.Parent)
+	}
+	return ""
 }
 
 // previewSlides tells what the edit does to the nodes it touches, going

@@ -23,8 +23,9 @@ type mine struct {
 	edits   []Edit
 	undo    []ot.Edit
 	// changed is what someone else changed since of what the batch did,
-	// "" while nobody did.
+	// "" while nobody did; lost what taking it back cannot make again.
 	changed string
+	lost    []string
 }
 
 // Mark is what the agent changed lately, for editors to highlight a
@@ -96,10 +97,17 @@ func (a *Agent) appliedMine(e ot.Edit, v uint64, f *flight) {
 		}
 	}
 	a.s.version = v
+	var lost []string
 	if a.isSlides() {
-		back = slices.DeleteFunc(back, func(c ot.Change) bool { return !a.restorable(c) })
+		back = slices.DeleteFunc(back, func(c ot.Change) bool {
+			what := a.unrestorable(c)
+			if what != "" {
+				lost = append(lost, what)
+			}
+			return what != ""
+		})
 	}
-	a.mine = append(a.mine, &mine{user: f.owner, version: v, edits: f.batch, undo: split(back)})
+	a.mine = append(a.mine, &mine{user: f.owner, version: v, edits: f.batch, undo: split(back), lost: lost})
 }
 
 // split cuts an edit where it goes from inserting or removing rows and
@@ -188,9 +196,50 @@ func (s *state) inverse(c ot.Change) ot.Edit {
 		if len(restore.Cells) > 0 {
 			back = append(back, restore)
 		}
-		return back
+		return append(back, s.broken(c, r1, r2, c1, c2)...)
 	}
 	return nil
+}
+
+// broken are the changes that set again the formulas of the workbook that
+// removing lines c from rows r1 to r2 and columns c1 to c2 breaks, those
+// that inserting the lines back does not mend.
+func (s *state) broken(c ot.Change, r1, r2, c1, c2 int) ot.Edit {
+	var out ot.Edit
+	name := str(s.tree.Node(c.ID).Attrs, "name")
+	rows := c.Dim == ot.DimRows
+	for _, sheet := range s.tree.Children(s.tree.Node(c.ID).Parent) {
+		if sheet.Grid == nil {
+			continue
+		}
+		own := sheet.ID == c.ID
+		set := ot.Change{Op: ot.OpCel, ID: sheet.ID}
+		sheet.Grid.Each(1, formula.MaxRows, func(row, col int, raw json.RawMessage) bool {
+			if col == 0 || own && row >= r1 && row <= r2 && col >= c1 && col <= c2 || !bytes.Contains(raw, []byte(`"f":`)) {
+				return true
+			}
+			var fields struct {
+				F string `json:"f"`
+			}
+			if json.Unmarshal(raw, &fields) != nil || fields.F == "" {
+				return true
+			}
+			gone, err := formula.Shift(fields.F, name, own, rows, c.At, -c.N)
+			if err != nil {
+				return true
+			}
+			if back, err := formula.Shift(gone, name, own, rows, c.At, c.N); err == nil && back == fields.F {
+				return true
+			}
+			f, _ := json.Marshal(map[string]string{"f": fields.F})
+			set.Cells = append(set.Cells, ot.Cell{Row: row, Col: col, Fields: f})
+			return true
+		})
+		if len(set.Cells) > 0 {
+			out = append(out, set)
+		}
+	}
+	return out
 }
 
 func cmpOr(v, or json.RawMessage) json.RawMessage {
@@ -269,6 +318,7 @@ func (s *state) overlap(e ot.Edit, edits []ot.Edit) string {
 				}
 			}
 		}
+		e = ot.TransformEdit(u, e, false)
 	}
 	return ""
 }
@@ -581,6 +631,7 @@ func (a *Agent) undoDirect(ctx context.Context, user string) (Record, error) {
 		a.mu.Unlock()
 		if taken {
 			rec.Edits = append(rec.Edits, last.edits...)
+			rec.Lost = append(rec.Lost, last.lost...)
 			batches++
 		}
 	}

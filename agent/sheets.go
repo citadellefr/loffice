@@ -145,25 +145,24 @@ func areaName(a formula.Area) string {
 // there is nothing to read.
 func readArea(n *ot.Node, text string) (formula.Area, error) {
 	used, ok := usedArea(n)
-	text = strings.TrimSpace(text)
-	if text == "" {
-		return used, nil
-	}
-	area, valid := formula.ParseArea(text)
-	if !valid {
-		return area, fmt.Errorf("%w: area %q, write it in A1 style such as B2:D10, A:C or 5:7", ErrInvalid, text)
-	}
-	switch {
-	case area.Cols:
-		area.R2 = min(area.R2, used.R2)
-	case area.Rows:
-		area.C2 = min(area.C2, used.C2)
+	area := used
+	if text = strings.TrimSpace(text); text != "" {
+		var valid bool
+		if area, valid = formula.ParseArea(text); !valid {
+			return area, fmt.Errorf("%w: area %q, write it in A1 style such as B2:D10, A:C or 5:7", ErrInvalid, text)
+		}
+		switch {
+		case area.Cols:
+			area.R2 = min(area.R2, used.R2)
+		case area.Rows:
+			area.C2 = min(area.C2, used.C2)
+		}
 	}
 	if !ok || area.R2 < area.R1 || area.C2 < area.C1 {
 		return formula.Area{}, nil
 	}
 	if cells := (area.R2 - area.R1 + 1) * (area.C2 - area.C1 + 1); cells > maxRead {
-		return area, fmt.Errorf("%w: area %s has %d cells, at most %d are read at once: read less", ErrInvalid, text, cells, maxRead)
+		return area, fmt.Errorf("%w: area %s has %d cells, at most %d are read at once: read less", ErrInvalid, areaName(area), cells, maxRead)
 	}
 	return area, nil
 }

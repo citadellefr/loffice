@@ -1,11 +1,8 @@
 package agent
 
 import (
-	"archive/zip"
-	"bytes"
 	"encoding/json"
 	"errors"
-	"io"
 	"os"
 	"reflect"
 	"slices"
@@ -17,109 +14,18 @@ import (
 	"github.com/citadellefr/trame/ot"
 )
 
-const (
-	deckKey  = "deck.pptx"
-	deckNS   = `xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"`
-	relType  = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/"
-	groupXML = `<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/>`
-)
+const deckKey = "deck.pptx"
 
-func xmlPara(text string) string {
-	return `<a:p><a:r><a:rPr lang="fr-FR" b="1"/><a:t>` + text + `</a:t></a:r></a:p>`
-}
-
-func xmlShape(id, name, ph string, paras ...string) string {
-	return `<p:sp><p:nvSpPr><p:cNvPr id="` + id + `" name="` + name + `"/><p:cNvSpPr/><p:nvPr>` + ph + `</p:nvPr></p:nvSpPr><p:spPr/>` +
-		`<p:txBody><a:bodyPr/><a:lstStyle/>` + strings.Join(paras, "") + `</p:txBody></p:sp>`
-}
-
-func xmlCell(text string) string {
-	return `<a:tc><a:txBody><a:bodyPr/><a:lstStyle/>` + xmlPara(text) + `</a:txBody><a:tcPr/></a:tc>`
-}
-
-// deck is the presentation of testdata/pptx/transitional.pptx with a
-// layout of placeholders, a second slide, notes and a table on the first.
+// deck is testdata/deck.pptx: testdata/pptx/transitional.pptx with a shape
+// on the master, a layout of placeholders "Titre et contenu", a second
+// slide, notes and a table on the first.
 func deck(t *testing.T) []byte {
 	t.Helper()
-	data, err := os.ReadFile("../testdata/pptx/transitional.pptx")
+	data, err := os.ReadFile("testdata/deck.pptx")
 	if err != nil {
 		t.Fatal(err)
 	}
-	z, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	parts := map[string]string{}
-	for _, f := range z.File {
-		r, err := f.Open()
-		if err != nil {
-			t.Fatal(err)
-		}
-		b, _ := io.ReadAll(r)
-		r.Close()
-		parts[f.Name] = string(b)
-	}
-	edit := func(name, old, new string) {
-		if !strings.Contains(parts[name], old) {
-			t.Fatalf("%s has no %s", name, old)
-		}
-		parts[name] = strings.Replace(parts[name], old, new, 1)
-	}
-	override := func(part, kind string) {
-		edit("[Content_Types].xml", "</Types>", `<Override PartName="/ppt/`+part+`" ContentType="application/vnd.openxmlformats-officedocument.`+kind+`+xml"/></Types>`)
-	}
-	rel := func(id, kind, target string) string {
-		return `<Relationship Id="` + id + `" Type="` + relType + kind + `" Target="` + target + `"/>`
-	}
-	slide := func(shapes ...string) string {
-		return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sld ` + deckNS + `><p:cSld><p:spTree>` + groupXML + strings.Join(shapes, "") +
-			`</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>`
-	}
-	table := `<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="4" name="Tableau"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>` +
-		`<p:xfrm><a:off x="838200" y="3000000"/><a:ext cx="6000000" cy="800000"/></p:xfrm><a:graphic>` +
-		`<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl><a:tblPr firstRow="1"/>` +
-		`<a:tblGrid><a:gridCol w="3000000"/><a:gridCol w="3000000"/></a:tblGrid>` +
-		`<a:tr h="400000">` + xmlCell("Lot") + xmlCell("Date") + `</a:tr><a:tr h="400000">` + xmlCell("Étude") + xmlCell("Mars") + `</a:tr>` +
-		`</a:tbl></a:graphicData></a:graphic></p:graphicFrame>`
-
-	parts["ppt/slideLayouts/slideLayout2.xml"] = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sldLayout ` + deckNS + ` type="obj"><p:cSld name="Titre et contenu"><p:spTree>` + groupXML +
-		xmlShape("2", "Titre 1", `<p:ph type="title"/>`) + xmlShape("3", "Espace réservé du contenu 2", `<p:ph idx="1"/>`) +
-		xmlShape("4", "Espace réservé de la date 3", `<p:ph type="dt" sz="half" idx="10"/>`) + xmlShape("5", "Espace réservé du numéro de diapositive 4", `<p:ph type="sldNum" sz="quarter" idx="12"/>`) +
-		`</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sldLayout>`
-	parts["ppt/slideLayouts/_rels/slideLayout2.xml.rels"] = strings.Replace(parts["ppt/slideLayouts/_rels/slideLayout1.xml.rels"], "rId1", "rId1", 1)
-	edit("ppt/slideMasters/slideMaster1.xml", `</p:sldLayoutIdLst>`, `<p:sldLayoutId id="2147483650" r:id="rId3"/></p:sldLayoutIdLst>`)
-	edit("ppt/slideMasters/_rels/slideMaster1.xml.rels", `</Relationships>`, rel("rId3", "slideLayout", "../slideLayouts/slideLayout2.xml")+`</Relationships>`)
-	override("slideLayouts/slideLayout2.xml", "presentationml.slideLayout")
-
-	parts["ppt/slides/slide1.xml"] = slide(
-		xmlShape("2", "Titre 1", `<p:ph type="title"/>`, xmlPara("Strict")),
-		xmlShape("3", "Corps", "", xmlPara("Alpha"), xmlPara("Beta")),
-		table)
-	parts["ppt/slides/slide2.xml"] = slide(xmlShape("2", "Titre 1", `<p:ph type="title"/>`, xmlPara("Suite")))
-	parts["ppt/slides/_rels/slide1.xml.rels"] = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
-		rel("rId1", "slideLayout", "../slideLayouts/slideLayout1.xml") + rel("rId2", "notesSlide", "../notesSlides/notesSlide1.xml") + `</Relationships>`
-	parts["ppt/slides/_rels/slide2.xml.rels"] = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
-		rel("rId1", "slideLayout", "../slideLayouts/slideLayout2.xml") + `</Relationships>`
-	parts["ppt/notesSlides/notesSlide1.xml"] = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:notes ` + deckNS + `><p:cSld><p:spTree>` + groupXML +
-		xmlShape("2", "Notes", `<p:ph type="body" idx="1"/>`, xmlPara("Dire bonjour")) + `</p:spTree></p:cSld></p:notes>`
-	edit("ppt/presentation.xml", `</p:sldIdLst>`, `<p:sldId id="257" r:id="rId4"/></p:sldIdLst>`)
-	edit("ppt/_rels/presentation.xml.rels", `</Relationships>`, rel("rId4", "slide", "slides/slide2.xml")+`</Relationships>`)
-	override("slides/slide2.xml", "presentationml.slide")
-	override("notesSlides/notesSlide1.xml", "presentationml.notesSlide")
-
-	var out bytes.Buffer
-	w := zip.NewWriter(&out)
-	for name, body := range parts {
-		f, err := w.Create(name)
-		if err != nil {
-			t.Fatal(err)
-		}
-		f.Write([]byte(body))
-	}
-	if err := w.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return out.Bytes()
+	return data
 }
 
 // joinDeck is a room of the deck with Alice and the agent in it.
@@ -391,6 +297,8 @@ func TestSlideInvalidEdits(t *testing.T) {
 		{Edit{Op: "shape", Block: "s256-3", Text: "x", Box: &Box{1, 1, 5, 5}}, ErrInvalid},
 		{Edit{Op: "slide"}, ErrInvalid},
 		{Edit{Op: "slide", Layout: "Inconnu"}, ErrInvalid},
+		{Edit{Op: "slide", Layout: "M1-2"}, ErrInvalid},
+		{Edit{Op: "slide", Layout: "Title Placeholder 1"}, ErrInvalid},
 		{Edit{Op: "slide", Block: "s256-3", Layout: "L1"}, ErrInvalid},
 		{Edit{Op: "delete", Block: "L1"}, ErrInvalid},
 		{Edit{Op: "delete", Block: "s256-4-r1-c1"}, ErrInvalid},
@@ -490,8 +398,13 @@ func TestSlideUndoDeletedWithNotesAndComments(t *testing.T) {
 		t.Fatalf("comments %+v", got)
 	}
 	deckApply(t, a, Edit{Op: "comment", Block: "s256", Text: "Mon commentaire"}, Edit{Op: "delete", Block: "s256"})
-	if _, err := a.UndoMine(t.Context(), "u1"); err != nil {
+	rec, err := a.UndoMine(t.Context(), "u1")
+	if err != nil {
 		t.Fatal(err)
+	}
+	slices.Sort(rec.Lost)
+	if want := []string{"the comment of Alice on slide s256", "the notes of slide s256"}; !slices.Equal(rec.Lost, want) {
+		t.Errorf("lost %q", rec.Lost)
 	}
 	slide := slideOf(t, a, "s256")
 	if len(slide.Shapes) != 3 || slide.Notes != "" || len(slide.Comments) != 0 {

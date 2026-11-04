@@ -185,7 +185,11 @@ func runUndo(ctx context.Context, s *Server, c *call) (string, error) {
 		case len(rec.Edits) == 0:
 			return "Nothing to undo: no change of yours remains for this user.", nil
 		}
-		return fmt.Sprintf("Undid %d of your edits: rejected your tracked changes in Word, took back your edits elsewhere. version: %s", len(rec.Edits), rec.Version), nil
+		out := fmt.Sprintf("Undid %d of your edits: rejected your tracked changes in Word, took back your edits elsewhere. version: %s", len(rec.Edits), rec.Version)
+		if len(rec.Lost) > 0 {
+			out += "\nNot restored, as nobody may make them again: " + strings.Join(rec.Lost, "; ") + ". Tell the user."
+		}
+		return out, nil
 	})
 }
 
@@ -333,9 +337,13 @@ func runRange(ctx context.Context, s *Server, c *call) (string, error) {
 		if err != nil {
 			return "", err
 		}
+		out := "version: " + version + "\n\n" + r.Markdown()
 		if c.View == "json" {
-			return asJSON(map[string]any{"version": version, "range": r})
+			out, err = asJSON(map[string]any{"version": version, "range": r})
 		}
-		return "version: " + version + "\n\n" + r.Markdown(), nil
+		if len(out) > maxReadSize {
+			return "", fmt.Errorf("%w: %s reads %d bytes, at most %d are read at once: read less", agent.ErrInvalid, r.Area, len(out), maxReadSize)
+		}
+		return out, err
 	})
 }
