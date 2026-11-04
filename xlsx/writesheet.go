@@ -146,6 +146,9 @@ func (w *writer) settings(root *xmldom.Element, old, attrs ot.Values) error {
 	if changed(filterKey) {
 		writeFilter(root, old[filterKey], attrs[filterKey])
 	}
+	if changed(protectKey) {
+		writeProtect(root, attrs[protectKey])
+	}
 	if changed(validKey) {
 		writeValidations(root, attrs[validKey])
 	}

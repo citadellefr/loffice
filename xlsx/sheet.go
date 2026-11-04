@@ -118,6 +118,9 @@ func (r *reader) sheet(s *xmldom.Element, key string) (string, error) {
 	if c := d.sheetCharts(name, root); len(c) > 0 {
 		attrs[chartsKey] = mustJSON(c)
 	}
+	if p := readProtect(root); p != nil {
+		attrs[protectKey] = mustJSON(p)
+	}
 	if p := readPrint(root); p != nil {
 		attrs[printKey] = mustJSON(p)
 	}

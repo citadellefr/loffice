@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- `legacy` converts more of the `.xls` workbooks: the fonts within a text,
+  links, notes, how sheets print (margins, headers, footers, breaks, fit),
+  conditional formats, validations, filters on values and the protection of
+  sheets. What stays unconverted (scales, bars and icons, other filter
+  conditions) is still told in the losses. `xlsx` gains the "protect"
+  attribute of a sheet and `Document.RichText`.
+
 ## 0.12.0 — 2026-11-04
 
 - The PDF export of the Dart package writes what it left blank: pattern fills

@@ -35,6 +35,11 @@ func (l Link) valid() bool {
 	return (l.URL != "" || l.Loc != "") && (l.URL == "" || partrel.LinkTarget(l.URL) != "") && text(l.Loc) && text(l.Tip)
 }
 
+// Valid tells whether the link is one a document may hold.
+func (l Link) Valid() bool {
+	return l.valid()
+}
+
 func text(s string) bool {
 	if len(s) > 4*maxLinkText || utf8.RuneCountInString(s) > maxLinkText {
 		return false
