@@ -108,7 +108,12 @@ func (a *Agent) Apply(ctx context.Context, b Batch) (Record, error) {
 		}
 	}
 	a.sending.Lock()
-	defer a.sending.Unlock()
+	unlock := a.sending.Unlock
+	defer func() {
+		if unlock != nil {
+			unlock()
+		}
+	}()
 	if err := context.Cause(ctx); err != nil {
 		return Record{}, err
 	}
@@ -122,18 +127,39 @@ func (a *Agent) Apply(ctx context.Context, b Batch) (Record, error) {
 		a.mu.Unlock()
 		return Record{}, err
 	}
-	f, err := a.submit(e)
+	f, err := a.submit(ctx, e)
+	if f != nil && err != nil {
+		unlock = nil
+		go a.settle(f, b, date)
+		return Record{}, err
+	}
 	if err != nil {
 		return Record{}, err
 	}
-	a.mu.Lock()
-	rec := Record{a.versionOf(f.version), b.OnBehalfOf, date, slices.Clone(b.Edits)}
-	a.journal = append(a.journal, rec)
-	a.mu.Unlock()
+	rec := a.record(f, b, date)
 	if c, ok := cursorAfter(f.applied); ok {
 		_ = a.show(c)
 	}
 	return rec, nil
+}
+
+// record journals a batch the hub applied.
+func (a *Agent) record(f *flight, b Batch, date time.Time) Record {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	rec := Record{a.versionOf(f.version), b.OnBehalfOf, date, slices.Clone(b.Edits)}
+	a.journal = append(a.journal, rec)
+	return rec
+}
+
+// settle waits for the hub to take the batch of an Apply that gave up, and
+// journals it if it did: its revisions are the agent's, for UndoMine to
+// know who they were for. It ends with the room at the latest.
+func (a *Agent) settle(f *flight, b Batch, date time.Time) {
+	defer a.sending.Unlock()
+	if <-f.done == nil {
+		a.record(f, b, date)
+	}
 }
 
 // UndoMine rejects the revisions the agent made for user, and only those.

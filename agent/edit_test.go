@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -436,4 +437,96 @@ func TestSessions(t *testing.T) {
 	if revs[0].Author != "Héraut" || revs[0].OnBehalfOf != "u1" {
 		t.Fatalf("the journal of the first session: %+v", revs[0])
 	}
+}
+
+func TestApplyCancelled(t *testing.T) {
+	r := newRoom(t, loffice.Options{})
+	alice := r.human("Alice")
+	release := make(chan struct{})
+	g := &gate{hub: r.hub, before: func() { <-release }}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	a, err := Join(ctx, g, key, trame.Peer{ID: "Héraut", Name: "Héraut"}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(a.Leave)
+	alice.next("join")
+	b := Batch{OnBehalfOf: "u1", Edits: []Edit{{Op: "replace", Block: "p2", Find: "en avance", Text: "à l'heure"}}}
+
+	applying, stop := context.WithCancelCause(context.Background())
+	cause := errors.New("client gone")
+	time.AfterFunc(50*time.Millisecond, func() { stop(cause) })
+	start := time.Now()
+	if _, err := a.Apply(applying, b); !errors.Is(err, cause) {
+		t.Fatal(err)
+	}
+	if time.Since(start) > 2*time.Second {
+		t.Fatal("Apply waited for the hub")
+	}
+
+	close(release)
+	alice.next("op")
+	settle(t, a, alice.v)
+	if got := read(t, a, Markdown); !strings.Contains(got, "à l'heure") {
+		t.Fatal(got)
+	}
+	var journal []Record
+	for range 200 {
+		if journal = a.Journal(); len(journal) > 0 {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if len(journal) != 1 || journal[0].OnBehalfOf != "u1" {
+		t.Fatalf("a batch the hub applied after Apply gave up is not journaled: %+v", journal)
+	}
+	b.Edits = []Edit{{Op: "replace", Block: "p2", Find: "sous budget", Text: "dans les clous"}}
+	if _, err := a.Apply(t.Context(), b); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// mute is a hub that reads the agent's edits and never answers.
+type mute struct{ hub Server }
+
+func (m mute) Serve(ctx context.Context, conn trame.Conn, key string, info trame.Peer) error {
+	return m.hub.Serve(ctx, &mutedConn{Conn: conn}, key, info)
+}
+
+type mutedConn struct{ trame.Conn }
+
+func (c *mutedConn) ReadMessage() (int, []byte, error) {
+	for {
+		kind, data, err := c.Conn.ReadMessage()
+		if err != nil || !bytes.HasPrefix(data, []byte(`{"t":"op"`)) {
+			return kind, data, err
+		}
+	}
+}
+
+func TestApplyCancelledLeavesNothingBehind(t *testing.T) {
+	r := newRoom(t, loffice.Options{})
+	before := runtime.NumGoroutine()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	a, err := Join(ctx, mute{r.hub}, key, trame.Peer{ID: "Héraut", Name: "Héraut"}, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	applying, stop := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer stop()
+	b := Batch{OnBehalfOf: "u1", Edits: []Edit{{Op: "delete", Block: "p2"}}}
+	if _, err := a.Apply(applying, b); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal(err)
+	}
+	a.Leave()
+	for range 200 {
+		if runtime.NumGoroutine() <= before {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	buf := make([]byte, 1<<16)
+	t.Fatalf("goroutines: %d before, %d after\n%s", before, runtime.NumGoroutine(), buf[:runtime.Stack(buf, true)])
 }
