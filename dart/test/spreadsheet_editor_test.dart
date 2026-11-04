@@ -53,7 +53,7 @@ void main() {
     await tester.pump();
   }
 
-  Future<void> open(WidgetTester tester, {bool csv = false, Size size = const Size(1400, 900)}) async {
+  Future<void> open(WidgetTester tester, {bool csv = false, Size size = const Size(1400, 900), void Function(Uri)? onOpenLink}) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -63,7 +63,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: SpreadsheetEditor(session: session, title: 'classeur.xlsx'),
+          body: SpreadsheetEditor(session: session, title: 'classeur.xlsx', onOpenLink: onOpenLink),
         ),
       ),
     );
@@ -200,6 +200,7 @@ void main() {
     await tester.pump();
     await tester.tap(find.text('OK'));
     await settle(tester);
+    await tester.pumpAndSettle();
     expect(hub.doc['S1']!.attributes['filter'], {
       'ref': 'A1:A3',
       'cols': [
@@ -328,6 +329,121 @@ void main() {
     await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 10)));
     await settle(tester);
     expect(cell(1, 3), {'v': 2});
+    await finish(tester);
+  });
+
+  Future<void> select(WidgetTester tester, LogicalKeyboardKey key, {int times = 1}) async {
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    for (var i = 0; i < times; i++) {
+      await tester.sendKeyEvent(key);
+    }
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pump();
+  }
+
+  Future<void> merge(WidgetTester tester, String how) async {
+    await tester.tap(find.byTooltip('Fusionner et centrer').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(how).last);
+    await settle(tester);
+  }
+
+  testWidgets('merges the selected cells, across rows or not, and unmerges them', (tester) async {
+    await open(tester);
+    await select(tester, LogicalKeyboardKey.arrowRight);
+    await select(tester, LogicalKeyboardKey.arrowDown);
+    await merge(tester, 'Fusionner et centrer');
+    expect(cell(1, 1)?['m'], [2, 2]);
+    expect(cell(2, 1), isNull);
+
+    await merge(tester, 'Annuler Fusionner cellules');
+    expect(cell(1, 1)?['m'], isNull);
+
+    await merge(tester, 'Fusionner sur les lignes');
+    expect(cell(1, 1)?['m'], [1, 2]);
+    expect(cell(2, 1), {
+      'm': [1, 2],
+    });
+    await finish(tester);
+  });
+
+  testWidgets('puts a link on a cell, changes it and takes it away', (tester) async {
+    await open(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pump();
+    await tester.tap(find.text('Insertion').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Lien').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Adresse'), 'example.org/a');
+    await tester.enterText(find.widgetWithText(TextField, 'Info-bulle'), 'Voir');
+    await tester.tap(find.text('OK'));
+    await settle(tester);
+    await tester.pumpAndSettle();
+    expect(cell(1, 2)?['link'], {'url': 'https://example.org/a', 'tip': 'Voir'});
+    expect(cell(1, 2)?['v'], 'https://example.org/a');
+    Map<String, Object?> font() => (hub.doc[cell(1, 2)!['s']! as String]!.attributes['style']! as Map<String, Object?>)['font']! as Map<String, Object?>;
+    expect(font()['u'], 'single');
+
+    await tester.tap(find.text('Lien').last);
+    await tester.pumpAndSettle();
+    expect(find.descendant(of: find.byType(AlertDialog), matching: find.widgetWithText(TextField, 'https://example.org/a')), findsOneWidget);
+    await tester.enterText(find.widgetWithText(TextField, 'Adresse'), 'ada@example.org');
+    await tester.tap(find.text('OK'));
+    await settle(tester);
+    await tester.pumpAndSettle();
+    expect(cell(1, 2)?['link'], {'url': 'mailto:ada@example.org', 'tip': 'Voir'});
+
+    await tester.tap(find.text('Lien').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Supprimer le lien'));
+    await settle(tester);
+    await tester.pumpAndSettle();
+    expect(cell(1, 2)?['link'], isNull);
+    expect(cell(1, 2)?['v'], 'https://example.org/a');
+    expect(font()['u'], isNull);
+    await finish(tester);
+  });
+
+  testWidgets('opens the link of a cell with Ctrl, or goes to its place in the workbook', (tester) async {
+    final opened = <Uri>[];
+    await open(tester, onOpenLink: opened.add);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.tap(find.text('Insertion').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Lien').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Adresse'), 'https://example.org');
+    await tester.tap(find.text('OK'));
+    await settle(tester);
+    await tester.pumpAndSettle();
+
+    final origin = tester.getTopLeft(find.byType(SheetView));
+    Future<void> click(Offset at, {bool ctrl = false}) async {
+      if (ctrl) await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      final gesture = await tester.startGesture(origin + at, kind: PointerDeviceKind.mouse);
+      await gesture.up();
+      if (ctrl) await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+    }
+
+    const b1 = Offset(34 + 64 + 32, 22 + 10);
+    await click(b1);
+    expect(opened, isEmpty);
+    await click(b1, ctrl: true);
+    expect(opened, [Uri.parse('https://example.org')]);
+
+    await tester.tap(find.text('Lien').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Adresse'), '');
+    await tester.enterText(find.widgetWithText(TextField, 'Emplacement dans ce classeur'), "'Feuil1'!\$A\$3");
+    await tester.tap(find.text('OK'));
+    await settle(tester);
+    await tester.pumpAndSettle();
+    expect(cell(1, 2)?['link'], {'loc': "'Feuil1'!\$A\$3"});
+    await click(b1, ctrl: true);
+    expect(find.text('A3'), findsOneWidget);
+    expect(opened, hasLength(1));
     await finish(tester);
   });
 }

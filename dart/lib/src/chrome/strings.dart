@@ -82,7 +82,14 @@ class LofficeStrings {
   String get alignBottom => 'Aligner en bas';
   String get wrapText => 'Renvoyer à la ligne automatiquement';
   String get mergeAndCenter => 'Fusionner et centrer';
+  String get mergeAcross => 'Fusionner sur les lignes';
   String get unmerge => 'Annuler Fusionner cellules';
+  String get links => 'Liens';
+  String get insertLink => 'Lien';
+  String get linkAddress => 'Adresse';
+  String get linkPlace => 'Emplacement dans ce classeur';
+  String get linkTip => 'Info-bulle';
+  String get removeLink => 'Supprimer le lien';
   String get numberFormat => 'Format de nombre';
   String get increaseDecimal => 'Ajouter une décimale';
   String get decreaseDecimal => 'Réduire les décimales';

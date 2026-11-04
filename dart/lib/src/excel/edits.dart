@@ -10,7 +10,18 @@ import 'workbook.dart';
 /// formatted: its style as the Go package writes it, changed.
 typedef StyleChange = Map<String, Object?> Function(Map<String, Object?> style, int row, int col);
 
+const _linkColor = {'rgb': '0563C1'};
+
 const _cleared = {'v': null, 'f': null, 'e': null, 'rich': null};
+
+/// The address a link goes to for what someone typed: the web for a name,
+/// mail for an address, null for nothing.
+String? linkAddress(String text) {
+  text = text.trim();
+  if (text.isEmpty) return null;
+  if (RegExp('^[a-zA-Z][a-zA-Z0-9+.-]*:').hasMatch(text)) return text;
+  return text.contains('@') && !text.contains('/') ? 'mailto:$text' : 'https://$text';
+}
 
 /// The edits a spreadsheet editor makes, as the Go package takes them.
 class SheetEdits {
@@ -178,23 +189,31 @@ class SheetEdits {
   }
 
   /// Merges an area into its first cell, which keeps its value; the others
-  /// are cleared, as Excel does.
-  Edit merge(Node sheet, CellArea area, {bool center = true}) {
+  /// are cleared, as Excel does. With [across] each row of the area is
+  /// merged on its own.
+  Edit merge(Node sheet, CellArea area, {bool center = true, bool across = false}) {
     final grid = sheet.grid ?? const Grid.empty();
+    final firsts = [
+      if (across)
+        for (var r = area.top; r <= area.bottom; r++) CellArea(r, area.left, r, area.right)
+      else
+        area,
+    ];
     final cells = <Cell>[
-      Cell(area.top, area.left, {
-        'm': [area.rows, area.cols],
-      }),
+      for (final a in firsts)
+        Cell(a.top, a.left, {
+          'm': [a.rows, a.cols],
+        }),
     ];
     for (final c in grid.rows(area.top, area.bottom)) {
-      if (c.col == 0 || !area.contains(c.row, c.col) || c.row == area.top && c.col == area.left) continue;
-      cells.add(Cell(c.row, c.col, {..._cleared, 'm': null}));
+      if (c.col == 0 || !area.contains(c.row, c.col) || c.col == area.left && (across || c.row == area.top)) continue;
+      cells.add(Cell(c.row, c.col, {..._cleared, 'link': null, 'm': null}));
     }
     final edit = Edit([Change.cells(sheet.id, cells)]);
     if (!center) return edit;
     final aligned = format(
       sheet,
-      CellArea.cell(area.top, area.left),
+      across ? CellArea(area.top, area.left, area.bottom, area.left) : CellArea.cell(area.top, area.left),
       (s, _, _) => {
         ...s,
         'align': {...?(s['align'] as Map<String, Object?>?), 'h': 'center'},
@@ -210,6 +229,39 @@ class SheetEdits {
         if (m.intersects(area)) Cell(m.top, m.left, const {'m': null}),
     ];
     return cells.isEmpty ? Edit() : Edit([Change.cells(sheet.id, cells)]);
+  }
+
+  // links
+
+  /// Makes a cell lead to [link], a Link of the Go package, or no longer
+  /// lead anywhere for null. A cell with no value shows where the link
+  /// goes, in the format of links; one that had a link and loses it loses
+  /// that format.
+  Edit setLink(Node sheet, int row, int col, Map<String, Object?>? link) {
+    final fields = sheet.grid?.cell(row, col);
+    final had = fields?['link'] != null;
+    final value = <String, Object?>{'link': link};
+    if (link != null && fields?['v'] == null && fields?['f'] == null) value['v'] = link['url'] ?? link['loc'];
+    final edit = Edit([
+      Change.cells(sheet.id, [Cell(row, col, value)]),
+    ]);
+    final current = {...?(styleOf(styleAt(sheet, row, col))['font'] as Map<String, Object?>?)};
+    final looks = jsonEquals(current['color'], _linkColor) && current['u'] == 'single';
+    if (link != null ? had : !had || !looks) return edit;
+    final looked = format(sheet, CellArea.cell(row, col), (s, _, _) {
+      final font = {...?(s['font'] as Map<String, Object?>?)};
+      if (link != null) {
+        font
+          ..['color'] = _linkColor
+          ..['u'] = 'single';
+      } else {
+        font
+          ..remove('color')
+          ..remove('u');
+      }
+      return {...s, 'font': font};
+    });
+    return edit.compose(looked);
   }
 
   // printing

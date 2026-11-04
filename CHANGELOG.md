@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- `xlsx` edits merged cells and links: a cell's `m` is refused when its area
+  overlaps another, and a new field `link` (`{"url":"https://…"}`,
+  `{"loc":"Sheet2!A1"}`, `"tip"`) is written as Excel writes it, a
+  `hyperlink` element and an external relationship of the sheet. The Dart
+  workbook editor has Merge & Center on the Home tab and Link on the Insert
+  tab, and opens links with `onOpenLink`.
 - Size limits are options, no longer global variables: `loffice.NewHub` and
   `loffice.Convert` take `Limits`, and `docx.Open`, `pptx.Open`, `xlsx.Open`
   and `legacy.Workbook` take theirs as an argument. The hub refuses a file
