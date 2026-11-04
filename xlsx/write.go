@@ -40,7 +40,8 @@ func (d *Document) save(tree *ot.Tree, force bool) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	w := &writer{d: d, pkg: pkg, tree: tree, force: force, rels: slices.Clone(d.bookRels), stringRefs: map[*sheetPart]int{}, moves: d.movesOf(tree), dates: map[string]bool{}}
+	w := &writer{d: d, pkg: pkg, tree: tree, force: force, rels: slices.Clone(d.bookRels), stringRefs: map[*sheetPart]int{}, moves: d.movesOf(tree), dates: map[string]bool{},
+		persons: slices.Clone(d.persons), usedIDs: map[string]bool{}, usedShapes: map[string]bool{}}
 	_ = json.Unmarshal(tree.Node("book").Attrs["date1904"], &w.date1904)
 	if err := w.save(); err != nil {
 		return nil, err
@@ -70,6 +71,12 @@ type writer struct {
 	// the 1904 date system or not.
 	dates    map[string]bool
 	date1904 bool
+	// persons are those threaded comments are signed by, newPersons those
+	// the workbook did not have; usedIDs the ids of the threaded comments
+	// written and usedShapes the shapes of the notes kept.
+	persons, newPersons []person
+	usedIDs             map[string]bool
+	usedShapes          map[string]bool
 }
 
 // sheet is a sheet of the workbook as written.
@@ -136,6 +143,9 @@ func (w *writer) save() error {
 		}
 	}
 	if err := w.styles.write(); err != nil {
+		return err
+	}
+	if err := w.writePersons(); err != nil {
 		return err
 	}
 	if rewritten || removed {

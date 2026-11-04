@@ -248,6 +248,9 @@ class LofficeStrings {
   String get showComments => 'Afficher les commentaires';
   String get noComments => 'Aucun commentaire';
   String get noCommentsHint => 'Sélectionnez du texte, puis choisissez Nouveau commentaire.';
+  String get newNote => 'Nouvelle note';
+  String get editNote => 'Modifier la note';
+  String get noSheetCommentsHint => 'Choisissez Nouveau commentaire ou Nouvelle note pour en ajouter à la cellule active.';
   String get noSlideCommentsHint => 'Choisissez Nouveau commentaire pour en ajouter un à cette diapositive.';
   String get startConversation => 'Commencer une conversation';
   String get replyHint => 'Répondre';

@@ -30,6 +30,13 @@ class CommentThread {
 
   /// Whether what the comment was about is still there.
   bool get anchored => true;
+
+  /// Whether the thread can be resolved, and answered.
+  bool get resolvable => true;
+  bool get repliable => true;
+
+  /// Whether [me] can edit a comment of the thread.
+  bool editableBy(DocComment comment, String me) => me.isNotEmpty && comment.author == me;
 }
 
 /// The initials a name gives: the first letter of its first two words.

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:trame/trame.dart';
 
 import 'print.dart';
+import 'sheet_comments.dart';
 import 'workbook.dart';
 
 /// A change made to the format of a cell, at [row] and [col] of the area
@@ -354,7 +355,8 @@ class SheetEdits {
             c.col - area.left,
             {...c.fields}
               ..remove('m')
-              ..remove('src'),
+              ..remove('src')
+              ..removeWhere((k, _) => commentFields.contains(k)),
           ),
     ]);
   }
@@ -403,7 +405,9 @@ class SheetEdits {
       final (from, fields) = rows[i];
       final r = area.top + i;
       for (var j = 0; j < fields.length; j++) {
-        final f = {..._cleared, 's': null, ...fields[j]}..remove('m');
+        final f = {..._cleared, 's': null, ...fields[j]}
+          ..remove('m')
+          ..removeWhere((k, _) => commentFields.contains(k));
         if (f['f'] is String) f['f'] = moveFormula(f['f']! as String, r - from, 0);
         cells.add(Cell(r, area.left + j, f));
       }

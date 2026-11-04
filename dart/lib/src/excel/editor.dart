@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:trame/trame.dart';
 
 import '../chart/chart.dart';
+import '../chrome/comments.dart';
+import '../chrome/comments_pane.dart';
 import '../chrome/ribbon.dart';
 import '../chrome/strings.dart';
 import '../clipboard.dart';
@@ -21,6 +23,7 @@ import 'input.dart';
 import 'lists.dart';
 import 'number_format.dart';
 import 'print.dart';
+import 'sheet_comments.dart';
 import 'sheet_view.dart';
 import 'workbook.dart';
 
@@ -71,6 +74,10 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
   var _backstage = false;
   var _exporting = false;
   Clip? _clip;
+  var _commentsShown = false;
+
+  /// The comment being written: where, and whether it is a note.
+  (int, int, bool)? _draft;
 
   static const _locale = NumberLocale.fr;
   static const _peerColors = [
@@ -838,6 +845,69 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     _edit(_edits.setCells(sheet, values));
   }
 
+  // comments
+
+  bool get _canComment => !_session.readOnly && _session.name.isNotEmpty && _sheet?.grid != null;
+
+  CommentEdits get _commentEdits => CommentEdits(_sheet!, _session.name);
+
+  CellThread? get _activeThread {
+    final (r, c) = _selection.active;
+    return threadAt(_fields(r, c), r, c);
+  }
+
+  void _newComment({bool note = false}) {
+    final (r, c) = _selection.active;
+    if (_activeThread != null) return;
+    setState(() {
+      _commentsShown = true;
+      _draft = (r, c, note);
+    });
+  }
+
+  void _postComment(String text) {
+    final sheet = _sheet;
+    final draft = _draft;
+    if (sheet == null || draft == null) return;
+    final (r, c, note) = draft;
+    setState(() => _draft = null);
+    if (hasComments(_fields(r, c))) return;
+    _edit(note ? _commentEdits.startNote(r, c, text) : _commentEdits.startThread(r, c, text, DateTime.now()));
+  }
+
+  void _deleteComment(DocComment comment) {
+    final thread = _threads.where((t) => t.all.any((c) => c.id == comment.id)).firstOrNull;
+    if (thread != null) _edit(_commentEdits.delete(thread, comment));
+  }
+
+  void _editComment(DocComment comment, String text) {
+    final thread = _threads.where((t) => t.all.any((c) => c.id == comment.id)).firstOrNull;
+    if (thread != null) _edit(_commentEdits.say(thread, comment, text));
+  }
+
+  List<CellThread> get _threads => _sheet == null ? const [] : sheetThreads(_sheet!);
+
+  Widget _commentsPane() => CommentsPane<CellThread>(
+    threads: _threads,
+    active: _activeThread?.id,
+    me: _session.name,
+    readOnly: _session.readOnly || _session.name.isEmpty,
+    drafting: _draft != null,
+    emptyHint: _s.noSheetCommentsHint,
+    strings: _s,
+    onSelect: (t) => _selection.select(t.row, t.col),
+    onPost: _postComment,
+    onCancelDraft: () => setState(() => _draft = null),
+    onReply: (t, text) => _edit(_commentEdits.reply(t, text, DateTime.now())),
+    onResolve: (t, done) => _edit(_commentEdits.resolve(t, done)),
+    onDelete: _deleteComment,
+    onEdit: _editComment,
+    onClose: () => setState(() {
+      _commentsShown = false;
+      _draft = null;
+    }),
+  );
+
   // editing commands
 
   void _autoSum() {
@@ -1036,41 +1106,12 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
             ..._banners(context),
             _formulaBar(context),
             Expanded(
-              child: sheet == null
-                  ? const SizedBox.expand()
-                  : sheet.grid == null
-                  ? _chartSheet(sheet)
-                  : Focus(
-                      focusNode: _gridFocus,
-                      autofocus: true,
-                      onKeyEvent: _gridKey,
-                      child: GestureDetector(
-                        onTapDown: (_) {
-                          if (!_editing) _gridFocus.requestFocus();
-                        },
-                        child: SheetView(
-                          key: _view,
-                          book: _wb,
-                          sheet: sheet,
-                          selection: _selection,
-                          locale: _locale,
-                          zoom: _zoom,
-                          peers: _peers,
-                          fonts: widget.fonts,
-                          editing: _editing,
-                          editor: _cellEditor(),
-                          onEdit: _session.readOnly ? null : _startEdit,
-                          onResize: _session.readOnly ? null : _resize,
-                          onZoom: (z) => setState(() => _zoom = z),
-                          onMenu: (at, {rows = false, cols = false}) => _cellsMenu(at, rows: rows, cols: cols),
-                          onFill: _session.readOnly ? null : (from, to) => _edit(_edits.fill(sheet, from, to)),
-                          onList: _activeList == null ? null : _openList,
-                          prompt: _prompt,
-                          filter: SheetFilter.of(sheet),
-                          onFilter: _session.readOnly ? null : _openFilter,
-                        ),
-                      ),
-                    ),
+              child: Row(
+                children: [
+                  Expanded(child: _body(sheet)),
+                  if (_commentsShown && sheet?.grid != null) ...[const VerticalDivider(width: 1), SizedBox(width: 320, child: _commentsPane())],
+                ],
+              ),
             ),
             _tabs(context),
             _statusBar(context),
@@ -1080,6 +1121,43 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
       ],
     );
   }
+
+  Widget _body(Node? sheet) => sheet == null
+      ? const SizedBox.expand()
+      : sheet.grid == null
+      ? _chartSheet(sheet)
+      : Focus(
+          focusNode: _gridFocus,
+          autofocus: true,
+          onKeyEvent: _gridKey,
+          child: GestureDetector(
+            onTapDown: (_) {
+              if (!_editing) _gridFocus.requestFocus();
+            },
+            child: SheetView(
+              key: _view,
+              book: _wb,
+              sheet: sheet,
+              selection: _selection,
+              locale: _locale,
+              zoom: _zoom,
+              peers: _peers,
+              fonts: widget.fonts,
+              strings: _s,
+              editing: _editing,
+              editor: _cellEditor(),
+              onEdit: _session.readOnly ? null : _startEdit,
+              onResize: _session.readOnly ? null : _resize,
+              onZoom: (z) => setState(() => _zoom = z),
+              onMenu: (at, {rows = false, cols = false}) => _cellsMenu(at, rows: rows, cols: cols),
+              onFill: _session.readOnly ? null : (from, to) => _edit(_edits.fill(sheet, from, to)),
+              onList: _activeList == null ? null : _openList,
+              prompt: _prompt,
+              filter: SheetFilter.of(sheet),
+              onFilter: _session.readOnly ? null : _openFilter,
+            ),
+          ),
+        );
 
   Widget _cellEditor() {
     final f = _activeStyle.font;
@@ -1231,6 +1309,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     final h = style.horizontal;
     final v = style.vertical;
     final frozen = _sheet == null ? null : _wb.layout(_sheet!);
+    final remark = _sheet?.grid == null ? null : _activeThread;
     return Ribbon(
       fileLabel: _s.file,
       onFile: () => setState(() => _backstage = true),
@@ -1415,6 +1494,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
                 final a = _selection.area;
                 if (v != 'formats') _edit(_edits.clear(sheet, a));
                 if (v != 'contents') _edit(_edits.clearFormats(sheet, a));
+                if (v == 'all') _edit(CommentEdits(sheet, _session.name).clear(a.top, a.left, a.bottom, a.right));
               },
             ),
           ]),
@@ -1437,6 +1517,36 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
             RibbonButton(icon: const Icon(Icons.filter_alt_outlined), label: _s.filter, large: true, shortcut: 'Ctrl+Maj+L', selected: hasFilter, onPressed: editable ? _toggleFilter : null),
             RibbonButton(icon: const Icon(Icons.filter_alt_off_outlined), label: _s.clearFilters, onPressed: editable && hasFilter ? () => _refilter(clear: true) : null),
             RibbonButton(icon: const Icon(Icons.refresh), label: _s.reapply, onPressed: editable && hasFilter ? _refilter : null),
+          ]),
+        ]),
+        RibbonTab(_s.review, [
+          RibbonGroup(_s.comments, [
+            RibbonButton(icon: const Icon(Icons.add_comment_outlined), label: _s.newComment, large: true, onPressed: _canComment && remark == null ? _newComment : null),
+            RibbonButton(icon: const Icon(Icons.delete_outline), label: _s.delete, large: true, onPressed: editable && remark != null ? () => _edit(_commentEdits.discard(remark)) : null),
+            RibbonButton(
+              icon: const Icon(Icons.forum_outlined),
+              label: _s.showComments,
+              large: true,
+              selected: _commentsShown,
+              onPressed: () => setState(() {
+                _commentsShown = !_commentsShown;
+                _draft = null;
+              }),
+            ),
+          ]),
+          RibbonGroup(_s.notes, [
+            RibbonButton(icon: const Icon(Icons.sticky_note_2_outlined), label: _s.newNote, large: true, onPressed: _canComment && remark == null ? () => _newComment(note: true) : null),
+            RibbonButton(
+              icon: const Icon(Icons.edit_note),
+              label: _s.editNote,
+              large: true,
+              onPressed: remark == null
+                  ? null
+                  : () => setState(() {
+                      _commentsShown = true;
+                      _draft = null;
+                    }),
+            ),
           ]),
         ]),
         RibbonTab(_s.view, [
