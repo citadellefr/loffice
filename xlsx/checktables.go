@@ -31,12 +31,17 @@ type tableView struct {
 }
 
 // viewTables reads the tables of the sheets and the names of the book as
-// the edit leaves them, false if any is unreadable.
+// the edit leaves them, false if any is unreadable. A table whose totals
+// row is turned on or off in the same area takes the area Follow gives it.
 func viewTables(tree *ot.Tree, e ot.Edit) (*tableView, bool) {
 	tables := map[string]json.RawMessage{}
+	before := map[string][]Table{}
 	for _, n := range tree.Children("book") {
 		if n.Type == "sheet" {
 			tables[n.ID] = n.Attrs[tablesKey]
+			var list []Table
+			_ = json.Unmarshal(n.Attrs[tablesKey], &list)
+			before[n.ID] = list
 		}
 	}
 	var names json.RawMessage
@@ -62,6 +67,16 @@ func viewTables(tree *ot.Tree, e ot.Edit) (*tableView, bool) {
 		var list []Table
 		if len(raw) > 0 && string(raw) != "null" && json.Unmarshal(raw, &list) != nil {
 			return nil, false
+		}
+		for i := range list {
+			t := &list[i]
+			if j := slices.IndexFunc(before[id], func(o Table) bool { return t.ID > 0 && o.ID == t.ID }); j >= 0 {
+				if o := before[id][j]; o.Totals != t.Totals && o.Ref == t.Ref {
+					a := t.area()
+					a.R2 += 2*boolInt(t.Totals) - 1
+					t.Ref = a.String()
+				}
+			}
 		}
 		v.tables[id] = list
 	}

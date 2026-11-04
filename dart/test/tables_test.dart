@@ -55,8 +55,9 @@ void main() {
     test('makes a table named after the free names of the workbook, its columns after its headers', () {
       final t = tree(cells: _region);
       final sheet = t['S1']!;
-      final edit = insertTableEdit(book(t), sheet, const CellArea(1, 1, 3, 5), headers: true, locale: NumberLocale.fr);
-      expect(t.apply(edit), isNotNull);
+      final edits = insertTableEdits(book(t), sheet, const CellArea(1, 1, 3, 5), headers: true, locale: NumberLocale.fr);
+      expect(edits.length, 1);
+      expect(t.apply(edits.single), isNotNull);
       final tables = SheetTable.of(t['S1']!);
       expect(tables.length, 2);
       final made = tables.last;
@@ -77,9 +78,13 @@ void main() {
           const Cell(1, 2, {'v': 2}),
         ],
       );
-      final edit = insertTableEdit(book(t), t['S1']!, const CellArea(1, 1, 1, 2), headers: false, locale: NumberLocale.fr);
-      expect(edit.changes.first.dim, dimRows);
-      expect(t.apply(edit), isNotNull);
+      final edits = insertTableEdits(book(t), t['S1']!, const CellArea(1, 1, 1, 2), headers: false, locale: NumberLocale.fr);
+      expect(edits.length, 2);
+      expect(edits.first.changes.single.dim, dimRows);
+      expect(edits.last.changes.map((c) => c.kind), isNot(contains(ChangeKind.insert)));
+      for (final e in edits) {
+        expect(t.apply(e), isNotNull);
+      }
       final made = SheetTable.of(t['S1']!).last;
       expect(made.area, const CellArea(1, 1, 2, 2));
       expect([for (final c in made.json['columns']! as List<Object?>) (c! as Map)['name']], ['Colonne1', 'Colonne2']);
@@ -95,8 +100,8 @@ void main() {
         ],
       );
       expect(tableProblem(book(t), t['S1']!, const CellArea(1, 1, 1, 2), headers: true), isNull);
-      final edit = insertTableEdit(book(t), t['S1']!, const CellArea(1, 1, 1, 2), headers: true, locale: NumberLocale.fr);
-      expect(t.apply(edit), isNotNull);
+      final edits = insertTableEdits(book(t), t['S1']!, const CellArea(1, 1, 1, 2), headers: true, locale: NumberLocale.fr);
+      expect(t.apply(edits.single), isNotNull);
       expect(SheetTable.of(t['S1']!).last.area, const CellArea(1, 1, 2, 2));
     });
 
@@ -140,13 +145,13 @@ void main() {
     test('the total row is turned on and off', () {
       final t = tree();
       final table = SheetTable.of(t['S1']!).single;
-      final on = totalsEdit(t['S1']!, table, true);
+      final on = totalsEdits(t['S1']!, table, true).single;
       expect(on.changes.length, 1);
       expect(on.changes.single.attributes['tables'], [
         {..._existing, 'totals': true},
       ]);
       expect(t.apply(on), isNotNull);
-      final off = totalsEdit(t['S1']!, SheetTable.of(t['S1']!).single, false);
+      final off = totalsEdits(t['S1']!, SheetTable.of(t['S1']!).single, false).single;
       expect(off.changes.single.attributes['tables'], [_existing]);
     });
 
@@ -157,10 +162,11 @@ void main() {
         ],
       );
       final table = SheetTable.of(t['S1']!).single;
-      final edit = totalsEdit(t['S1']!, table, true);
-      expect(edit.changes.first.dim, dimRows);
-      expect(edit.changes.first.at, 4);
-      expect(edit.changes.last.attributes['tables'], [
+      final edits = totalsEdits(t['S1']!, table, true);
+      expect(edits.length, 2);
+      expect(edits.first.changes.single.dim, dimRows);
+      expect(edits.first.changes.single.at, 4);
+      expect(edits.last.changes.single.attributes['tables'], [
         {..._existing, 'totals': true},
       ]);
     });

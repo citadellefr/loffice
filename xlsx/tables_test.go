@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/citadellefr/loffice/formula"
 	"github.com/citadellefr/loffice/opc"
 	"github.com/citadellefr/trame/ot"
 )
@@ -352,5 +353,59 @@ func TestTablesErrTable(t *testing.T) {
 	err := d.Check(tree, ot.Edit{{Op: ot.OpRem, ID: firstSheet(tree).ID, Dim: ot.DimRows, At: 1, N: 1}}, "")
 	if !errors.Is(err, ErrTable) {
 		t.Errorf("got %v", err)
+	}
+}
+
+// sent checks an edit as the server does, then applies it and what follows.
+func sent(t *testing.T, d *Document, tree *ot.Tree, c *Calc, e ot.Edit) {
+	t.Helper()
+	if err := moveRows(t, d, tree, e); err != nil {
+		t.Fatalf("%v refused: %v", e, err)
+	}
+	c.Follow(e, nil)
+}
+
+// The edits the editor sends: a row inserted in an edit of its own, then
+// the tables, and a totals row turned on under a single row of data.
+func TestTablesSentEdits(t *testing.T) {
+	d, tree := blankBook(t)
+	c := NewCalc(tree, formula.Options{})
+	sent(t, d, tree, c, ot.Edit{{Op: ot.OpCel, ID: "S1", Cells: []ot.Cell{cell(1, 1, `{"v":1}`), cell(1, 2, `{"v":2}`)}}})
+	made := Table{Name: "Tableau1", Ref: "A1:B2", Filter: true, Style: "TableStyleMedium2", Rows: true,
+		Columns: []TableColumn{{ID: 1, Name: "Colonne1"}, {ID: 2, Name: "Colonne2"}}}
+	both := append(ot.Edit{{Op: ot.OpIns, ID: "S1", Dim: ot.DimRows, At: 1, N: 1}}, setTables("S1", []Table{made})...)
+	if err := d.Check(tree, both, ""); !errors.Is(err, ErrReadOnly) {
+		t.Fatalf("rows inserted with other changes: %v", err)
+	}
+	sent(t, d, tree, c, both[:1])
+	sent(t, d, tree, c, append(ot.Edit{{Op: ot.OpCel, ID: "S1", Cells: []ot.Cell{cell(1, 1, `{"v":"Colonne1"}`), cell(1, 2, `{"v":"Colonne2"}`)}}},
+		setTables("S1", []Table{made})...))
+	if got := fieldsAt(tree, "S1", 2, 2); got != `{"v":2}` {
+		t.Fatalf("data %s", got)
+	}
+
+	table := tablesOf(tree, "S1")[0]
+	table.Totals = true
+	sent(t, d, tree, c, setTables("S1", []Table{table}))
+	table = tablesOf(tree, "S1")[0]
+	if table.Ref != "A1:B3" || table.Columns[1].Total != "sum" {
+		t.Fatalf("totals %+v", table)
+	}
+	if got := fieldsAt(tree, "S1", 3, 2); !strings.Contains(got, `"f":"SUBTOTAL(109,Tableau1[Colonne2])"`) {
+		t.Errorf("total %s", got)
+	}
+
+	table.Totals = false
+	sent(t, d, tree, c, setTables("S1", []Table{table}))
+	table = tablesOf(tree, "S1")[0]
+	sent(t, d, tree, c, ot.Edit{{Op: ot.OpCel, ID: "S1", Cells: []ot.Cell{cell(3, 1, `{"v":"y"}`)}}})
+	sent(t, d, tree, c, ot.Edit{{Op: ot.OpIns, ID: "S1", Dim: ot.DimRows, At: 3, N: 1}})
+	table.Totals = true
+	sent(t, d, tree, c, setTables("S1", []Table{table}))
+	if got := tablesOf(tree, "S1")[0].Ref; got != "A1:B3" {
+		t.Errorf("ref %s", got)
+	}
+	if got := fieldsAt(tree, "S1", 4, 1); got != `{"v":"y"}` {
+		t.Errorf("below %s", got)
 	}
 }

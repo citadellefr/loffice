@@ -63,10 +63,8 @@ class SheetTable {
   }
 }
 
-/// The edit that sets the tables of a sheet to [tables], after the row
-/// [insert]ed in the sheet, which the server moves the tables for.
-Edit tablesEdit(Node sheet, List<SheetTable> tables, {Change? insert}) => Edit([
-  ?insert,
+/// The edit that sets the tables of a sheet to [tables].
+Edit tablesEdit(Node sheet, List<SheetTable> tables) => Edit([
   Change.set(
     sheet.id,
     attributes: {
@@ -81,17 +79,21 @@ Edit changeTable(Node sheet, SheetTable table, SheetTable? changed) => tablesEdi
     if (t.name != table.name) t else ?changed,
 ]);
 
-/// The edit that turns the total row of a table on or off. The row below
-/// the table takes it, a row of the sheet inserted first when it holds
-/// something in the columns of the table; the server grows the table.
-Edit totalsEdit(Node sheet, SheetTable table, bool on) {
+/// The edits that turn the total row of a table on or off. The row below
+/// the table takes it, a row of the sheet inserted first in an edit of its
+/// own when it holds something in the columns of the table; the server
+/// grows the table.
+List<Edit> totalsEdits(Node sheet, SheetTable table, bool on) {
   final grid = sheet.grid ?? const Grid.empty();
   final below = table.area.bottom + 1;
   final busy = on && [for (var c = table.area.left; c <= table.area.right; c++) grid.cell(below, c)].any((f) => f != null && (f['v'] != null || f['f'] != null || f['e'] != null));
-  return tablesEdit(sheet, [
-    for (final t in SheetTable.of(sheet))
-      if (t.name == table.name) t.change({'totals': on ? true : null}) else (busy ? t.withRowInserted(below) : t),
-  ], insert: busy ? Change.insert(sheet.id, dimRows, below, 1) : null);
+  return [
+    if (busy) Edit([Change.insert(sheet.id, dimRows, below, 1)]),
+    tablesEdit(sheet, [
+      for (final t in SheetTable.of(sheet))
+        if (t.name == table.name) t.change({'totals': on ? true : null}) else (busy ? t.withRowInserted(below) : t),
+    ]),
+  ];
 }
 
 /// The edit that makes the table a value typed under its last row joins,
@@ -121,10 +123,10 @@ TableProblem? tableProblem(Workbook book, Node sheet, CellArea? area, {required 
 /// A row of data is added to a table of a header row alone.
 CellArea _tableArea(CellArea area, bool headers) => headers && area.rows == 1 ? CellArea(area.top, area.left, area.top + 1, area.right) : area;
 
-/// The edit that makes a table of [area]. Its first row holds the names of
-/// the columns when [headers]; else a row is inserted above, with
-/// "Colonne1"…
-Edit insertTableEdit(Workbook book, Node sheet, CellArea area, {required bool headers, required NumberLocale locale}) {
+/// The edits that make a table of [area]. Its first row holds the names of
+/// the columns when [headers]; else a row is inserted above in an edit of
+/// its own, with "Colonne1"…
+List<Edit> insertTableEdits(Workbook book, Node sheet, CellArea area, {required bool headers, required NumberLocale locale}) {
   final grid = sheet.grid ?? const Grid.empty();
   final tables = SheetTable.of(sheet);
   final taken = _tableArea(area, headers);
@@ -132,7 +134,6 @@ Edit insertTableEdit(Workbook book, Node sheet, CellArea area, {required bool he
   final shown = [for (var c = ref.left; c <= ref.right; c++) headers ? shownText(book, grid.cell(ref.top, c), locale) : ''];
   final used = <String>{};
   final names = [for (var i = 0; i < shown.length; i++) _unique(shown[i].isEmpty ? 'Colonne${i + 1}' : shown[i], used)];
-  final insert = headers ? null : Change.insert(sheet.id, dimRows, area.top, 1);
   final table = SheetTable._({
     'id': 0,
     'name': _freeName(book, tables.length),
@@ -148,8 +149,13 @@ Edit insertTableEdit(Workbook book, Node sheet, CellArea area, {required bool he
     for (var i = 0; i < names.length; i++)
       if (names[i] != shown[i]) Cell(ref.top, ref.left + i, {'v': names[i], 'f': null, 'e': null}),
   ];
-  final edit = tablesEdit(sheet, [for (final t in tables) insert == null ? t : t.withRowInserted(area.top), table], insert: insert);
-  return named.isEmpty ? edit : Edit([...edit.changes.take(insert == null ? 0 : 1), Change.cells(sheet.id, named), ...edit.changes.skip(insert == null ? 0 : 1)]);
+  return [
+    if (!headers) Edit([Change.insert(sheet.id, dimRows, area.top, 1)]),
+    Edit([
+      if (named.isNotEmpty) Change.cells(sheet.id, named),
+      ...tablesEdit(sheet, [for (final t in tables) headers ? t : t.withRowInserted(area.top), table]).changes,
+    ]),
+  ];
 }
 
 /// [name] with 2, 3… after it until [used] does not have it, whatever the

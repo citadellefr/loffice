@@ -960,7 +960,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     final a = _selection.area;
     final chosen = await showTableDialog(context, book: _wb, sheet: sheet, area: a.single ? currentRegion(sheet, a.top, a.left) : a, strings: _s);
     if (chosen == null || !mounted) return;
-    if (_edit(insertTableEdit(_wb, sheet, chosen.$1, headers: chosen.$2, locale: _locale))) _selection.selectArea(chosen.$1);
+    if (insertTableEdits(_wb, sheet, chosen.$1, headers: chosen.$2, locale: _locale).every(_edit)) _selection.selectArea(chosen.$1);
     _gridFocus.requestFocus();
   }
 
@@ -1034,7 +1034,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
       case 'clear':
         _edit(_edits.clear(sheet, a));
       case 'totals':
-        _edit(totalsEdit(sheet, table!, !table.totals));
+        totalsEdits(sheet, table!, !table.totals).forEach(_edit);
       case 'convert':
         _edit(changeTable(sheet, table!, null));
       case 'hide':
