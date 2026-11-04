@@ -37,6 +37,8 @@ const _functions = <String, String>{
   'BITOR': 'BITOU',
   'BITRSHIFT': 'BITDECALD',
   'BITXOR': 'BITOUEXCLUSIF',
+  'BYCOL': 'BYCOL',
+  'BYROW': 'BYROW',
   'CEILING': 'PLAFOND',
   'CEILING.MATH': 'PLAFOND.MATH',
   'CEILING.PRECISE': 'PLAFOND.PRECIS',
@@ -48,6 +50,8 @@ const _functions = <String, String>{
   'CHISQ.TEST': 'CHISQ.TEST',
   'CHITEST': 'TEST.KHIDEUX',
   'CHOOSE': 'CHOISIR',
+  'CHOOSECOLS': 'CHOISIRCOLS',
+  'CHOOSEROWS': 'CHOISIRLIGNES',
   'CLEAN': 'EPURAGE',
   'CODE': 'CODE',
   'COLUMN': 'COLONNE',
@@ -97,6 +101,7 @@ const _functions = <String, String>{
   'DOLLAR': 'DEVISE',
   'DOLLARDE': 'PRIX.DEC',
   'DOLLARFR': 'PRIX.FRAC',
+  'DROP': 'EXCLURE',
   'DURATION': 'DUREE',
   'EDATE': 'MOIS.DECALER',
   'EFFECT': 'TAUX.EFFECTIF',
@@ -107,6 +112,7 @@ const _functions = <String, String>{
   'EVEN': 'PAIR',
   'EXACT': 'EXACT',
   'EXP': 'EXP',
+  'EXPAND': 'ETENDRE',
   'EXPON.DIST': 'LOI.EXPONENTIELLE.N',
   'EXPONDIST': 'LOI.EXPONENTIELLE',
   'F.DIST': 'LOI.F.N',
@@ -139,6 +145,7 @@ const _functions = <String, String>{
   'HEX2OCT': 'HEXOCT',
   'HLOOKUP': 'RECHERCHEH',
   'HOUR': 'HEURE',
+  'HSTACK': 'ASSEMB.H',
   'HYPERLINK': 'LIEN_HYPERTEXTE',
   'IF': 'SI',
   'IFERROR': 'SIERREUR',
@@ -163,16 +170,19 @@ const _functions = <String, String>{
   'ISNUMBER': 'ESTNUM',
   'ISO.CEILING': 'ISO.PLAFOND',
   'ISODD': 'EST.IMPAIR',
+  'ISOMITTED': 'ESTOMIS',
   'ISOWEEKNUM': 'NO.SEMAINE.ISO',
   'ISREF': 'ESTREF',
   'ISTEXT': 'ESTTEXTE',
   'KURT': 'KURTOSIS',
+  'LAMBDA': 'LAMBDA',
   'LARGE': 'GRANDE.VALEUR',
   'LCM': 'PPCM',
   'LEFT': 'GAUCHE',
   'LEFTB': 'GAUCHEB',
   'LEN': 'NBCAR',
   'LENB': 'LENB',
+  'LET': 'LET',
   'LINEST': 'DROITEREG',
   'LN': 'LN',
   'LOG': 'LOG',
@@ -182,6 +192,8 @@ const _functions = <String, String>{
   'LOGNORMDIST': 'LOI.LOGNORMALE',
   'LOOKUP': 'RECHERCHE',
   'LOWER': 'MINUSCULE',
+  'MAKEARRAY': 'MAKEARRAY',
+  'MAP': 'MAP',
   'MATCH': 'EQUIV',
   'MAX': 'MAX',
   'MAXA': 'MAXA',
@@ -260,6 +272,7 @@ const _functions = <String, String>{
   'RANK.EQ': 'EQUATION.RANG',
   'RATE': 'TAUX',
   'RECEIVED': 'VALEUR.ENCAISSEMENT',
+  'REDUCE': 'REDUCE',
   'REPLACE': 'REMPLACER',
   'REPT': 'REPT',
   'RIGHT': 'DROITE',
@@ -272,6 +285,7 @@ const _functions = <String, String>{
   'ROWS': 'LIGNES',
   'RRI': 'TAUX.INT.EQUIV',
   'RSQ': 'COEFFICIENT.DETERMINATION',
+  'SCAN': 'SCAN',
   'SEARCH': 'CHERCHE',
   'SECOND': 'SECONDE',
   'SEQUENCE': 'SEQUENCE',
@@ -315,6 +329,7 @@ const _functions = <String, String>{
   'T.INV': 'LOI.STUDENT.INVERSE.N',
   'T.INV.2T': 'LOI.STUDENT.INVERSE.BILATERALE',
   'T.TEST': 'T.TEST',
+  'TAKE': 'PRENDRE',
   'TAN': 'TAN',
   'TANH': 'TANH',
   'TBILLEQ': 'TAUX.ESCOMPTE.R',
@@ -325,10 +340,13 @@ const _functions = <String, String>{
   'TEXTAFTER': 'TEXTE.APRES',
   'TEXTBEFORE': 'TEXTE.AVANT',
   'TEXTJOIN': 'JOINDRE.TEXTE',
+  'TEXTSPLIT': 'FRACTIONNER.TEXTE',
   'TIME': 'TEMPS',
   'TIMEVALUE': 'TEMPSVAL',
   'TINV': 'LOI.STUDENT.INVERSE',
+  'TOCOL': 'DANSCOL',
   'TODAY': 'AUJOURDHUI',
+  'TOROW': 'DANSLIGNE',
   'TRANSPOSE': 'TRANSPOSE',
   'TREND': 'TENDANCE',
   'TRIM': 'SUPPRESPACE',
@@ -351,10 +369,13 @@ const _functions = <String, String>{
   'VARPA': 'VARPA',
   'VDB': 'VDB',
   'VLOOKUP': 'RECHERCHEV',
+  'VSTACK': 'ASSEMB.V',
   'WEEKDAY': 'JOURSEM',
   'WEEKNUM': 'NO.SEMAINE',
   'WORKDAY': 'SERIE.JOUR.OUVRE',
   'WORKDAY.INTL': 'SERIE.JOUR.OUVRE.INTL',
+  'WRAPCOLS': 'ORGA.COLS',
+  'WRAPROWS': 'ORGA.LIGNES',
   'XIRR': 'TRI.PAIEMENTS',
   'XLOOKUP': 'RECHERCHEX',
   'XMATCH': 'EQUIVX',
@@ -379,11 +400,15 @@ const _newer = {
   'BITOR',
   'BITRSHIFT',
   'BITXOR',
+  'BYCOL',
+  'BYROW',
   'CEILING.MATH',
   'CEILING.PRECISE',
   'CHISQ.DIST',
   'CHISQ.DIST.RT',
   'CHISQ.TEST',
+  'CHOOSECOLS',
+  'CHOOSEROWS',
   'COMBINA',
   'CONCAT',
   'CONFIDENCE.NORM',
@@ -391,6 +416,8 @@ const _newer = {
   'COVARIANCE.P',
   'COVARIANCE.S',
   'DAYS',
+  'DROP',
+  'EXPAND',
   'EXPON.DIST',
   'F.DIST',
   'F.DIST.RT',
@@ -399,11 +426,17 @@ const _newer = {
   'FORECAST.LINEAR',
   'FORMULATEXT',
   'GAMMA.DIST',
+  'HSTACK',
   'IFNA',
   'IFS',
   'ISO.CEILING',
+  'ISOMITTED',
   'ISOWEEKNUM',
+  'LAMBDA',
+  'LET',
   'LOGNORM.DIST',
+  'MAKEARRAY',
+  'MAP',
   'MAXIFS',
   'MINIFS',
   'MODE.SNGL',
@@ -422,7 +455,9 @@ const _newer = {
   'RANDARRAY',
   'RANK.AVG',
   'RANK.EQ',
+  'REDUCE',
   'RRI',
+  'SCAN',
   'SEQUENCE',
   'SHEET',
   'SHEETS',
@@ -436,15 +471,22 @@ const _newer = {
   'T.INV',
   'T.INV.2T',
   'T.TEST',
+  'TAKE',
   'TEXTAFTER',
   'TEXTBEFORE',
   'TEXTJOIN',
+  'TEXTSPLIT',
+  'TOCOL',
+  'TOROW',
   'UNICHAR',
   'UNICODE',
   'UNIQUE',
   'VALUETOTEXT',
   'VAR.P',
   'VAR.S',
+  'VSTACK',
+  'WRAPCOLS',
+  'WRAPROWS',
   'XLOOKUP',
   'XMATCH',
   'XOR',
@@ -470,6 +512,37 @@ String formulaToFrench(String f) => _translate(f, toFrench: true);
 /// A formula as files write it, from the way the French version shows it.
 /// Names written in English are taken as well.
 String formulaFromFrench(String f) => _translate(f, toFrench: false);
+
+/// Where the part of a structured reference that opens at [i] ends: its
+/// brackets nest, and an apostrophe escapes the character after it.
+int bracketEnd(String f, int i) {
+  var depth = 0;
+  for (var j = i; j < f.length; j++) {
+    switch (f[j]) {
+      case "'":
+        j++;
+      case '[':
+        depth++;
+      case ']':
+        if (--depth == 0) return j + 1;
+    }
+  }
+  return f.length;
+}
+
+const _tableItems = {'All': 'Tout', 'Data': 'Données', 'Headers': 'En-têtes', 'Totals': 'Totaux', 'This Row': 'Cette ligne'};
+final _frenchItems = {for (final e in _tableItems.entries) e.key.toLowerCase(): e.value};
+final _englishItems = {
+  for (final e in _tableItems.entries) ...{e.key.toLowerCase(): e.key, e.value.toLowerCase(): e.key},
+};
+final _itemPattern = RegExp(r'\[#([^\[\]]*)\]');
+
+/// A structured reference with the items of tables translated, everything
+/// else in its brackets as it is.
+String _translateItems(String reference, {required bool toFrench}) => reference.replaceAllMapped(_itemPattern, (m) {
+  final name = (toFrench ? _frenchItems : _englishItems)[m[1]!.trim().toLowerCase()];
+  return name == null ? m[0]! : '[#$name]';
+});
 
 bool _letter(int c) => c >= 0x41 && c <= 0x5A || c >= 0x61 && c <= 0x7A || c == 0x5F || c == 0x5C || c > 0x7F;
 
@@ -503,13 +576,9 @@ String _translate(String f, {required bool toFrench}) {
       continue;
     }
     if (c == 0x5B) {
-      var depth = 0, j = i;
-      for (; j < f.length; j++) {
-        if (f[j] == '[') depth++;
-        if (f[j] == ']' && --depth == 0) break;
-      }
-      b.write(f.substring(i, (j + 1).clamp(0, f.length)));
-      i = j + 1;
+      final end = bracketEnd(f, i);
+      b.write(_translateItems(f.substring(i, end), toFrench: toFrench));
+      i = end;
       continue;
     }
     if (c == 0x23) {
@@ -563,6 +632,12 @@ String _translate(String f, {required bool toFrench}) {
         continue;
       }
       if (i == 0 || f[i - 1] != '!') operand = b.length;
+      // the names LET and LAMBDA declare, which files write _xlpm.x
+      if (toFrench && upper.startsWith('_XLPM.')) {
+        b.write(word.substring(6));
+        i = k;
+        continue;
+      }
       if (!toFrench && !call && k < f.length && f[k] == '#' && !word.endsWith('!')) {
         final before = b.toString();
         b
@@ -575,7 +650,7 @@ String _translate(String f, {required bool toFrench}) {
         continue;
       }
       if (call) {
-        b.write(toFrench ? _toFrench(upper) : _fromFrench(upper, word));
+        b.write(toFrench ? _toFrench(upper, word) : _fromFrench(upper, word));
       } else if (upper == 'TRUE' || upper == 'FALSE' || upper == 'VRAI' || upper == 'FAUX') {
         final isTrue = upper == 'TRUE' || upper == 'VRAI';
         b.write(toFrench ? (isTrue ? 'VRAI' : 'FAUX') : (isTrue ? 'TRUE' : 'FALSE'));
@@ -623,17 +698,17 @@ int _nameEnd(String f, int i) {
   return k;
 }
 
-String _toFrench(String name) {
-  var bare = name;
+String _toFrench(String upper, String word) {
+  var bare = upper;
   for (final p in ['_XLFN._XLWS.', '_XLFN.', '_XLWS.']) {
     if (bare.startsWith(p)) bare = bare.substring(p.length);
   }
-  return _functions[bare] ?? name;
+  return _functions[bare] ?? word;
 }
 
 String _fromFrench(String upper, String word) {
   final english = _english[upper] ?? (_functions.containsKey(upper) ? upper : null);
-  if (english == null) return upper.startsWith('_XLFN.') ? word : upper;
+  if (english == null) return word;
   if (_windowed.contains(english)) return '_xlfn._xlws.$english';
   return _newer.contains(english) ? '_xlfn.$english' : english;
 }

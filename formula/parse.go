@@ -17,6 +17,8 @@ type (
 	refExpr    struct{ ref *Ref }
 	// nameExpr is a defined name, possibly of another sheet.
 	nameExpr struct{ sheet, name string }
+	// structExpr is a structured reference to a table.
+	structExpr struct{ s Structured }
 	// unaryExpr is -x, +x, or @x, the implicit intersection.
 	unaryExpr struct {
 		op byte
@@ -37,6 +39,11 @@ type (
 		name string
 		args []Expr
 	}
+	// invokeExpr calls the LAMBDA a function gives: LAMBDA(x,x+1)(2).
+	invokeExpr struct {
+		fn   Expr
+		args []Expr
+	}
 	arrayExpr struct {
 		rows, cols int
 		cells      []Expr
@@ -54,11 +61,13 @@ func (boolExpr) expr()    {}
 func (errorExpr) expr()   {}
 func (refExpr) expr()     {}
 func (nameExpr) expr()    {}
+func (structExpr) expr()  {}
 func (unaryExpr) expr()   {}
 func (percentExpr) expr() {}
 func (spillExpr) expr()   {}
 func (binaryExpr) expr()  {}
 func (callExpr) expr()    {}
+func (invokeExpr) expr()  {}
 func (arrayExpr) expr()   {}
 func (missingExpr) expr() {}
 func (boundExpr) expr()   {}
@@ -219,7 +228,7 @@ func (p *parser) intersection() (Expr, error) {
 // refLike tells whether an expression may stand for a reference.
 func refLike(e Expr) bool {
 	switch e := e.(type) {
-	case refExpr, nameExpr, callExpr:
+	case refExpr, nameExpr, structExpr, callExpr, invokeExpr:
 		return true
 	case binaryExpr:
 		return e.op == ":" || e.op == " " || e.op == ","
@@ -272,10 +281,15 @@ func (p *parser) primary() (Expr, error) {
 	case Reference:
 		return refExpr{t.Ref}, nil
 	case Name:
+		if s, ok := ParseStructured(t.Text); ok {
+			return structExpr{s}, nil
+		}
 		sheet, name := "", t.Text
 		if i := strings.LastIndexByte(name, '!'); i >= 0 {
 			_, sheet, _ = splitPrefix(name[:i])
 			name = name[i+1:]
+		} else {
+			name = trimParam(name)
 		}
 		return nameExpr{sheet, name}, nil
 	case Function:
@@ -283,7 +297,19 @@ func (p *parser) primary() (Expr, error) {
 			return nil, err
 		}
 		defer p.leave()
-		return p.call(t.Text[:len(t.Text)-1])
+		args, err := p.args()
+		if err != nil {
+			return nil, err
+		}
+		var x Expr = callExpr{FunctionName(t.Text[:len(t.Text)-1]), args}
+		for t := p.peek(); t != nil && t.Kind == Open && !t.spaced; t = p.peek() {
+			p.i++
+			if args, err = p.args(); err != nil {
+				return nil, err
+			}
+			x = invokeExpr{x, args}
+		}
+		return x, nil
 	case Open:
 		if err := p.enter(); err != nil {
 			return nil, err
@@ -316,35 +342,39 @@ func (p *parser) primary() (Expr, error) {
 	return nil, ErrSyntax
 }
 
+// paramPrefix is the prefix files give the names LET and LAMBDA declare.
+const paramPrefix = "_xlpm."
+
 // FunctionName is the name of a function as a formula calls it, without
 // the prefixes of the file format.
 func FunctionName(s string) string {
 	s = strings.ToUpper(s)
-	for _, prefix := range []string{"_XLFN._XLWS.", "_XLFN.", "_XLWS."} {
+	for _, prefix := range []string{"_XLFN._XLWS.", "_XLFN.", "_XLWS.", "_XLPM."} {
 		s = strings.TrimPrefix(s, prefix)
 	}
 	return s
 }
 
-func (p *parser) call(name string) (Expr, error) {
-	c := callExpr{name: FunctionName(name)}
+// args reads the arguments of a call, after its "(" and up to its ")".
+func (p *parser) args() ([]Expr, error) {
 	if t := p.peek(); t != nil && t.Kind == Close {
 		p.i++
-		return c, nil
+		return nil, nil
 	}
+	var args []Expr
 	for {
 		t := p.peek()
 		if t == nil {
 			return nil, ErrSyntax
 		}
 		if t.Kind == Comma || t.Kind == Close {
-			c.args = append(c.args, missingExpr{})
+			args = append(args, missingExpr{})
 		} else {
 			x, err := p.expr(0)
 			if err != nil {
 				return nil, err
 			}
-			c.args = append(c.args, x)
+			args = append(args, x)
 		}
 		t = p.peek()
 		switch {
@@ -354,7 +384,7 @@ func (p *parser) call(name string) (Expr, error) {
 			p.i++
 		case t.Kind == Close:
 			p.i++
-			return c, nil
+			return args, nil
 		default:
 			return nil, ErrSyntax
 		}

@@ -23,6 +23,8 @@ const (
 	// at cells rather than values: SUM skips the text of a range, ROW
 	// reads where it is.
 	TypeRange
+	// TypeLambda is a function LAMBDA makes, which a cell cannot hold.
+	TypeLambda
 )
 
 // Value is what a formula computes.
@@ -32,6 +34,7 @@ type Value struct {
 	Str  string  // a text, or the code of an error
 	Arr  *Table
 	Refs []Area3
+	fn   *lambda
 }
 
 // Table is an array of values, row by row.

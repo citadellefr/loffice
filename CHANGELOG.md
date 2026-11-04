@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- `formula` calculates the array shaping functions of Excel 365: TAKE, DROP,
+  CHOOSECOLS, CHOOSEROWS, EXPAND, VSTACK, HSTACK, TOCOL, TOROW, WRAPCOLS,
+  WRAPROWS and TEXTSPLIT, with their French names in the Dart formula text,
+  and XLOOKUP and XMATCH spill when given several values to look up.
+- `mcp` serves the `agent` over MCP (2025-06-18, written by hand): an
+  `http.Handler` of the streamable transport for a host to mount beside its
+  hub, and `Serve` for standard input and output, which `cmd/loffice-mcp`
+  runs on the files of a directory. Sixteen tools (`doc_read`, `doc_search`,
+  `text_replace`, `batch` with `dry_run` and `version`, `revision_accept`,
+  `undo_mine`…) with their JSON schemas. The host's `Authorize` is asked on
+  every request who calls and for which user, on which document, and
+  refuses before anything is sent.
+- `agent.Apply` returns the error of its context when it is cancelled while
+  the hub does not answer, and leaves nothing behind.
 - `xlsx` edits merged cells and links: a cell's `m` is refused when its area
   overlaps another, and a new field `link` (`{"url":"https://…"}`,
   `{"loc":"Sheet2!A1"}`, `"tip"`) is written as Excel writes it, a
@@ -48,6 +62,14 @@
   the pointer, a Review tab (New Comment, New Note, Edit Note, Delete, Show
   Comments) and the comments pane on the right.
 - The hub serves `.dotm`, `.xltm`, `.potx` and `.potm`.
+- Tables of xlsx are editable: the `tables` attribute of a sheet may be set
+  to create a table, delete it or turn its total row on, and rows and
+  columns may be inserted or removed across a table, its area, autoFilter,
+  columns and calculated column formulas following. `formula` calculates
+  structured references (`Table1[Col]`, `[@Col]`, `Table1[#Totals]`…), which
+  follow a column renamed. The Dart editor has Insertion > Tableau, draws the
+  built-in table styles, grows a table typed under its last row, and turns
+  its total row on or converts it to a range from the menu of its cells.
 
 ## 0.11.1 — 2026-10-15
 

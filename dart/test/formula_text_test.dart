@@ -20,12 +20,14 @@ void main() {
       ('_xlfn.RANDARRAY(2,3)', 'TABLEAU.ALEA(2;3)'),
       ('_xlfn.SEQUENCE(5)', 'SEQUENCE(5)'),
       ('_xlfn.SORTBY(A1:A3,B1:B3,-1)', 'TRIERPAR(A1:A3;B1:B3;-1)'),
+      ('_xlfn.TAKE(_xlfn.VSTACK(A1:B2,C1:D2),2,1)', 'PRENDRE(ASSEMB.V(A1:B2;C1:D2);2;1)'),
+      ('_xlfn.TEXTSPLIT(A1,",",";")', 'FRACTIONNER.TEXTE(A1;",";";")'),
       ('IFERROR(A1,#SPILL!)', 'SIERREUR(A1;#PROPAGATION!)'),
       ('SUM(_xlfn.ANCHORARRAY(A1))', 'SOMME(A1#)'),
       (r'_xlfn.ANCHORARRAY(Feuil2!$B$2)', r'Feuil2!$B$2#'),
       ("_xlfn.ANCHORARRAY('Feuil 2'!B2)", "'Feuil 2'!B2#"),
       ('_xlfn.ANCHORARRAY(Taux)+1', 'Taux#+1'),
-      ('_xlfn.CONCAT("A1#",Table1[#All])', 'CONCAT("A1#";Table1[#All])'),
+      ('_xlfn.CONCAT("A1#",Table1[#All])', 'CONCAT("A1#";Table1[#Tout])'),
       ('_xlfn.NORM.DIST(A1,0,1,TRUE)', 'LOI.NORMALE.N(A1;0;1;VRAI)'),
       ('NORMDIST(A1,0,1,TRUE)', 'LOI.NORMALE(A1;0;1;VRAI)'),
       ('_xlfn.T.TEST(A:A,B:B,2,1)', 'T.TEST(A:A;B:B;2;1)'),
@@ -37,6 +39,16 @@ void main() {
       ('XIRR(A1:A5,B1:B5)', 'TRI.PAIEMENTS(A1:A5;B1:B5)'),
       ('MIRR(A1:A5,0.1,0.12)', 'TRIM(A1:A5;0,1;0,12)'),
       ('TRIM(A1)', 'SUPPRESPACE(A1)'),
+      ('_xlfn.LET(_xlpm.x,1.5,_xlpm.x*2)', 'LET(x;1,5;x*2)'),
+      ('_xlfn.LAMBDA(_xlpm.x,_xlpm.y,_xlpm.x+_xlpm.y)(1,2)', 'LAMBDA(x;y;x+y)(1;2)'),
+      ('_xlfn.LET(_xlpm.f,_xlfn.LAMBDA(_xlpm.n,_xlpm.n+1),_xlpm.f(2))', 'LET(f;LAMBDA(n;n+1);f(2))'),
+      ('_xlfn.MAP(A1:A3,_xlfn.LAMBDA(_xlpm.v,IF(_xlfn.ISOMITTED(_xlpm.v),0,_xlpm.v)))', 'MAP(A1:A3;LAMBDA(v;SI(ESTOMIS(v);0;v)))'),
+      ('_xlfn.REDUCE(0,A1:A3,_xlfn.LAMBDA(_xlpm.a,_xlpm.b,_xlpm.a+_xlpm.b))', 'REDUCE(0;A1:A3;LAMBDA(a;b;a+b))'),
+      ('_xlfn.SCAN(0,A1:A3,_xlfn.LAMBDA(_xlpm.a,_xlpm.b,_xlpm.a+_xlpm.b))', 'SCAN(0;A1:A3;LAMBDA(a;b;a+b))'),
+      ('_xlfn.BYROW(A1:B2,_xlfn.LAMBDA(_xlpm.r,SUM(_xlpm.r)))', 'BYROW(A1:B2;LAMBDA(r;SOMME(r)))'),
+      ('_xlfn.BYCOL(A1:B2,_xlfn.LAMBDA(_xlpm.c,MAX(_xlpm.c)))', 'BYCOL(A1:B2;LAMBDA(c;MAX(c)))'),
+      ('_xlfn.MAKEARRAY(2,3,_xlfn.LAMBDA(_xlpm.r,_xlpm.c,_xlpm.r*_xlpm.c))', 'MAKEARRAY(2;3;LAMBDA(r;c;r*c))'),
+      ('Fact2(5)', 'Fact2(5)'),
     ]) {
       expect(formulaToFrench(file), shown, reason: file);
     }
@@ -56,11 +68,13 @@ void main() {
       ('tableau.alea(2;3)', '_xlfn.RANDARRAY(2,3)'),
       ('SEQUENCE(5)', '_xlfn.SEQUENCE(5)'),
       ('TRIERPAR(A1:A3;B1:B3;-1)', '_xlfn.SORTBY(A1:A3,B1:B3,-1)'),
+      ('PRENDRE(ASSEMB.V(A1:B2;C1:D2);2;1)', '_xlfn.TAKE(_xlfn.VSTACK(A1:B2,C1:D2),2,1)'),
+      ('FRACTIONNER.TEXTE(A1;",";";")', '_xlfn.TEXTSPLIT(A1,",",";")'),
       ('SI(A1=#PROPAGATION!;1;2)', 'IF(A1=#SPILL!,1,2)'),
       ('SOMME(A1#)', 'SUM(_xlfn.ANCHORARRAY(A1))'),
       (r'SOMME(A1:Feuil2!$B$2#)', r'SUM(A1:_xlfn.ANCHORARRAY(Feuil2!$B$2))'),
       ("SOMME('Feuil 2'!B2#)", "SUM(_xlfn.ANCHORARRAY('Feuil 2'!B2))"),
-      ('SOMME(Taux#;Table1[#All])+#N/A', 'SUM(_xlfn.ANCHORARRAY(Taux),Table1[#All])+#N/A'),
+      ('SOMME(Taux#;Table1[#Tout])+#N/A', 'SUM(_xlfn.ANCHORARRAY(Taux),Table1[#All])+#N/A'),
       ('CONCAT("A1#";B1)', '_xlfn.CONCAT("A1#",B1)'),
       ('Feuil1!#REF!+1', 'Feuil1!#REF!+1'),
       ('loi.normale.n(1;0;1;VRAI)', '_xlfn.NORM.DIST(1,0,1,TRUE)'),
@@ -69,13 +83,63 @@ void main() {
       ('prix.titre(A1;A2;A3;A4;100;2)', 'PRICE(A1,A2,A3,A4,100,2)'),
       ('taux.int.equiv(96;A1;A2)', '_xlfn.RRI(96,A1,A2)'),
       ('TRIM(A1:A5;0,1;0,12)', 'MIRR(A1:A5,0.1,0.12)'),
+      ('let(x;1,5;x*2)', '_xlfn.LET(x,1.5,x*2)'),
+      ('LAMBDA(x;x+1)(2)', '_xlfn.LAMBDA(x,x+1)(2)'),
+      ('MAP(A1:A3;LAMBDA(v;SI(ESTOMIS(v);0;v)))', '_xlfn.MAP(A1:A3,_xlfn.LAMBDA(v,IF(_xlfn.ISOMITTED(v),0,v)))'),
+      ('REDUCE(;A1:A3;LAMBDA(a;b;a+b))', '_xlfn.REDUCE(,A1:A3,_xlfn.LAMBDA(a,b,a+b))'),
+      ('SCAN(0;A1:A3;LAMBDA(a;b;a+b))', '_xlfn.SCAN(0,A1:A3,_xlfn.LAMBDA(a,b,a+b))'),
+      ('BYROW(A1:B2;LAMBDA(r;SOMME(r)))', '_xlfn.BYROW(A1:B2,_xlfn.LAMBDA(r,SUM(r)))'),
+      ('bycol(A1:B2;LAMBDA(c;MAX(c)))', '_xlfn.BYCOL(A1:B2,_xlfn.LAMBDA(c,MAX(c)))'),
+      ('MAKEARRAY(2;3;LAMBDA(r;c;r*c))', '_xlfn.MAKEARRAY(2,3,_xlfn.LAMBDA(r,c,r*c))'),
+      ('ISOMITTED(x)', '_xlfn.ISOMITTED(x)'),
+      ('Fact2(5)+f(1)', 'Fact2(5)+f(1)'),
+    ]) {
+      expect(formulaFromFrench(typed), file, reason: typed);
+    }
+  });
+
+  test('structured references keep their columns and translate their items', () {
+    for (final (file, shown) in [
+      ('SUM(Tableau1[Prix])', 'SOMME(Tableau1[Prix])'),
+      ('Tableau1[[#This Row],[Qté]]*2', 'Tableau1[[#Cette ligne],[Qté]]*2'),
+      ('SUM(Tableau1[[#Data],[Prix]:[Qté]])', 'SOMME(Tableau1[[#Données],[Prix]:[Qté]])'),
+      ('Tableau1[[#Headers],[Nom]]', 'Tableau1[[#En-têtes],[Nom]]'),
+      ('SUM(Tableau1[[#Totals],[Prix]])', 'SOMME(Tableau1[[#Totaux],[Prix]])'),
+      ('ROWS(Tableau1[#All])', 'LIGNES(Tableau1[#Tout])'),
+      ('SUM(Tableau1[SUM, (1); x])', 'SOMME(Tableau1[SUM, (1); x])'),
+      ("SUM(Tableau1['[Prix']])", "SOMME(Tableau1['[Prix']])"),
+    ]) {
+      expect(formulaToFrench(file), shown, reason: file);
+    }
+  });
+
+  test('structured references typed in French', () {
+    for (final (typed, file) in [
+      ('SOMME(Tableau1[Prix])', 'SUM(Tableau1[Prix])'),
+      ('Tableau1[@Qté]*2', 'Tableau1[@Qté]*2'),
+      ('Tableau1[[#Cette ligne],[Qté]]*2', 'Tableau1[[#This Row],[Qté]]*2'),
+      ('SOMME(Tableau1[[#données],[Prix]:[Qté]])', 'SUM(Tableau1[[#Data],[Prix]:[Qté]])'),
+      ('Tableau1[[#En-têtes],[Nom]]', 'Tableau1[[#Headers],[Nom]]'),
+      ('SOMME(Tableau1[[#Totaux],[Prix]])', 'SUM(Tableau1[[#Totals],[Prix]])'),
+      ('LIGNES(Tableau1[#Tout])', 'ROWS(Tableau1[#All])'),
+      ('LIGNES(Tableau1[#All])', 'ROWS(Tableau1[#All])'),
+      ('SOMME(Tableau1[Total, SI; x])', 'SUM(Tableau1[Total, SI; x])'),
     ]) {
       expect(formulaFromFrench(typed), file, reason: typed);
     }
   });
 
   test('round trip', () {
-    for (final f in ['SUMIFS(C:C,A:A,">5",B:B,"x")', '_xlfn.IFS(A1>1,"a",TRUE,"b")', 'VLOOKUP(A2,Data!A:D,4,FALSE)', '_xlfn.T.INV.2T(A1,5)', '_xlfn.CHISQ.TEST(A1:B2,D1:E2)']) {
+    for (final f in [
+      'SUMIFS(C:C,A:A,">5",B:B,"x")',
+      '_xlfn.IFS(A1>1,"a",TRUE,"b")',
+      'VLOOKUP(A2,Data!A:D,4,FALSE)',
+      '_xlfn.T.INV.2T(A1,5)',
+      '_xlfn.CHISQ.TEST(A1:B2,D1:E2)',
+      'SUM(Tableau1[[#Totals],[Prix]])+Tableau1[[#This Row],[Qté]]',
+      'ROWS(Tableau1[#All])',
+      'IF(Tableau1[@Nom]="a",1,2)',
+    ]) {
       expect(formulaFromFrench(formulaToFrench(f)), f);
     }
   });

@@ -2,6 +2,7 @@ package formula
 
 import (
 	"math"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -66,10 +67,6 @@ func init() {
 			return Num(float64(i + 1))
 		}),
 		"XMATCH": fn(2, 4, func(c *Context, v []Value) Value {
-			x := c.scalar(v[0])
-			if x.Type == TypeError {
-				return x
-			}
 			t := c.array(v[1])
 			if t.Rows > 1 && t.Cols > 1 {
 				return ErrValue
@@ -78,11 +75,16 @@ func init() {
 			if err != nil {
 				return *err
 			}
-			i := xfind(vector(t), x, mode, search)
-			if i < 0 {
-				return ErrNA
-			}
-			return Num(float64(i + 1))
+			return c.mapValues(v[0], func(x Value) Value {
+				if x.Type == TypeError {
+					return x
+				}
+				i := xfind(vector(t), x, mode, search)
+				if i < 0 {
+					return ErrNA
+				}
+				return Num(float64(i + 1))
+			})
 		}),
 		"XLOOKUP": {min: 3, max: 6, call: func(c *Context, args []Expr) Value {
 			v := make([]Value, len(args))
@@ -90,10 +92,6 @@ func init() {
 				if i != 3 {
 					v[i] = c.Eval(a)
 				}
-			}
-			x := c.scalar(v[0])
-			if x.Type == TypeError {
-				return x
 			}
 			keys := c.array(v[1])
 			if keys.Rows > 1 && keys.Cols > 1 {
@@ -103,34 +101,43 @@ func init() {
 			if err != nil {
 				return *err
 			}
-			i := xfind(vector(keys), x, mode, search)
-			if i < 0 {
-				if len(args) > 3 {
-					if _, missing := args[3].(missingExpr); !missing {
-						return c.Eval(args[3])
-					}
-				}
-				return ErrNA
-			}
 			byRow := keys.Cols == 1
-			if r := v[2]; r.Type == TypeRange && len(r.Refs) == 1 {
-				a := r.Refs[0]
-				if byRow {
-					return Value{Type: TypeRange, Refs: []Area3{{a.Sheet, Area{R1: a.R1 + i, R2: a.R1 + i, C1: a.C1, C2: a.C2}}}}
+			find := func(x Value) Value {
+				if x.Type == TypeError {
+					return x
 				}
-				return Value{Type: TypeRange, Refs: []Area3{{a.Sheet, Area{R1: a.R1, R2: a.R2, C1: a.C1 + i, C2: a.C1 + i}}}}
-			}
-			t := c.array(v[2])
-			if byRow {
-				if i >= t.Rows {
+				i := xfind(vector(keys), x, mode, search)
+				if i < 0 {
+					if len(args) > 3 {
+						if _, missing := args[3].(missingExpr); !missing {
+							return c.Eval(args[3])
+						}
+					}
+					return ErrNA
+				}
+				if r := v[2]; r.Type == TypeRange && len(r.Refs) == 1 {
+					a := r.Refs[0]
+					if byRow {
+						return Value{Type: TypeRange, Refs: []Area3{{a.Sheet, Area{R1: a.R1 + i, R2: a.R1 + i, C1: a.C1, C2: a.C2}}}}
+					}
+					return Value{Type: TypeRange, Refs: []Area3{{a.Sheet, Area{R1: a.R1, R2: a.R2, C1: a.C1 + i, C2: a.C1 + i}}}}
+				}
+				t := c.array(v[2])
+				if byRow {
+					if i >= t.Rows {
+						return ErrValue
+					}
+					return table(row(t, i), 1, t.Cols)
+				}
+				if i >= t.Cols {
 					return ErrValue
 				}
-				return table(row(t, i), 1, t.Cols)
+				return table(column(t, i), t.Rows, 1)
 			}
-			if i >= t.Cols {
-				return ErrValue
+			if lookup := c.array(v[0]); len(lookup.Cells) > 1 {
+				return c.xlookupEach(lookup, c.array(v[2]), byRow, find)
 			}
-			return table(column(t, i), t.Rows, 1)
+			return find(c.scalar(v[0]))
 		}},
 		"INDEX": fn(2, 4, func(c *Context, v []Value) Value {
 			var n [3]float64
@@ -536,4 +543,51 @@ func (c *Context) indirectL1C1(s string) Value {
 	}
 	r.Area = a
 	return c.ref(r)
+}
+
+// xlookupEach is XLOOKUP of several values: the result for each, a row of
+// the return array or a column, one under another for a column of values,
+// side by side for a row of them. A result that is a single value, an
+// error or what is given for no match, fills its place.
+func (c *Context) xlookupEach(lookup, ret *Table, byRow bool, find func(Value) Value) Value {
+	h, w := ret.Rows, ret.Cols
+	if byRow {
+		h = 1
+	} else {
+		w = 1
+	}
+	column, line := lookup.Cols == 1, lookup.Rows == 1
+	if column && h != 1 || line && w != 1 || !column && !line && h*w != 1 {
+		return ErrValue
+	}
+	parts := make([][]Value, len(lookup.Cells))
+	for i, x := range lookup.Cells {
+		r := c.array(find(x))
+		switch {
+		case len(r.Cells) == 1:
+			parts[i] = slices.Repeat(r.Cells, h*w)
+		case r.Rows == h && r.Cols == w:
+			parts[i] = r.Cells
+		default:
+			return ErrValue
+		}
+	}
+	n := len(parts)
+	switch {
+	case column:
+		return table(slices.Concat(parts...), n, w)
+	case line:
+		cells := make([]Value, h*n)
+		for j, p := range parts {
+			for i, x := range p {
+				cells[i*n+j] = x
+			}
+		}
+		return table(cells, h, n)
+	}
+	cells := make([]Value, n)
+	for i, p := range parts {
+		cells[i] = p[0]
+	}
+	return table(cells, lookup.Rows, lookup.Cols)
 }
