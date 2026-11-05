@@ -20,7 +20,7 @@ Future<Uint8List> workbookPdf(
   String title = '',
   DateTime? now,
   void Function(Set<String>)? missing,
-  void Function(Set<String>)? ignored,
+  void Function(Set<Ignored>)? ignored,
 }) async {
   final pages = workbookPages(book, locale: locale, fonts: fonts, title: title, now: now);
   if (pages.isEmpty) throw const NothingToPrint();
