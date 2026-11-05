@@ -28,7 +28,11 @@
   conditional formats, validations, filters on values and the protection of
   sheets. What stays unconverted (scales, bars and icons, other filter
   conditions) is still told in the losses. `xlsx` gains the "protect"
-  attribute of a sheet and `Document.RichText`.
+  attribute of a sheet and `Document.RichText`. The number format a
+  conditional format sets is kept, and the values of a list written out in a
+  validation lose the spaces that begin them, as in Excel and LibreOffice.
+  Tests on workbooks made of their bytes (conditional format with a number
+  format, validation list, link, note) run without the corpus.
 - `xlsx` edits charts: the "charts" field of a sheet takes charts inserted
   from cells (`"source":"A1:C4"`, a clustered column, bar, line, pie,
   scatter or area chart, given its series by the server as Excel does),

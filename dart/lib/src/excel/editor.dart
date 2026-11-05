@@ -16,6 +16,7 @@ import '../pdf/document.dart' show pdfName;
 import 'chart_dialogs.dart';
 import 'chart_edits.dart';
 import 'charts.dart';
+import 'comment_bubble.dart';
 import 'conditional_menu.dart';
 import 'edits.dart';
 import 'export.dart';
@@ -89,6 +90,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
 
   /// The comment being written: where, and whether it is a note.
   (int, int, bool)? _draft;
+  bool _noteEdited = false;
 
   /// The chart selected: the sheet it is on and its place in the list.
   (String, int)? _chartAt;
@@ -178,6 +180,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
 
   void _selected() {
     _chartAt = null;
+    _noteEdited = false;
     final a = _selection.area;
     _nameBox.text = a.single ? cellName(a.top, a.left) : '${cellName(a.top, a.left)}:${cellName(a.bottom, a.right)}';
     if (_editing) _commit();
@@ -327,6 +330,22 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
   Widget? get _prompt {
     final sheet = _sheet;
     if (sheet == null) return null;
+    final note = _noteEdited ? _activeThread : null;
+    if (note != null && note.note) {
+      return NoteEditor(
+        thread: note,
+        strings: _s,
+        onSave: (text) {
+          setState(() => _noteEdited = false);
+          _edit(_commentEdits.say(note, note.root, text));
+          _gridFocus.requestFocus();
+        },
+        onCancel: () {
+          setState(() => _noteEdited = false);
+          _gridFocus.requestFocus();
+        },
+      );
+    }
     final (r, c) = _selection.active;
     final rule = _wb.layout(sheet).validationAt(r, c);
     if (rule == null || rule.prompt.isEmpty && rule.promptTitle.isEmpty) return null;
@@ -1318,7 +1337,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
       case 'clear':
         _edit(_edits.clear(sheet, a));
       case 'totals':
-        totalsEdits(sheet, table!, !table.totals).forEach(_edit);
+        totalsEdits(sheet, table!, !table.totals).every(_edit);
       case 'convert':
         _edit(changeTable(sheet, table!, null));
       case 'hide':
@@ -1838,12 +1857,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
               icon: const Icon(Icons.edit_note),
               label: _s.editNote,
               large: true,
-              onPressed: remark == null
-                  ? null
-                  : () => setState(() {
-                      _commentsShown = true;
-                      _draft = null;
-                    }),
+              onPressed: remark == null || !remark.note || !_canComment ? null : () => setState(() => _noteEdited = true),
             ),
           ]),
         ]),

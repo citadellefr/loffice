@@ -189,8 +189,8 @@ func (c *Calc) Follow(e ot.Edit, since []ot.Edit) ot.Edit {
 			iterate = iterate || ch.ID == "book" && ch.Attrs["iterate"] != nil
 		}
 	}
-	if books {
-		f.sheetsChanged()
+	if books && f.sheetsChanged() {
+		graph = true
 	}
 	for _, ch := range e {
 		if (ch.Op == ot.OpSet || ch.Op == ot.OpNew) && ch.Attrs[chartsKey] != nil {
@@ -532,8 +532,9 @@ func (f *follow) rewriteConditionals(id string, rewrite func(text, sheet string)
 
 // sheetsChanged follows sheets renamed, added and deleted: formulas take
 // the new names, those of deleted sheets become #REF!, and names Excel
-// would refuse are made ones it takes.
-func (f *follow) sheetsChanged() {
+// would refuse are made ones it takes. It tells whether a formula cited a
+// name a sheet renamed takes, which it now reads.
+func (f *follow) sheetsChanged() bool {
 	c := f.c
 	used := map[string]bool{}
 	var renamed [][2]string
@@ -558,9 +559,18 @@ func (f *follow) sheetsChanged() {
 		}
 	}
 	if len(renamed) == 0 && len(gone) == 0 {
-		return
+		return false
 	}
+	// names no sheet had, but those swapped
+	var taken []string
+	for _, r := range renamed {
+		if !slices.ContainsFunc(renamed, func(o [2]string) bool { return strings.EqualFold(o[0], r[1]) }) {
+			taken = append(taken, r[1])
+		}
+	}
+	revived := false
 	f.formulas(func(text, _ string) string {
+		revived = revived || cites(text, taken)
 		for _, name := range gone {
 			text, _ = formula.Drop(text, name)
 		}
@@ -574,6 +584,22 @@ func (f *follow) sheetsChanged() {
 		return text
 	})
 	f.flush()
+	return revived
+}
+
+// cites tells whether a formula has a reference to one of the sheets.
+func cites(text string, sheets []string) bool {
+	if len(sheets) == 0 || !strings.Contains(text, "!") {
+		return false
+	}
+	found := false
+	_, _ = formula.Rewrite(text, func(r *formula.Ref) bool {
+		for _, name := range sheets {
+			found = found || r.Book == "" && (strings.EqualFold(r.Sheet, name) || strings.EqualFold(r.LastSheet, name))
+		}
+		return false
+	})
+	return found
 }
 
 // shift follows rows or columns inserted or removed on a sheet: the

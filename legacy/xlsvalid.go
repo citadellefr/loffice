@@ -101,7 +101,8 @@ func (s *sheet) dataValidation(d []byte) bool {
 }
 
 // dvFormula reads a formula of a validation: a list written out in the
-// record is a string whose values end at a null.
+// record is a string whose values end at a null, and that the spaces which
+// begin them are not part of, as in Excel and LibreOffice.
 func (s *sheet) dvFormula(code []byte, list bool, o origin) (string, bool) {
 	if len(code) == 0 {
 		return "", false
@@ -111,7 +112,11 @@ func (s *sheet) dvFormula(code []byte, list bool, o origin) (string, bool) {
 		if code[0] != ptgStr || size == 0 || size+1 != len(code) || strings.ContainsAny(items, `,"`) {
 			return "", false
 		}
-		return `"` + strings.Join(strings.Split(strings.TrimRight(items, "\x00"), "\x00"), ",") + `"`, true
+		values := strings.Split(strings.TrimRight(items, "\x00"), "\x00")
+		for i, v := range values {
+			values[i] = strings.TrimLeft(v, " ")
+		}
+		return `"` + strings.Join(values, ",") + `"`, true
 	}
 	text, err := s.b.formula(code, nil, o)
 	if err != nil {

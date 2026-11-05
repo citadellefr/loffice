@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:trame/trame.dart';
 
 import '../chrome/comments.dart';
+import '../chrome/strings.dart';
 
 /// The fields a cell keeps its comments in: a note, or a thread.
 const commentFields = ['note', 'thread'];
@@ -21,6 +22,12 @@ class CellThread extends CommentThread {
 
   @override
   bool get repliable => !note;
+
+  @override
+  String resolveLabel(LofficeStrings s) => s.resolve;
+
+  @override
+  String deleteLabel(LofficeStrings s, {required bool first}) => note ? s.deleteNote : s.deleteComment;
 
   @override
   bool editableBy(DocComment comment, String me) => note || super.editableBy(comment, me);
