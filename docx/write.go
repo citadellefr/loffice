@@ -11,6 +11,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/citadellefr/loffice/internal/chartpart"
 	"github.com/citadellefr/loffice/internal/partrel"
 	"github.com/citadellefr/loffice/internal/xmldom"
 	"github.com/citadellefr/loffice/opc"
@@ -76,6 +77,9 @@ type writer struct {
 
 func (w *writer) save() error {
 	if err := w.addPictures(); err != nil {
+		return err
+	}
+	if err := chartpart.Write(w.pkg, w.tree, w.d.charts); err != nil {
 		return err
 	}
 	w.commentIDs()

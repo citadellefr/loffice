@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/citadellefr/loffice/drawingml"
+	"github.com/citadellefr/loffice/internal/chartpart"
 	"github.com/citadellefr/loffice/internal/partrel"
 	"github.com/citadellefr/loffice/internal/xmldom"
 	"github.com/citadellefr/loffice/opc"
@@ -112,6 +113,9 @@ func (w *writer) save() error {
 			}
 		}
 	}
+	if err := chartpart.Write(w.pkg, w.tree, w.d.charts); err != nil {
+		return err
+	}
 	if err := w.writeAuthors(); err != nil {
 		return err
 	}
@@ -130,7 +134,7 @@ func (w *writer) same(id string) bool {
 	if a == nil || b == nil {
 		return a == b
 	}
-	if a.Type != b.Type || a.Key != b.Key || !maps.EqualFunc(a.Attrs, b.Attrs, func(x, y json.RawMessage) bool { return bytes.Equal(x, y) }) {
+	if a.Type != b.Type || a.Key != b.Key || !maps.EqualFunc(ownAttrs(a), ownAttrs(b), func(x, y json.RawMessage) bool { return bytes.Equal(x, y) }) {
 		return false
 	}
 	if (a.Text == nil) != (b.Text == nil) || a.Text != nil && !reflect.DeepEqual(a.Text.Delta(), b.Text.Delta()) {
@@ -146,6 +150,18 @@ func (w *writer) same(id string) bool {
 		}
 	}
 	return true
+}
+
+// ownAttrs are the attributes of a node its slide holds: a chart is in its
+// own parts.
+func ownAttrs(n *ot.Node) ot.Values {
+	if n.Attrs[chartpart.ChartKey] == nil {
+		return n.Attrs
+	}
+	attrs := maps.Clone(n.Attrs)
+	delete(attrs, chartpart.ChartKey)
+	delete(attrs, chartpart.DataKey)
+	return attrs
 }
 
 // listed tells whether the presentation lists these slides already.
