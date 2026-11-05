@@ -160,10 +160,14 @@ type human struct {
 
 func (r *room) human(name string) *human {
 	r.t.Helper()
-	c, _, doc := trametest.Join(r.t, func(c *trametest.Conn) error {
+	c := trametest.Connect(r.t, func(c *trametest.Conn) error {
 		return r.hub.Serve(context.Background(), c, key, trame.Peer{ID: name, Name: name})
 	})
-	return &human{t: r.t, c: c, v: doc.V}
+	c.Expect("hello")
+	c.Send(`{"t":"sync"}`)
+	h := &human{t: r.t, c: c}
+	h.v = h.next("doc").V
+	return h
 }
 
 // next is the next frame of that kind, others' edits followed on the way.

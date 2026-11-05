@@ -8,7 +8,10 @@
   session; two instances of the same name, even in the same second, are told
   apart. Deleting, replacing or formatting text the agent inserted for
   another user is now a revision, and the same user's text still goes away
-  at once.
+  at once. `BehalfOf` also compares the author and date of the node, so two
+  authors whose ids collide no longer share an attribution, and saving a
+  Word document drops the `loffice.behalf.*` variables of lots no revision
+  carries any more (other variables are untouched).
 - `legacy` converts more of the `.xls` workbooks: the fonts within a text,
   links, notes, how sheets print (margins, headers, footers, breaks, fit),
   conditional formats, validations, filters on values and the protection of

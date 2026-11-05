@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -44,11 +45,11 @@ func BehalfNode(author, date, user string) (string, ot.Values, bool) {
 // BehalfOf is the user the revisions of author dated date were made for, ""
 // when the document does not say.
 func BehalfOf(tree *ot.Tree, author, date string) string {
-	id, _, ok := BehalfNode(author, date, "-")
+	id, want, ok := BehalfNode(author, date, "-")
 	if !ok {
 		return ""
 	}
-	if n := tree.Node(id); n != nil && n.Type == BehalfType {
+	if n := tree.Node(id); n != nil && n.Type == BehalfType && str(n.Attrs, "author") == str(want, "author") && str(n.Attrs, "date") == str(want, "date") {
 		return str(n.Attrs, "user")
 	}
 	return ""
@@ -115,31 +116,72 @@ func behalves(tree *ot.Tree) []*ot.Node {
 	return out
 }
 
-// sameBehalf tells whether the tree says whom revisions were made for as the
-// document it was read from did.
-func (w *writer) sameBehalf() bool {
-	a, b := behalves(w.d.loaded), behalves(w.tree)
-	if len(a) != len(b) {
+// liveBehalf are the nodes that say whom revisions were made for, those a
+// revision of the saved package still carries the author and date of.
+func (w *writer) liveBehalf() ([]*ot.Node, error) {
+	nodes := behalves(w.tree)
+	if len(nodes) == 0 {
+		return nil, nil
+	}
+	signed := map[string]bool{}
+	for _, name := range w.pkg.Names() {
+		if !strings.Contains(w.pkg.ContentType(name), "wordprocessingml.") {
+			continue
+		}
+		data, err := w.pkg.Read(name)
+		if err != nil {
+			return nil, err
+		}
+		doc, err := xmldom.Parse(data)
+		if err != nil {
+			return nil, err
+		}
+		collectSigned(doc.Root, signed)
+	}
+	return slices.DeleteFunc(nodes, func(n *ot.Node) bool {
+		return !signed[str(n.Attrs, "author")+"\x00"+str(n.Attrs, "date")]
+	}), nil
+}
+
+// collectSigned adds to signed the author and date, as a behalf node has
+// them, of the revisions under e.
+func collectSigned(e *xmldom.Element, signed map[string]bool) {
+	if e.Space == NS && revisions[e.Local] {
+		date := attr(e, "date")
+		if t, err := time.Parse(time.RFC3339, date); err == nil {
+			date = t.UTC().Format(time.RFC3339)
+		}
+		signed[attr(e, "author")+"\x00"+date] = true
+	}
+	for _, c := range e.Elements() {
+		collectSigned(c, signed)
+	}
+}
+
+// sameBehalf tells whether nodes say whom revisions were made for as the
+// document the tree was read from did.
+func (w *writer) sameBehalf(nodes []*ot.Node) bool {
+	a := behalves(w.d.loaded)
+	if len(a) != len(nodes) {
 		return false
 	}
 	for i := range a {
-		if a[i].ID != b[i].ID {
+		if a[i].ID != nodes[i].ID {
 			return false
 		}
 	}
 	return true
 }
 
-// writeBehalf makes the document variables of settings the tree's: those it
-// has that no node stands for go, and others are kept.
-func (w *writer) writeBehalf(root *xmldom.Element) {
+// writeBehalf makes the document variables of settings those of nodes: the
+// others of this program go, and those of other programs are kept.
+func (w *writer) writeBehalf(root *xmldom.Element, nodes []*ot.Node) {
 	vars := child(root, "docVars")
 	for _, v := range elements(vars) {
 		if strings.HasPrefix(attr(v, "name"), behalfPrefix) {
 			vars.Remove(v)
 		}
 	}
-	nodes := behalves(w.tree)
 	if len(nodes) > 0 && vars == nil {
 		vars = newW(root, "docVars")
 		insert(root, vars, settingsOrder)
