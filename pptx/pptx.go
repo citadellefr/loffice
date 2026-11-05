@@ -22,7 +22,8 @@
 //
 // Shapes have the attributes drawingml reads from their spPr (xfrm, geom,
 // fill, line), their name, descr, hidden, their placeholder (ph), style,
-// body and lst; pictures a blip. Every node written back from its XML
+// body and lst; pictures a blip; a frame of a chart its chart and data
+// (chartpart). Every node written back from its XML
 // carries it in "xml", its text left out: what the model does not cover is
 // kept, even in a copy.
 package pptx

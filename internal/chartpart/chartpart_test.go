@@ -28,20 +28,20 @@ type file interface {
 	Save(tree *ot.Tree) ([]byte, error)
 }
 
-func open(t *testing.T, name string, data []byte) (file, *ot.Tree) {
-	t.Helper()
+func open(name string, data []byte) (file, *ot.Tree, error) {
 	if strings.HasSuffix(name, ".docx") {
-		d, tree, err := docx.Open(data, opc.Limits{})
-		if err != nil {
-			t.Fatalf("%s: %v", name, err)
-		}
-		return d, tree
+		return docx.Open(data, opc.Limits{})
 	}
-	d, tree, err := pptx.Open(data, opc.Limits{})
+	return pptx.Open(data, opc.Limits{})
+}
+
+func reopen(t *testing.T, name string, data []byte) *ot.Tree {
+	t.Helper()
+	_, tree, err := open(name, data)
 	if err != nil {
-		t.Fatalf("%s: %v", name, err)
+		t.Fatalf("%s: saved file does not open: %v", name, err)
 	}
-	return d, tree
+	return tree
 }
 
 func read(t *testing.T, name string) []byte {
@@ -231,13 +231,114 @@ var (
 	bookName  = regexp.MustCompile(`/embeddings/[^/]*\.xlsx$`)
 )
 
+// editCharts edits the first chart of a file: its look, then its data,
+// or checks they are read-only. It returns the file saved and whether its
+// data were edited; ok is false for a file without a chart.
+func editCharts(t *testing.T, name string, data []byte) (saved []byte, withData, ok bool) {
+	t.Helper()
+	f, tree, err := open(name, data)
+	if err != nil {
+		return nil, false, false
+	}
+	ids := nodes(tree)
+	if len(ids) == 0 {
+		return nil, false, false
+	}
+	id := ids[0]
+	c := chartOf(t, tree, id)
+	look(c)
+	if err := edit(f, tree, id, ot.Values{chartpart.ChartKey: c.JSON()}); err != nil {
+		t.Fatalf("%s: %v", name, err)
+	}
+	if saved, err = f.Save(tree); err != nil {
+		t.Fatalf("%s: %v", name, err)
+	}
+	if changed := changedParts(t, data, saved); len(changed) != 1 || !chartName.MatchString(changed[0]) {
+		t.Fatalf("%s: %v changed", name, changed)
+	}
+	if got := chartOf(t, reopen(t, name, saved), id); got.Title == nil || got.Title.Text != "Nouveau titre" || got.Legend == nil || got.Legend.Pos != "t" || got.Plots[0].Kind != c.Plots[0].Kind {
+		t.Fatalf("%s: the chart reads %s", name, got.JSON())
+	}
+
+	table := tableOf(t, tree, id)
+	if table == nil {
+		old := chartOf(t, tree, id)
+		if err := setTable(f, tree, id, &xlsx.ChartTable{Series: []xlsx.ChartColumn{{Values: []any{1.0}}}}); !errors.Is(err, chartpart.ErrReadOnly) {
+			t.Fatalf("%s: data refused with %v", name, err)
+		}
+		if s := firstSeries(old); s != nil && s.Val != nil && len(s.Val.Num) > 0 {
+			v := 42.5
+			s.Val.Num[0] = &v
+			if err := edit(f, tree, id, ot.Values{chartpart.ChartKey: old.JSON()}); !errors.Is(err, chartpart.ErrReadOnly) {
+				t.Fatalf("%s: cached values refused with %v", name, err)
+			}
+		}
+		return saved, false, true
+	}
+	want := grown(table)
+	if err := setTable(f, tree, id, want); err != nil {
+		t.Logf("%s: %v", name, err)
+		want = table
+		want.Series[0].Values[0] = 42.5
+		if err := setTable(f, tree, id, want); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+	}
+	if saved, err = f.Save(tree); err != nil {
+		t.Fatalf("%s: %v", name, err)
+	}
+	want = tableOf(t, tree, id)
+	for _, part := range changedParts(t, data, saved) {
+		if !chartName.MatchString(part) && !bookName.MatchString(part) {
+			t.Fatalf("%s: %s changed", name, part)
+		}
+	}
+	if err := matches(chartOf(t, tree, id), want); err != nil {
+		t.Fatalf("%s: %v", name, err)
+	}
+	again := reopen(t, name, saved)
+	if got := tableOf(t, again, id); !reflect.DeepEqual(got, want) {
+		t.Fatalf("%s: table %+v, not %+v", name, got, want)
+	}
+	if err := matches(chartOf(t, again, id), want); err != nil {
+		t.Fatalf("%s: read again: %v", name, err)
+	}
+	return saved, true, true
+}
+
+func TestChartEdits(t *testing.T) {
+	for name, data := range map[string]bool{
+		"python-pptx/cht-chart-type.pptx":          true,
+		"libreoffice/chart.docx":                   true,
+		"python-docx/shp-inline-shape-access.docx": true,
+		"libreoffice/tdf115557.docx":               false,
+	} {
+		_, withData, ok := editCharts(t, name, read(t, name))
+		if !ok || withData != data {
+			t.Errorf("%s: chart %v, data edited %v", name, ok, withData)
+		}
+	}
+}
+
+func TestReadOnlyError(t *testing.T) {
+	name := "libreoffice/tdf115557.docx"
+	f, tree, err := open(name, read(t, name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = setTable(f, tree, "chart-1", &xlsx.ChartTable{Series: []xlsx.ChartColumn{{Values: []any{1.0}}}})
+	if err == nil || !strings.Contains(err.Error(), "no embedded workbook") || !strings.Contains(err.Error(), "read-only") {
+		t.Fatalf("got %v", err)
+	}
+}
+
 func TestCorpusCharts(t *testing.T) {
 	if testing.Short() {
 		t.Skip("the corpus is not read in -short mode")
 	}
 	out := os.Getenv("LOFFICE_EDITED")
 	paths, _ := filepath.Glob("../../corpus/files/*/*")
-	var looks, datas, refused int
+	var looks, datas int
 	for _, path := range paths {
 		switch strings.ToLower(filepath.Ext(path)) {
 		case ".pptx", ".docx":
@@ -246,87 +347,12 @@ func TestCorpusCharts(t *testing.T) {
 		}
 		data, _ := os.ReadFile(path)
 		name, _ := filepath.Rel("../../corpus/files", path)
-		var f file
-		var tree *ot.Tree
-		if filepath.Ext(path) == ".docx" {
-			d, tr, err := docx.Open(data, opc.Limits{})
-			if err != nil {
-				continue
-			}
-			f, tree = d, tr
-		} else {
-			d, tr, err := pptx.Open(data, opc.Limits{})
-			if err != nil {
-				continue
-			}
-			f, tree = d, tr
-		}
-		ids := nodes(tree)
-		if len(ids) == 0 {
+		saved, withData, ok := editCharts(t, name, data)
+		if !ok {
 			continue
 		}
-		c := chartOf(t, tree, ids[0])
-		look(c)
-		if err := edit(f, tree, ids[0], ot.Values{chartpart.ChartKey: c.JSON()}); err != nil {
-			t.Fatalf("%s: %v", name, err)
-		}
-		saved, err := f.Save(tree)
-		if err != nil {
-			t.Fatalf("%s: %v", name, err)
-		}
-		if changed := changedParts(t, data, saved); len(changed) != 1 || !chartName.MatchString(changed[0]) {
-			t.Fatalf("%s: %v changed", name, changed)
-		}
-		_, again := open(t, name, saved)
-		if got := chartOf(t, again, ids[0]); got.Title == nil || got.Title.Text != "Nouveau titre" || got.Legend == nil || got.Legend.Pos != "t" || got.Plots[0].Kind != c.Plots[0].Kind {
-			t.Fatalf("%s: the chart reads %s", name, got.JSON())
-		}
 		looks++
-
-		table := tableOf(t, tree, ids[0])
-		if table == nil {
-			var old = chartOf(t, tree, ids[0])
-			if err := setTable(f, tree, ids[0], &xlsx.ChartTable{Series: []xlsx.ChartColumn{{Values: []any{1.0}}}}); !errors.Is(err, chartpart.ErrReadOnly) {
-				t.Fatalf("%s: data refused with %v", name, err)
-			}
-			if s := firstSeries(old); s != nil && s.Val != nil && len(s.Val.Num) > 0 {
-				v := 42.5
-				s.Val.Num[0] = &v
-				if err := edit(f, tree, ids[0], ot.Values{chartpart.ChartKey: old.JSON()}); !errors.Is(err, chartpart.ErrReadOnly) {
-					t.Fatalf("%s: cached values refused with %v", name, err)
-				}
-			}
-			refused++
-		} else {
-			want := grown(table)
-			if err := setTable(f, tree, ids[0], want); err != nil {
-				t.Logf("%s: %v", name, err)
-				want = table
-				want.Series[0].Values[0] = 42.5
-				if err := setTable(f, tree, ids[0], want); err != nil {
-					t.Fatalf("%s: %v", name, err)
-				}
-			}
-			saved, err = f.Save(tree)
-			if err != nil {
-				t.Fatalf("%s: %v", name, err)
-			}
-			want = tableOf(t, tree, ids[0])
-			for _, part := range changedParts(t, data, saved) {
-				if !chartName.MatchString(part) && !bookName.MatchString(part) {
-					t.Fatalf("%s: %s changed", name, part)
-				}
-			}
-			if err := matches(chartOf(t, tree, ids[0]), want); err != nil {
-				t.Fatalf("%s: %v", name, err)
-			}
-			_, again = open(t, name, saved)
-			if got := tableOf(t, again, ids[0]); !reflect.DeepEqual(got, want) {
-				t.Fatalf("%s: table %+v, not %+v", name, got, want)
-			}
-			if err := matches(chartOf(t, again, ids[0]), want); err != nil {
-				t.Fatalf("%s: read again: %v", name, err)
-			}
+		if withData {
 			datas++
 		}
 		if out != "" {
@@ -339,7 +365,7 @@ func TestCorpusCharts(t *testing.T) {
 			}
 		}
 	}
-	t.Logf("%d charts edited, %d with data, %d read-only", looks, datas, refused)
+	t.Logf("%d charts edited, %d with data, %d read-only", looks, datas, looks-datas)
 }
 
 func firstSeries(c *chart.Chart) *chart.Series {
