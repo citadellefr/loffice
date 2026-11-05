@@ -1,5 +1,7 @@
 import 'package:trame/trame.dart';
 
+import 'strings.dart';
+
 /// A comment: a "comment" node, saying what its text says.
 class DocComment {
   DocComment(this.node, this.text);
@@ -34,6 +36,11 @@ class CommentThread {
   /// Whether the thread can be resolved, and answered.
   bool get resolvable => true;
   bool get repliable => true;
+
+  /// What the menu of a comment says to resolve the thread, and to delete
+  /// the comment, or the whole thread when it is the first.
+  String resolveLabel(LofficeStrings s) => s.resolveThread;
+  String deleteLabel(LofficeStrings s, {required bool first}) => first ? s.deleteThread : s.deleteComment;
 
   /// Whether [me] can edit a comment of the thread.
   bool editableBy(DocComment comment, String me) => me.isNotEmpty && comment.author == me;

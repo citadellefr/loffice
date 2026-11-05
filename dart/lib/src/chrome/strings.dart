@@ -457,11 +457,13 @@ class LofficeStrings {
   String get save => 'Enregistrer';
   String get resolved => 'Résolu';
   String get resolveThread => 'Résoudre le thread';
+  String get resolve => 'Résoudre';
   String get reopen => 'Rouvrir';
   String get editComment => 'Modifier le commentaire';
   String get deleteComment => 'Supprimer le commentaire';
+  String get deleteNote => 'Supprimer la note';
   String get deleteThread => 'Supprimer le thread';
-  String get moreActions => 'Autres actions de thread';
+  String get moreActions => 'Autres actions';
   String get unknownAuthor => 'Auteur inconnu';
   String get commentedTextGone => 'Le texte commenté a été supprimé.';
   String replies(int n) => n == 1 ? '1 réponse' : '$n réponses';

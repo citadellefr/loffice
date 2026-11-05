@@ -313,8 +313,11 @@ class _CommentsPaneState<T extends CommentThread> extends State<CommentsPane<T>>
                 icon: const Icon(Icons.more_horiz),
                 itemBuilder: (context) => [
                   if (mine) PopupMenuItem(value: 'edit', child: Text(_s.editComment)),
-                  if (first && widget.resolvable && t.resolvable) PopupMenuItem(value: 'resolve', child: Text(t.done ? _s.reopen : _s.resolveThread)),
-                  PopupMenuItem(value: 'delete', child: Text(first ? _s.deleteThread : _s.deleteComment)),
+                  if (first && widget.resolvable && t.resolvable) PopupMenuItem(value: 'resolve', child: Text(t.done ? _s.reopen : t.resolveLabel(_s))),
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: Text(t.deleteLabel(_s, first: first)),
+                  ),
                 ],
                 onSelected: (v) => switch (v) {
                   'edit' => _startEditing(c),
