@@ -415,14 +415,14 @@ void main() {
     await settle(tester);
     expect(comments().map((c) => c.attributes['parent']), [null, id]);
 
-    await tester.tap(find.byTooltip('Autres actions de thread').first);
+    await tester.tap(find.byTooltip('Autres actions').first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Résoudre le thread'));
     await settle(tester);
     expect(comments().every((c) => c.attributes['done'] == true), isTrue);
     expect(find.text('Résolu'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Autres actions de thread').first);
+    await tester.tap(find.byTooltip('Autres actions').first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Supprimer le thread'));
     await settle(tester);

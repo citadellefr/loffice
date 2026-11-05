@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:loffice/loffice.dart';
+import 'package:loffice/src/chrome/comments_pane.dart';
 import 'package:loffice/src/chrome/ribbon.dart';
 import 'package:loffice/src/excel/cell_painter.dart';
+import 'package:loffice/src/excel/comment_bubble.dart';
 import 'package:loffice/src/excel/edits.dart';
 import 'package:loffice/src/excel/number_format.dart';
 import 'package:loffice/src/excel/sheet_comments.dart';
@@ -181,7 +183,7 @@ void main() {
       expect(threads[0].resolvable || threads[0].repliable, false);
     });
 
-    test('copies, sorts and clears leave notes and threads where they are', () {
+    test('copies and clears leave notes and threads where they are', () {
       final tree = Tree.fromEdit(workbook())!;
       final edits = SheetEdits(Workbook(tree));
       final s = tree['S1']!;
@@ -190,13 +192,30 @@ void main() {
       final pasted = edits.paste(s, clip, 10, 10).changes.single.cells!;
       expect(pasted.where((c) => hasComments(c.fields)), isEmpty);
       expect(pasted.where((c) => c.fields.containsKey('note') || c.fields.containsKey('thread')), isEmpty);
-      final sorted = edits.sort(s, const CellArea(1, 2, 3, 2), 2).changes.single.cells!;
-      expect(sorted.where((c) => c.fields.containsKey('note')), isEmpty);
       expect(edits.clear(s, const CellArea(1, 1, 3, 3)).changes.single.cells!.every((c) => !c.fields.containsKey('note') && !c.fields.containsKey('thread')), true);
       final all = CommentEdits(s, 'Moi').clear(1, 1, 3, 3).changes.single.cells!;
       expect([for (final c in all) (c.row, c.col)], [(2, 2), (3, 3)]);
       expect(all.every((c) => c.fields['note'] == null && c.fields['thread'] == null), true);
     });
+  });
+
+  test('sorting a range moves the notes and threads with their cells', () {
+    final tree = Tree.fromEdit(workbook())!;
+    tree.apply(
+      Edit([
+        Change.cells('S1', [
+          const Cell(3, 2, {'v': 9}),
+        ]),
+      ]),
+    );
+    final sorted = SheetEdits(Workbook(tree)).sort(tree['S1']!, const CellArea(1, 2, 3, 3), 2).changes.single.cells!;
+    Map<String, Object?> at(int r, int c) => sorted.singleWhere((x) => x.row == r && x.col == c).fields;
+    expect(at(1, 2)['note'], _note);
+    expect(at(1, 2)['v'], 7);
+    expect(at(2, 2)['note'], null);
+    expect(at(2, 3)['thread'], [_first, _answer]);
+    expect(at(3, 3)['thread'], null);
+    expect(at(1, 3)['thread'], null);
   });
 
   group('indicator', () {
@@ -308,8 +327,11 @@ void main() {
         await select(tester, r, c);
         expect(pressable(tester, 'Nouveau commentaire'), isNull);
         expect(pressable(tester, 'Nouvelle note'), isNull);
-        expect(pressable(tester, 'Modifier la note'), isNotNull);
       }
+      await select(tester, 2, 2);
+      expect(pressable(tester, 'Modifier la note'), isNotNull);
+      await select(tester, 3, 3);
+      expect(pressable(tester, 'Modifier la note'), isNull);
       await finish(tester);
     });
 
@@ -346,14 +368,14 @@ void main() {
       expect(mine['text'], 'Merci');
       expect(mine.containsKey('done'), false);
 
-      await choose(tester, find.byTooltip('Autres actions de thread').at(3), 'Modifier le commentaire');
+      await choose(tester, find.byTooltip('Autres actions').at(3), 'Modifier le commentaire');
       await tester.enterText(find.widgetWithText(TextField, 'Merci'), 'Merci bien');
       await tester.tap(find.text('Enregistrer'));
       await settle(tester);
       expect((thread()[2]! as Map)['text'], 'Merci bien');
       expect((thread()[2]! as Map)['id'], mine['id']);
 
-      await choose(tester, find.byTooltip('Autres actions de thread').at(1), 'Résoudre le thread');
+      await choose(tester, find.byTooltip('Autres actions').at(1), 'Résoudre');
       expect(thread()[0], {..._first, 'done': true});
       expect(thread()[1], _answer);
 
@@ -368,11 +390,11 @@ void main() {
       await review(tester, 'Afficher les commentaires');
       await tester.tap(find.text('Pourquoi ?'));
       await tester.pump();
-      await choose(tester, find.byTooltip('Autres actions de thread').at(2), 'Supprimer le commentaire');
+      await choose(tester, find.byTooltip('Autres actions').at(2), 'Supprimer le commentaire');
       expect(thread(), [_first]);
-      await choose(tester, find.byTooltip('Autres actions de thread').at(1), 'Supprimer le thread');
+      await choose(tester, find.byTooltip('Autres actions').at(1), 'Supprimer le commentaire');
       expect(cell(3, 3), isNull);
-      await choose(tester, find.byTooltip('Autres actions de thread').first, 'Supprimer le thread');
+      await choose(tester, find.byTooltip('Autres actions').first, 'Supprimer la note');
       expect(cell(2, 2), {'v': 7});
       expect(find.text('Aucun commentaire'), findsOneWidget);
       await finish(tester);
@@ -383,9 +405,9 @@ void main() {
       await review(tester, 'Afficher les commentaires');
       await tester.tap(find.text('Vérifier\nce total'));
       await tester.pump();
-      await tester.tap(find.byTooltip('Autres actions de thread').first);
+      await tester.tap(find.byTooltip('Autres actions').first);
       await tester.pumpAndSettle();
-      expect(find.text('Résoudre le thread'), findsNothing);
+      expect(find.text('Résoudre'), findsNothing);
       expect(find.text('Modifier le commentaire'), findsOneWidget);
       await tester.tap(find.text('Modifier le commentaire'));
       await tester.pumpAndSettle();
@@ -393,6 +415,31 @@ void main() {
       await tester.tap(find.text('Enregistrer'));
       await settle(tester);
       expect(cell(2, 2)!['note'], {..._note, 'text': 'Revu'});
+      await finish(tester);
+    });
+
+    testWidgets('Modifier la note edits the note in its bubble and saves it', (tester) async {
+      await open(tester);
+      await select(tester, 2, 2);
+      await review(tester, 'Modifier la note');
+      expect(find.byType(CommentsPane<CellThread>), findsNothing);
+      await tester.enterText(find.widgetWithText(TextField, 'Vérifier\nce total'), 'Revu en place');
+      await tester.tapAt(at(tester, 6, 6));
+      await settle(tester);
+      expect(cell(2, 2)!['note'], {..._note, 'text': 'Revu en place'});
+      expect(find.byType(NoteEditor), findsNothing);
+      await finish(tester);
+    });
+
+    testWidgets('Escape leaves the note as it was', (tester) async {
+      await open(tester);
+      await select(tester, 2, 2);
+      await review(tester, 'Modifier la note');
+      await tester.enterText(find.widgetWithText(TextField, 'Vérifier\nce total'), 'Autre');
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await settle(tester);
+      expect(cell(2, 2)!['note'], _note);
+      expect(find.byType(NoteEditor), findsNothing);
       await finish(tester);
     });
 
