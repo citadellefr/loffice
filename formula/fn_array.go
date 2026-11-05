@@ -69,7 +69,7 @@ func init() {
 		}),
 		"RANDARRAY": randArray,
 		"UNIQUE": fn(1, 3, func(c *Context, v []Value) Value {
-			t, err := c.arrayArg(v[0])
+			t, err := c.gridArg(v[0])
 			if err != nil {
 				return *err
 			}
@@ -84,12 +84,18 @@ func init() {
 					return *err
 				}
 			}
+			if byCol {
+				t = c.array(v[0])
+			}
 			all := lines(t, byCol)
 			keys := make([]string, len(all))
 			count := map[string]int{}
 			for i, l := range all {
 				keys[i] = lineKey(l)
 				count[keys[i]]++
+			}
+			if !byCol {
+				count[keys[len(keys)-1]] += t.Rows - len(all)
 			}
 			var out [][]Value
 			seen := map[string]bool{}
@@ -106,7 +112,7 @@ func init() {
 			return assemble(out, byCol)
 		}),
 		"SORT": fn(1, 4, func(c *Context, v []Value) Value {
-			t, err := c.arrayArg(v[0])
+			t, err := c.gridArg(v[0])
 			if err != nil {
 				return *err
 			}
@@ -127,6 +133,9 @@ func init() {
 			if len(orders) == 1 {
 				orders = slices.Repeat(orders, len(indexes))
 			}
+			if byCol || !t.blankTail() {
+				t = c.array(v[0])
+			}
 			all := lines(t, byCol)
 			if len(orders) != len(indexes) {
 				return ErrValue
@@ -141,14 +150,17 @@ func init() {
 					keys[k][i] = l[int(n)-1]
 				}
 			}
-			return assemble(sortLines(all, keys, orders), byCol)
+			if byCol {
+				return assemble(sortLines(all, keys, orders), true)
+			}
+			return sortedRows(all, keys, orders, t.Rows)
 		}),
 		"SORTBY": fn(2, -1, func(c *Context, v []Value) Value {
-			t, err := c.arrayArg(v[0])
+			t, err := c.gridArg(v[0])
 			if err != nil {
 				return *err
 			}
-			first := c.array(v[1])
+			first := c.grid(v[1])
 			var byCol bool
 			switch {
 			case first.Cols == 1 && first.Rows == t.Rows:
@@ -157,11 +169,25 @@ func init() {
 			default:
 				return ErrValue
 			}
-			all := lines(t, byCol)
+			rows, held, blank := t.Rows, t.held(), t.blankTail()
+			for i := 1; i < len(v); i += 2 {
+				by := c.grid(v[i])
+				if !byCol && by.Rows != rows {
+					return ErrValue
+				}
+				held, blank = max(held, by.held()), blank && by.blankTail()
+			}
+			read := func(x Value) *Table {
+				if blank && !byCol {
+					return c.grid(x).cut(held)
+				}
+				return c.array(x)
+			}
+			all := lines(read(v[0]), byCol)
 			var keys [][]Value
 			var orders []int
 			for i := 1; i < len(v); i += 2 {
-				by := c.array(v[i])
+				by := read(v[i])
 				if len(by.Cells) != len(all) || byCol && by.Rows != 1 || !byCol && by.Cols != 1 {
 					return ErrValue
 				}
@@ -177,14 +203,17 @@ func init() {
 				}
 				orders = append(orders, o[0])
 			}
-			return assemble(sortLines(all, keys, orders), byCol)
+			if byCol {
+				return assemble(sortLines(all, keys, orders), true)
+			}
+			return sortedRows(all, keys, orders, rows)
 		}),
 		"FILTER": fn(2, 3, func(c *Context, v []Value) Value {
-			t, err := c.arrayArg(v[0])
+			t, err := c.gridArg(v[0])
 			if err != nil {
 				return *err
 			}
-			include, err := c.arrayArg(v[1])
+			include, err := c.gridArg(v[1])
 			if err != nil {
 				return *err
 			}
@@ -193,12 +222,21 @@ func init() {
 			case include.Cols == 1 && include.Rows == t.Rows:
 			case include.Rows == 1 && include.Cols == t.Cols:
 				byCol = true
+				t, include = c.array(v[0]), c.array(v[1])
 			default:
 				return ErrValue
 			}
+			held := t.Cols
+			if !byCol {
+				held = max(t.held(), include.held())
+			}
 			var out [][]Value
-			for i, l := range lines(t, byCol) {
-				x := include.Cells[i]
+			repeated := false
+			for i := range held {
+				x, l := include.At(i, 0), row(t, i)
+				if byCol {
+					x, l = include.At(0, i), column(t, i)
+				}
 				switch x.Type {
 				case TypeNumber, TypeBool, TypeBlank:
 					if x.Num == 0 {
@@ -210,6 +248,12 @@ func init() {
 					return ErrValue
 				}
 				out = append(out, l)
+				repeated = !byCol && i == held-1
+			}
+			if repeated {
+				r := assemble(out, false)
+				r.Arr.Rows += t.Rows - held
+				return r
 			}
 			if len(out) > 0 {
 				return assemble(out, byCol)
@@ -236,6 +280,15 @@ func (c *Context) numberOr(v []Value, i int, def float64) (float64, *Value) {
 		return def, nil
 	}
 	return c.number(v[i])
+}
+
+// gridArg is a value as a table that may hold only its first rows, or the
+// error it is.
+func (c *Context) gridArg(v Value) (*Table, *Value) {
+	if v.Type == TypeError {
+		return nil, &v
+	}
+	return c.grid(v), nil
 }
 
 // arrayArg is a value as a table, or the error it is.
@@ -304,7 +357,7 @@ func (c *Context) sortOrders(v []Value, i int) ([]int, *Value) {
 	return out, nil
 }
 
-// lines is the rows of a table, or its columns.
+// lines is the rows a table holds, or its columns.
 func lines(t *Table, byCol bool) [][]Value {
 	if byCol {
 		out := make([][]Value, t.Cols)
@@ -313,7 +366,7 @@ func lines(t *Table, byCol bool) [][]Value {
 		}
 		return out
 	}
-	out := make([][]Value, t.Rows)
+	out := make([][]Value, t.held())
 	for i := range out {
 		out[i] = row(t, i)
 	}
@@ -354,6 +407,24 @@ func lineKey(l []Value) string {
 		fmt.Fprintf(&b, "%d%d:%s", v.Type, len(s), s)
 	}
 	return b.String()
+}
+
+// sortedRows is rows of an array sorted, of which ls holds the first, the
+// last repeating blank down to the others. Unless they sort last, they
+// stay out when more than maxRepeat cells, as past the cells of a sheet.
+func sortedRows(ls, keys [][]Value, orders []int, rows int) Value {
+	out := sortLines(ls, keys, orders)
+	blank := ls[len(ls)-1]
+	at := slices.IndexFunc(out, func(l []Value) bool { return &l[0] == &blank[0] })
+	switch {
+	case at == len(out)-1:
+		v := assemble(out, false)
+		v.Arr.Rows = rows
+		return v
+	case rows*len(blank) <= maxRepeat:
+		return assemble(slices.Insert(out, at, slices.Repeat([][]Value{blank}, rows-len(ls))...), false)
+	}
+	return assemble(slices.Delete(out, at, at+1), false)
 }
 
 // sortLines orders lines stably by their keys in turn: keys[k][i] is the

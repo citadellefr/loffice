@@ -290,26 +290,35 @@ func init() {
 				if v.Type == TypeError {
 					return v
 				}
-				t := c.array(v)
+				t := c.grid(v)
 				if len(tables) > 0 && (t.Rows != tables[0].Rows || t.Cols != tables[0].Cols) {
 					return ErrValue
 				}
 				tables = append(tables, t)
 			}
+			held := 0
+			for _, t := range tables {
+				held = max(held, t.held())
+			}
 			sum := 0.0
-			for i := range tables[0].Cells {
-				p := 1.0
-				for _, t := range tables {
-					v := t.Cells[i]
-					if v.Type == TypeError {
-						return v
+			for i := range held {
+				for j := range tables[0].Cols {
+					p := 1.0
+					for _, t := range tables {
+						v := t.At(i, j)
+						if v.Type == TypeError {
+							return v
+						}
+						if v.Type != TypeNumber {
+							p = 0
+						}
+						p *= v.Num
 					}
-					if v.Type != TypeNumber {
-						p = 0
+					if i == held-1 {
+						p *= float64(tables[0].Rows - i)
 					}
-					p *= v.Num
+					sum += p
 				}
-				sum += p
 			}
 			return Num(sum)
 		}},
@@ -446,7 +455,7 @@ func (c *Context) visibleCells(a Area3, skip int) Value {
 	nested, _ := c.Book.(interface {
 		Subtotal(sheet, row, col int) bool
 	})
-	for i := range t.Rows {
+	for i := range t.held() {
 		row := a.R1 + i
 		out := false
 		if rows != nil && skip&(skipHidden|skipFiltered) != 0 {

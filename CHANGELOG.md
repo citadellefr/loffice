@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- `formula` no longer refuses large ranges: a range, explicit or whole, holds
+  only the rows its sheet fills, and the arrays calculated from it keep the
+  shape Excel gives them (`A1:D1048576+1` has 1048576 rows), so whole columns
+  no longer lose their blank rows and `A:A*2` below the first row is
+  `#SPILL!`. An area that is at least half filled is read whatever its size,
+  VLOOKUP and HLOOKUP read only their keys and the cell found, and `#NUM!`
+  stays for arrays made from a size (MUNIT, SEQUENCE, MAKEARRAY) or a sheet of
+  a few cells far apart.
 - `agent` keeps whom its revisions are for in the document, one `behalf` node
   per author and date written as a document variable of `settings.xml`
   (`docx.BehalfNode`, `docx.BehalfOf`), instead of in a journal of the
