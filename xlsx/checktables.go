@@ -39,7 +39,9 @@ func viewTables(tree *ot.Tree, e ot.Edit) (*tableView, bool) {
 		if n.Type == "sheet" {
 			tables[n.ID] = n.Attrs[tablesKey]
 			var list []Table
-			_ = json.Unmarshal(n.Attrs[tablesKey], &list)
+			if raw := n.Attrs[tablesKey]; len(raw) > 0 && json.Unmarshal(raw, &list) != nil {
+				list = nil // an unreadable list before gives no table to follow
+			}
 			before[n.ID] = list
 		}
 	}

@@ -1337,7 +1337,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
       case 'clear':
         _edit(_edits.clear(sheet, a));
       case 'totals':
-        totalsEdits(sheet, table!, !table.totals).forEach(_edit);
+        totalsEdits(sheet, table!, !table.totals).every(_edit);
       case 'convert':
         _edit(changeTable(sheet, table!, null));
       case 'hide':
