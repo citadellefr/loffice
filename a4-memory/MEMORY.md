@@ -51,7 +51,6 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m21** La machine n'a pas unzip. Pour lire un xlsx du corpus, utiliser python3 -I avec zipfile. — _ag5, t5_
 - **m28** Dans zsh, `grep --include=*.go` échoue (« no matches found ») : mettre le glob entre guillemets. — _ag2, t8_
 - **m74** xlsx notes : l'index "shape" d'une note est son rang dans l'ordre (ligne, colonne) du fichier lu, pas l'ordre de comments.xml, sinon une réécriture (qui émet dans l'ordre des cellules) change l'arbre relu (TestCorpusRewrite). Un fil lu dans un fichier a une note fantôme tc={GUID} qu'on ne lit pas comme une note. — _ag5, t15_
-- **m75** Validation dotnet hors CI : dotnet vit dans /nix/store/qybc3wpz3hz5daipbmnj7rgc73hn35j2-dotnet-sdk-wrapped-8.0.425/bin/dotnet (pas dans le PATH). Écrire d'abord les classeurs avec LOFFICE_EDITED, LOFFICE_MOVED ou LOFFICE_COMMENTED, puis `DOTNET_CLI_HOME=/tmp/x LOFFICE_EDITED=1 dotnet run --project tools/validate -- corpus/files <dossier>` (~3 min), ou `dotnet build tools/validate -o /tmp/x` puis `dotnet /tmp/x/Validate.dll <originaux> <réécrits>` (la dll s'appelle Validate.dll ; les dossiers doivent porter les mêmes noms de fichiers). — _ag5, t15_
 
 ### agent/agent.go
 - **m50** (à_revérifier) agent/agent.go : un client trame qui réutilise peer.Client doit reprendre la numérotation n de ses ops à partir du champ ack de la trame doc (ou vider Client). Le hub (room.apply) ignore sans répondre (ni ack ni nack) un op dont n <= acks[Client], et le client attend alors indéfiniment. — _ag5, t23_
@@ -65,11 +64,14 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 ### agent/helpers_test.go
 - **m131** Dans les tests agent, human.edit envoie depuis la dernière version lue par le humain, pas la version courante : le hub transforme donc son op, et un Ins At=3 peut atterrir ligne 4. Consommer les frames op avec human.next("op") jusqu'à la version de l'agent avant d'envoyer une op positionnelle. — _ag2, t26_
 
+### agent/sheets_test.go
+- **m183** Revue de fusion loffice : git diff et les fichiers lus doivent venir de la tête de branche ET du résultat fusionné. Une branche a4 peut passer ses tests seule et ne plus compiler sur main (helper de test du même nom dans le même paquet) ou reposer sur une règle du Check que main a changée. Simuler la fusion dans un clone jetable (git clone puis git merge) avant le verdict. — _oa, t26_
+
 ### agent/slides.go
 - **m150** Dans l'arbre pptx, les enfants d'un master ne sont pas que des layouts : pptx place aussi les formes du masque sous le nœud master (types sp, pic…). Pour lister les dispositions, filtrer Type=="layout". — _ag2, t26_
 
 ### dart/
-- **m2** dart/ Flutter et Dart ne sont pas dans le PATH de cette machine. Soit `nix shell nixpkgs#flutter -c flutter test` depuis loffice/dart (suite complète ≈ 1 min 40), soit ajouter au PATH /nix/store/x8cc2489gk0lhbgm5q3y7pxfb7v9r706-flutter-wrapped-3.47.4-sdk-links/bin (Flutter 3.47.4, Dart 3.13.3) avant flutter test / dart analyze. — _orchestra_
+- **m2** (à_revérifier) dart/ Flutter et Dart ne sont pas dans le PATH de cette machine. Soit `nix shell nixpkgs#flutter -c flutter test` depuis loffice/dart (suite complète ≈ 1 min 40), soit ajouter au PATH /nix/store/x8cc2489gk0lhbgm5q3y7pxfb7v9r706-flutter-wrapped-3.47.4-sdk-links/bin (Flutter 3.47.4, Dart 3.13.3) avant flutter test / dart analyze. — _orchestra_
 
 ### dart/analysis_options.yaml
 - **m6** dart format ne lit formatter.page_width de analysis_options.yaml qu'après `flutter pub get` (il lui faut .dart_tool/package_config.json) ; sans cela le réglage est ignoré silencieusement et la largeur reste 80. — _ag1, t1_
@@ -81,6 +83,9 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m19** (à_revérifier) formula : les plages sont évaluées paresseusement, et la conversion scalaire (Context.scalar) lit les cellules après Eval. Tout état « en cours de calcul » (busy, pile) doit donc être levé après le remplissage de la valeur (fill), pas juste après Eval. — _ag5, t5_
 - **m65** (à_revérifier) formula/engine.go : Calc rend dynamique toute formule tapée par le client, même scalaire (xlsx/calc.go, SetDynamic), donc un parcours de tout e.spills par cellule, formule ou lecture de plage devient quadratique : les parcours doivent porter sur e.spread (formules dont la plage dépasse leur cellule). BenchmarkFollow ne charge que des formules lues du fichier ; pour mesurer les formules saisies (Calc.set typed=true), utiliser BenchmarkFollowTyped (xlsx/calc_test.go), un collage OpCel de milliers de formules. — _ag6, t6_
 
+### formula/eval.go
+- **m172** formula : c.table rogne les colonnes d'une référence de lignes entières (drapeau Rows) à la largeur utilisée de sa propre feuille. Deux aires de même forme sur deux feuilles différentes peuvent donc donner des tables de largeurs différentes. Si un appelant fixe lui-même la forme (tables() pour COUNTIFS/SUMIF), il doit effacer Rows/Cols avant d'appeler c.table. — _ob, t33_
+
 ### formula/fn_array.go
 - **m139** SORT décroissant met les vides en tête (TestArrays le fixe) : sur une colonne entière, la table compacte ne peut pas répéter sa dernière ligne, d'où sortedRows dans fn_array.go. — _ag4, t33_
 
@@ -91,7 +96,10 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m58** Les exemples de la doc Microsoft sont parfois des valeurs d'Excel arrondies à sa propre tolérance (XIRR 0.373362535 alors que la racine exacte est 0.3733625335) ou tronquées (TBILLYIELD, MIRR) : les tests comparent à la demi-unité du dernier chiffre écrit. — _ag5, t9_
 
 ### formula/fn_lambda_test.go
-- **m93** In formula tests, do not name a defined name FACT (or any other built-in Excel function): the builtin is called instead of the name, and the engine reads no dependencies. — _ag5, t11_
+- **m93** (à_revérifier) In formula tests, do not name a defined name FACT (or any other built-in Excel function): the builtin is called instead of the name, and the engine reads no dependencies. — _ag5, t11_
+
+### formula/fn_math.go
+- **m173** formula : SUMPRODUCT sur des lignes entières de deux feuilles (Feuil1!1:1,Feuil2!1:1) rend #VALUE!. c.grid rogne chaque référence Rows à la largeur de sa propre feuille, puis fn_math.go compare les formes. Le défaut existe déjà sur main ; il n'est pas corrigé dans t33. — _ag4, t33_
 
 ### formula/fn_special.go
 - **m27** math.Erfcinv de Go perd ses chiffres dans la queue (il calcule Erfinv(1-x)) : pour une normale inverse précise à 1e-9, affiner le résultat par Halley sur la CDF calculée avec Erfc (normInv, formula/fn_special.go). — _ag2, t8_
@@ -109,15 +117,16 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m122** `-run Edits` de pptx (CI, run.sh) n'écrit que 2 fichiers édités ; TestTransitions et TestComments écrivent aussi avec LOFFICE_EDITED (saveCorpus) mais sous des noms (comments/two.pptx) sans original : le validateur les ignore. Copier la sortie en <dossier>/poi/aptia.pptx pour la valider. — _ag4, t29_
 
 ### tools/validate/Program.cs
-- **m143** Le validateur Open XML SDK se lance depuis tools/validate avec nix shell nixpkgs#dotnet-sdk_8 -c dotnet run -c Release -- <orig> <edited> : les deux répertoires doivent avoir les mêmes chemins relatifs. Les tests de graphiques écrivent leurs fichiers avec LOFFICE_EDITED=<dir> (sous charts/). — _ag1, t18_
+- **m75** Validation Open XML SDK hors CI : dotnet vit dans /nix/store/qybc3wpz3hz5daipbmnj7rgc73hn35j2-dotnet-sdk-wrapped-8.0.425/bin/dotnet (pas dans le PATH ; sinon `nix shell nixpkgs#dotnet-sdk_8 -c dotnet ...`). Écrire d'abord les classeurs avec LOFFICE_EDITED, LOFFICE_MOVED ou LOFFICE_COMMENTED (les tests de graphiques écrivent sous charts/), puis `DOTNET_CLI_HOME=/tmp/x LOFFICE_EDITED=1 dotnet run -c Release --project tools/validate -- corpus/files <dossier>` (~3 min), ou `dotnet build tools/validate -o /tmp/x` puis `dotnet /tmp/x/Validate.dll <originaux> <réécrits>` (la dll s'appelle Validate.dll). Les deux dossiers doivent porter les mêmes chemins relatifs. tools/validate/run.sh automatise l'ensemble (voir m121). — _ag5, t15_
 
 ### xlsx/
 - **m10** Dans loffice (et dans ses worktrees a4), lancer go avec GOWORK=off : le go.work parent (/home/me/Code/Citadelle/go.work) n'inclut ni loffice ni les worktrees, et go build/vet/test échouent sinon (« directory prefix . does not contain modules listed in go.work »). `go test ./xlsx` sans -short dure ≈ 4 min : le lancer en arrière-plan ou avec un délai long. dotnet, qpdf et soffice ne sont pas installés : nix est disponible (nix shell nixpkgs#dotnet-sdk_8 etc.) pour les obtenir sans toucher au système. — _ag6, t6_
 
 ### xlsx/calc.go
 - **m23** (à_revérifier) xlsx : le writer ne doit jamais réécrire le texte d'une formule lue d'un fichier, sinon TestCorpusRewrite échoue (LibreOffice écrit par exemple ISO.CEILING sans préfixe). Les préfixes _xlfn. sont posés à la saisie, par Calc via formula.Stored, et seulement pour les formules tapées par le client. — _ag6, t6_
-- **m40** (à_revérifier) xlsx : Calc.Follow doit flusher après chaque ins/rem de l'édit (f.shift puis f.flush). Sinon les décalages successifs lisent le texte non décalé de l'arbre et le dernier écrase les précédents dans f.cells. Le book "moves" est posé par workbook.moved (format.go) avant calc.Follow, pour survivre à un panic du calcul. — _ag3, t28_
-- **m148** (à_revérifier) Le coût d'un renommage de feuille sur 100 000 formules vient surtout de formula.Rename (réécriture des textes) et du Set de chaque formule dans Calc.rebuild, pas de la recherche des cercles (≈ 60 ms). BenchmarkRenameSheet et BenchmarkOpenFormulas (xlsx/calc_test.go) le mesurent. — _ag3, t34_
+- **m40** xlsx : Calc.Follow doit flusher après chaque ins/rem de l'édit (f.shift puis f.flush). Sinon les décalages successifs lisent le texte non décalé de l'arbre et le dernier écrase les précédents dans f.cells. Le book "moves" est posé par workbook.moved (format.go) avant calc.Follow, pour survivre à un panic du calcul. — _ag3, t28_
+- **m148** Le coût d'un renommage de feuille sur 100 000 formules vient surtout de formula.Rename (réécriture des textes) et du Set de chaque formule dans Calc.rebuild, pas de la recherche des cercles (≈ 60 ms). BenchmarkRenameSheet et BenchmarkOpenFormulas (xlsx/calc_test.go) le mesurent. — _ag3, t34_
+- **m175** loffice xlsx : quand des lignes ou colonnes sont supprimées (rem), le Follower (xlsx/calc.go shift) ne décale pas seulement les formules. Il décale ou retire aussi valid, cf, charts, filter, tables, print, names, le nœud looks et les attributs m/fa des cellules. Réinsérer les lignes ne répare pas ce qui pointait dans la bande supprimée : l'inverse d'un rem doit reposer ces attributs (agent state.unshifted). Le Check refuse d'écrire charts, qui part donc dans Record.Lost. — _ag2, t26_
 
 ### xlsx/check.go
 - **m43** (à_revérifier) xlsx : Document.Check (checkCell, xlsx/check.go) refuse toute clé de cellule qu'il ne connaît pas. Une nouvelle clé du modèle de cellule (par ex. cm) doit y recevoir son cas, sinon toute édition qui la porte est refusée (« this part of the workbook cannot be edited »). TestCorpusEdits, lancé seulement sans -short, le détecte. — _ag6, t6_
@@ -198,6 +207,7 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 
 ### formula/eval.go
 - **m138** La borne mémoire de formula : maxCells ne limite que les tableaux construits d'après une taille demandée ou une zone clairsemée ; une zone au moins à moitié remplie (crowded) est admise quelle que soit sa taille, sa mémoire étant proportionnelle au classeur. — _ag4, t33_
+- **m181** t33 (formula, grandes plages) : le travail bloqué après 4 refus de revue est repris, pas abandonné, depuis a4/loffice/ag4-t33-backup, avec des invariants et des preuves systématiques : une table compacte n'est jamais énumérée sans borne, la borne vit à un seul endroit, c.array ne change pas la forme d'une référence explicite, et tout ce que main calcule sans #NUM! garde son résultat. Pourquoi : la revue trouvait de nouveaux cas à chaque round, la correction cas par cas ne convergeait pas. — _orchestra_
 
 ## préférence
 
