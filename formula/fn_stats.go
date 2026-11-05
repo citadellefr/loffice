@@ -466,9 +466,10 @@ func (c *Context) tables(areas []Area3) ([]*Table, *Value) {
 	out := make([]*Table, len(areas))
 	for i, a := range areas {
 		a.R2, a.C2 = a.R1+rows-1, a.C1+cols-1
+		a.Rows, a.Cols = false, false
 		out[i] = c.table(a)
 		if out[i].Rows != rows || out[i].Cols != cols {
-			return nil, &out[i].Cells[0]
+			return nil, &ErrNum
 		}
 	}
 	return out, nil

@@ -124,6 +124,25 @@ func TestOffsetAreasOfLongSheet(t *testing.T) {
 	}
 }
 
+func TestRowsOfTwoSheets(t *testing.T) {
+	b := &mapBook{sheets: []string{"Feuil1", "Feuil2"}, cells: map[[3]int]Value{}}
+	for c := 1; c <= 4; c++ {
+		b.cells[[3]int{0, 1, c}] = Num(1)
+	}
+	b.cells[[3]int{1, 1, 1}] = Num(7)
+	b.cells[[3]int{1, 1, 2}] = Num(1)
+	for _, tc := range []struct{ f, want string }{
+		{"COUNTIFS(Feuil1!1:1,\">0\",Feuil2!1:1,\">0\")", "2"},
+		{"COUNTIFS(Feuil2!1:1,\">0\",Feuil1!1:1,\">0\")", "2"},
+		{"SUMIFS(Feuil2!1:1,Feuil1!1:1,1)", "8"},
+		{"SUMIF(Feuil1!1:1,1,Feuil2!1:1)", "8"},
+	} {
+		if got := eval(t, b, English, tc.f).show(); got != tc.want {
+			t.Errorf("%s = %s, want %s", tc.f, got, tc.want)
+		}
+	}
+}
+
 func TestLookupLongSheet(t *testing.T) {
 	if testing.Short() {
 		t.Skip("300 000 rows")
