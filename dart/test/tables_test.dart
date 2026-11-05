@@ -9,6 +9,13 @@ import 'package:loffice/src/excel/tables.dart';
 import 'package:loffice/src/excel/workbook.dart';
 import 'package:trame/testing.dart';
 
+class _NoInsertSession extends DocSession {
+  _NoInsertSession(super.connect);
+
+  @override
+  bool edit(Edit edit) => edit.changes.any((c) => c.kind == ChangeKind.insert) ? false : super.edit(edit);
+}
+
 const _existing = {
   'id': 1,
   'name': 'Tableau1',
@@ -242,21 +249,22 @@ void main() {
       await tester.pump();
     }
 
-    Future<void> open(WidgetTester tester) async {
+    Future<void> open(WidgetTester tester, {bool refuseInsert = false, List<Cell> below = const []}) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       hub = FakeHub.tree(
         _workbook(
           tables: [_existing.map((k, v) => MapEntry(k, k == 'ref' ? 'A1:B3' : v))],
-          cells: const [
+          cells: [
             Cell(1, 1, {'v': 'Nom'}),
             Cell(1, 2, {'v': 'Prix'}),
             Cell(2, 1, {'v': 'a'}),
+            ...below,
           ],
         ),
       );
-      session = DocSession(hub.connect)..start();
+      session = (refuseInsert ? _NoInsertSession(hub.connect) : DocSession(hub.connect))..start();
       addTearDown(session.dispose);
       await tester.pumpWidget(
         MaterialApp(
@@ -343,6 +351,17 @@ void main() {
       await tester.tap(find.text('Convertir en plage'));
       await settle(tester);
       expect(tables(), isEmpty);
+      await finish(tester);
+    });
+
+    testWidgets('the total row stays off when the row it needs is refused', (tester) async {
+      await open(tester, refuseInsert: true, below: const [Cell(4, 1, {'v': 'x'})]);
+      await rightClick(tester);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Ligne Total'), warnIfMissed: false);
+      await settle(tester);
+      expect(tables().single.totals, isFalse);
+      expect(hub.doc['S1']!.grid!.cell(4, 1)?['v'], 'x');
       await finish(tester);
     });
   });
