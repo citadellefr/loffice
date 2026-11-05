@@ -166,6 +166,8 @@ func FuzzWorkbook(f *testing.F) {
 		}
 	}
 	f.Add([]byte{})
+	f.Add(bounded(num(0, 0, 1), cfRule(cfNumber, 0, []byte{0, 9}),
+		dv(dvList|0x03, listOf("a\x00 b"), [4]int{0, 0, 0, 0})))
 	f.Fuzz(func(t *testing.T, data []byte) {
 		book, _, err := Workbook(data, Limits{})
 		if err != nil {

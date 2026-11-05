@@ -10,9 +10,12 @@ import (
 // The blocks of a format that a CF holds, by the flag that tells it is
 // there, and the flags that tell what the blocks leave alone.
 const (
+	cfNumber      = 0x02000000
 	cfFont        = 0x04000000
+	cfAlign       = 0x08000000
 	cfBorder      = 0x10000000
 	cfArea        = 0x20000000
+	cfNoFormat    = 0x00080000
 	cfNoPattern   = 0x00010000
 	cfNoFore      = 0x00020000
 	cfNoBack      = 0x00040000
@@ -22,6 +25,8 @@ const (
 	cfItalic      = 0x00000002
 	cfStrike      = 0x00000080
 	cfFontSize    = 118
+	cfAlignSize   = 8
+	cfUserFormat  = 0x0001
 	cfRuleCell    = 1
 	cfRuleFormula = 2
 	// cfFirstExtended is the first kind of rule only a CF12 can hold:
@@ -106,7 +111,7 @@ func (s *sheet) rule(d []byte) bool {
 		return false
 	}
 	kind, op, size1, size2, flags := d[0], int(d[1]), int(le.Uint16(d[2:])), int(le.Uint16(d[4:])), le.Uint32(d[6:])
-	style, d, ok := s.b.conditionalStyle(flags, d[12:])
+	style, d, ok := s.b.conditionalStyle(flags, d[10:])
 	if !ok || len(d) < size1+size2 || style == nil {
 		return false
 	}
@@ -146,15 +151,37 @@ func (s *sheet) rule(d []byte) bool {
 }
 
 // conditionalStyle reads the blocks of the format a CF holds, and what
-// follows them. It is nil when the rule changes nothing.
+// follows them: the flags of the format, then the number format, the font,
+// the alignment, the border and the area. It is nil when the rule changes
+// nothing.
 func (b *book) conditionalStyle(flags uint32, d []byte) (*xlsx.Style, []byte, bool) {
+	if len(d) < 2 {
+		return nil, nil, false
+	}
+	user, d := le.Uint16(d)&cfUserFormat != 0, d[2:]
 	st := &xlsx.Style{}
+	if flags&cfNumber != 0 {
+		format, size, ok := b.conditionalFormat(user, d)
+		if !ok {
+			return nil, nil, false
+		}
+		if flags&cfNoFormat == 0 {
+			st.Format = format
+		}
+		d = d[size:]
+	}
 	if flags&cfFont != 0 {
 		if len(d) < cfFontSize {
 			return nil, nil, false
 		}
 		st.Font = b.conditionalFont(d[:cfFontSize])
 		d = d[cfFontSize:]
+	}
+	if flags&cfAlign != 0 {
+		if len(d) < cfAlignSize {
+			return nil, nil, false
+		}
+		d = d[cfAlignSize:]
 	}
 	if flags&cfBorder != 0 {
 		if len(d) < 8 {
@@ -170,10 +197,27 @@ func (b *book) conditionalStyle(flags uint32, d []byte) (*xlsx.Style, []byte, bo
 		st.Fill = b.conditionalFill(flags, d[:4])
 		d = d[4:]
 	}
-	if st.Font == nil && st.Border == nil && st.Fill == nil {
+	if st.Format == "" && st.Font == nil && st.Border == nil && st.Fill == nil {
 		return nil, d, true
 	}
 	return st, d, true
+}
+
+// conditionalFormat reads the number format a CF holds, and the bytes it
+// takes: the code of a format of the workbook or a built-in one, or the
+// format itself.
+func (b *book) conditionalFormat(user bool, d []byte) (string, int, bool) {
+	if len(d) < 2 {
+		return "", 0, false
+	}
+	if !user {
+		return b.format(int(d[1])), 2, true
+	}
+	code, size, _ := longText(d[2:])
+	if size == 0 || int(le.Uint16(d)) < size {
+		return "", 0, false
+	}
+	return code, 2 + size, true
 }
 
 // conditionalFont is what the font block changes of a font: the style, the

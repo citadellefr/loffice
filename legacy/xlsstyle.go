@@ -70,6 +70,19 @@ func (b *book) font(i int) *xlsx.Font {
 	return f
 }
 
+// format is the number format of an index: the one the workbook defines, or
+// the built-in one. It is empty for the general format.
+func (b *book) format(id int) string {
+	code, ok := b.formats[id]
+	if !ok {
+		code = xlsx.BuiltinFormat(id)
+	}
+	if id == 0 || code == "General" {
+		return ""
+	}
+	return code
+}
+
 // style is the cell format at an index of the file.
 func (b *book) style(index int) (xlsx.Style, bool) {
 	var st xlsx.Style
@@ -78,16 +91,7 @@ func (b *book) style(index int) (xlsx.Style, bool) {
 	}
 	d := b.xfs[index]
 	st.Font = b.font(int(le.Uint16(d)))
-	if id := int(le.Uint16(d[2:])); id != 0 {
-		if code, ok := b.formats[id]; ok {
-			st.Format = code
-		} else {
-			st.Format = xlsx.BuiltinFormat(id)
-		}
-		if st.Format == "General" {
-			st.Format = ""
-		}
-	}
+	st.Format = b.format(int(le.Uint16(d[2:])))
 	if flags := le.Uint16(d[4:]); flags&0x03 != 0x01 {
 		st.Prot = &xlsx.Protection{Unlocked: flags&0x01 == 0, Hidden: flags&0x02 != 0}
 	}
