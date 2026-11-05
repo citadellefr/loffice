@@ -69,9 +69,10 @@ agent's selection move to what it edits, and the list of its recent edits,
 for editors to highlight a while. `UndoMine` takes back its edits for a user
 by edits that undo them, rebased over what others did since, the last first,
 and refuses, saying what, when someone else changed the same content
-meanwhile. Formulas that deleting rows or columns broke are set back with
-them. The notes of a slide and the comments of others, which nobody may
-make again, come back in `Record.Lost` instead.
+meanwhile. Formulas, validations, conditional formats, filters, tables,
+print breaks and names that deleting rows or columns broke are set back with
+them. The notes of a slide, the comments of others and the charts of a
+sheet, which nobody may make again, come back in `Record.Lost` instead.
 
 ## MCP server
 

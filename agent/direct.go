@@ -98,15 +98,13 @@ func (a *Agent) appliedMine(e ot.Edit, v uint64, f *flight) {
 	}
 	a.s.version = v
 	var lost []string
-	if a.isSlides() {
-		back = slices.DeleteFunc(back, func(c ot.Change) bool {
-			what := a.unrestorable(c)
-			if what != "" {
-				lost = append(lost, what)
-			}
-			return what != ""
-		})
-	}
+	back = slices.DeleteFunc(back, func(c ot.Change) bool {
+		what := a.unrestorable(c)
+		if what != "" {
+			lost = append(lost, what)
+		}
+		return what != ""
+	})
 	a.mine = append(a.mine, &mine{user: f.owner, version: v, edits: f.batch, undo: split(back), lost: lost})
 }
 
@@ -196,9 +194,115 @@ func (s *state) inverse(c ot.Change) ot.Edit {
 		if len(restore.Cells) > 0 {
 			back = append(back, restore)
 		}
-		return append(back, s.broken(c, r1, r2, c1, c2)...)
+		back = append(back, s.broken(c, r1, r2, c1, c2)...)
+		return append(back, s.unshifted(c)...)
 	}
 	return nil
+}
+
+// unshifted are the changes that set again the attributes of the workbook
+// that point into the lines c removes: removing them moves or drops those,
+// and inserting the lines back does not mend them. The charts go apart, as
+// nobody may set them.
+func (s *state) unshifted(c ot.Change) ot.Edit {
+	sheet := s.tree.Node(c.ID)
+	name := str(sheet.Attrs, "name")
+	rows := c.Dim == ot.DimRows
+	from, to := c.At, c.At+c.N
+	into := func(i int) bool { return i >= from && i < to }
+	var out ot.Edit
+	for _, n := range s.tree.Children(sheet.Parent) {
+		if n.Grid == nil {
+			continue
+		}
+		own := n.ID == c.ID
+		set, charts := ot.Values{}, ot.Values{}
+		for _, k := range []string{"valid", "cf", "filter", "tables", "print", "charts"} {
+			raw := n.Attrs[k]
+			if raw == nil {
+				continue
+			}
+			hit := refsInto(raw, name, own, rows, from, to)
+			if own && k == "print" {
+				var p struct{ Rows, Cols []int }
+				_ = json.Unmarshal(raw, &p)
+				breaks := p.Cols
+				if rows {
+					breaks = p.Rows
+				}
+				hit = hit || slices.ContainsFunc(breaks, into)
+			}
+			if own && k == "charts" {
+				var list []struct{ From, To *struct{ Col, Row int } }
+				_ = json.Unmarshal(raw, &list)
+				for _, p := range list {
+					for _, corner := range []*struct{ Col, Row int }{p.From, p.To} {
+						if corner != nil && rows {
+							hit = hit || into(corner.Row+1)
+						} else if corner != nil {
+							hit = hit || into(corner.Col+1)
+						}
+					}
+				}
+			}
+			switch {
+			case !hit:
+			case k == "charts":
+				charts[k] = raw
+			default:
+				set[k] = raw
+			}
+		}
+		if len(set) > 0 {
+			out = append(out, ot.Change{Op: ot.OpSet, ID: n.ID, Attrs: set})
+		}
+		if len(charts) > 0 {
+			out = append(out, ot.Change{Op: ot.OpSet, ID: n.ID, Attrs: charts})
+		}
+	}
+	book := s.tree.Node(sheet.Parent)
+	if raw := book.Attrs["names"]; raw != nil && refsInto(raw, name, false, rows, from, to) {
+		out = append(out, ot.Change{Op: ot.OpSet, ID: book.ID, Attrs: ot.Values{"names": raw}})
+	}
+	return out
+}
+
+// refsInto tells whether a formula or area of raw points into lines from
+// to to of the sheet named name, or of its own when own.
+func refsInto(raw json.RawMessage, name string, own, rows bool, from, to int) bool {
+	var v any
+	_ = json.Unmarshal(raw, &v)
+	var walk func(v any) bool
+	walk = func(v any) bool {
+		switch v := v.(type) {
+		case string:
+			hit := false
+			_, _ = formula.Rewrite(v, func(r *formula.Ref) bool {
+				a := r.Area
+				if r.Invalid || r.Book != "" || r.LastSheet != "" || r.Sheet == "" && !own ||
+					r.Sheet != "" && !strings.EqualFold(r.Sheet, name) || rows && a.Cols || !rows && a.Rows {
+					return false
+				}
+				lo, hi := a.R1, a.R2
+				if !rows {
+					lo, hi = a.C1, a.C2
+				}
+				hit = hit || lo < to && hi >= from
+				return false
+			})
+			return hit
+		case []any:
+			return slices.ContainsFunc(v, walk)
+		case map[string]any:
+			for _, x := range v {
+				if walk(x) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	return walk(v)
 }
 
 // broken are the changes that set again the formulas of the workbook that

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"math"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -570,5 +571,102 @@ func TestSheetMarks(t *testing.T) {
 	}
 	if len(eph.Recent) != 1 || eph.Recent[0].Node != id || eph.Recent[0].Cells == nil || *eph.Recent[0].Cells != [4]int{2, 2, 3, 3} {
 		t.Fatalf("%+v", eph)
+	}
+}
+
+func sheetAttr(t *testing.T, a *Agent, id, key string) string {
+	t.Helper()
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return string(a.s.tree.Node(id).Attrs[key])
+}
+
+func TestUndoSheetValidations(t *testing.T) {
+	r, a := newBook(t)
+	alice := r.human("Alice")
+	id := sheetID(t, a)
+	valid := `[{"ref":"A2:A3","prompt":"x"},{"ref":"B2","prompt":"y"},{"ref":"C5","prompt":"z"}]`
+	cf := `[{"ref":"A1:A2","type":"duplicateValues","pri":1,"style":{}}]`
+	f := alice.edit(ot.Edit{{Op: ot.OpSet, ID: id, Attrs: ot.Values{"valid": json.RawMessage(valid), "cf": json.RawMessage(cf)}}})
+	if f.T != "ack" {
+		t.Fatalf("%+v", f)
+	}
+	settle(t, a, f.V)
+	valid, cf = sheetAttr(t, a, id, "valid"), sheetAttr(t, a, id, "cf")
+	apply(t, a, Edit{Op: "delete_rows", Sheet: "Données", Range: "2"})
+	rec, err := a.UndoMine(t.Context(), "u1")
+	if err != nil || len(rec.Lost) > 0 {
+		t.Fatal(rec, err)
+	}
+	if got := sheetAttr(t, a, id, "valid"); got != valid {
+		t.Fatalf("valid is %s, want %s", got, valid)
+	}
+	if got := sheetAttr(t, a, id, "cf"); got != cf {
+		t.Fatalf("cf is %s, want %s", got, cf)
+	}
+}
+
+func TestUndoSheetValidationsChanged(t *testing.T) {
+	r, a := newBook(t)
+	alice := r.human("Alice")
+	id := sheetID(t, a)
+	if f := alice.edit(ot.Edit{{Op: ot.OpSet, ID: id, Attrs: ot.Values{"valid": json.RawMessage(`[{"ref":"B2","prompt":"y"}]`)}}}); f.T != "ack" {
+		t.Fatalf("%+v", f)
+	}
+	apply(t, a, Edit{Op: "delete_rows", Sheet: "Données", Range: "2"})
+	a.mu.Lock()
+	seen := a.s.version
+	a.mu.Unlock()
+	for alice.v < seen {
+		alice.next("op")
+	}
+	f := alice.edit(ot.Edit{{Op: ot.OpSet, ID: id, Attrs: ot.Values{"valid": json.RawMessage(`[{"ref":"D4","prompt":"w"}]`)}}})
+	if f.T != "ack" {
+		t.Fatalf("%+v", f)
+	}
+	settle(t, a, f.V)
+	if _, err := a.UndoMine(t.Context(), "u1"); !errors.Is(err, ErrChanged) {
+		t.Fatal(err)
+	}
+	if got := sheetAttr(t, a, id, "valid"); got != `[{"ref":"D4","prompt":"w"}]` {
+		t.Fatal(got)
+	}
+}
+
+func TestUnshifted(t *testing.T) {
+	attrs := func(kv ...string) ot.Values {
+		v := ot.Values{}
+		for i := 0; i < len(kv); i += 2 {
+			v[kv[i]] = json.RawMessage(kv[i+1])
+		}
+		return v
+	}
+	tree, err := ot.NewTree(ot.Edit{
+		{Op: ot.OpNew, ID: "book", Type: "book", Key: "a", Attrs: attrs("names", `[{"name":"Fin","ref":"Données!$A$9"}]`)},
+		{Op: ot.OpNew, ID: "S1", Type: "sheet", Parent: "book", Key: "a", Cells: []ot.Cell{}, Attrs: attrs("name", `"Données"`,
+			"print", `{"rows":[3]}`, "charts", `[{"from":{"col":0,"row":1},"chart":null}]`, "filter", `{"ref":"A5:B9"}`)},
+		{Op: ot.OpNew, ID: "S2", Type: "sheet", Parent: "book", Key: "b", Cells: []ot.Cell{}, Attrs: attrs("name", `"Cache"`,
+			"valid", `[{"ref":"A1","type":"list","f1":"Données!$A$2:$A$4"}]`)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := newState(tree, 1)
+	back := s.inverse(ot.Change{Op: ot.OpRem, ID: "S1", Dim: ot.DimRows, At: 2, N: 2})
+	want := ot.Edit{
+		{Op: ot.OpIns, ID: "S1", Dim: ot.DimRows, At: 2, N: 2},
+		{Op: ot.OpSet, ID: "S1", Attrs: attrs("print", `{"rows":[3]}`)},
+		{Op: ot.OpSet, ID: "S1", Attrs: attrs("charts", `[{"from":{"col":0,"row":1},"chart":null}]`)},
+		{Op: ot.OpSet, ID: "S2", Attrs: attrs("valid", `[{"ref":"A1","type":"list","f1":"Données!$A$2:$A$4"}]`)},
+	}
+	if !reflect.DeepEqual(back, want) {
+		t.Fatalf("%+v", back)
+	}
+	a := &Agent{s: s}
+	if got := a.unrestorable(back[2]); got != `the charts of sheet "Données" (S1)` {
+		t.Fatal(got)
+	}
+	if got := a.unrestorable(back[1]); got != "" {
+		t.Fatal(got)
 	}
 }
