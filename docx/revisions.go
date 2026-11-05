@@ -26,7 +26,7 @@ var revisionDates = map[string]string{"ins": "insd", "del": "deld"}
 
 const typeSettings = "application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"
 
-// settingsOrder is the sequence of settings.xml up to trackRevisions.
+// settingsOrder is the sequence of settings.xml up to docVars.
 var settingsOrder = []string{
 	"writeProtection", "view", "zoom", "removePersonalInformation", "removeDateAndTime",
 	"doNotDisplayPageBoundaries", "displayBackgroundShape", "printPostScriptOverText",
@@ -35,7 +35,18 @@ var settingsOrder = []string{
 	"bordersDoNotSurroundHeader", "bordersDoNotSurroundFooter", "gutterAtTop", "hideSpellingErrors",
 	"hideGrammaticalErrors", "activeWritingStyle", "proofState", "formsDesign", "attachedTemplate",
 	"linkStyles", "stylePaneFormatFilter", "stylePaneSortMethod", "documentType", "mailMerge",
-	"revisionView", "trackRevisions",
+	"revisionView", "trackRevisions", "doNotTrackMoves", "doNotTrackFormatting", "documentProtection",
+	"autoFormatOverride", "styleLockTheme", "styleLockQFSet", "defaultTabStop", "autoHyphenation",
+	"consecutiveHyphenLimit", "hyphenationZone", "doNotHyphenateCaps", "showEnvelope", "summaryLength",
+	"clickAndTypeStyle", "defaultTableStyle", "evenAndOddHeaders", "bookFoldRevPrinting", "bookFoldPrinting",
+	"bookFoldPrintingSheets", "drawingGridHorizontalSpacing", "drawingGridVerticalSpacing",
+	"displayHorizontalDrawingGridEvery", "displayVerticalDrawingGridEvery", "doNotUseMarginsForDrawingGridOrigin",
+	"drawingGridHorizontalOrigin", "drawingGridVerticalOrigin", "doNotShadeFormData", "noPunctuationKerning",
+	"characterSpacingControl", "printTwoOnOne", "strictFirstAndLastChars", "noLineBreaksAfter",
+	"noLineBreaksBefore", "savePreviewPicture", "doNotValidateAgainstSchema", "saveInvalidXml",
+	"ignoreMixedContent", "alwaysShowPlaceholderText", "doNotDemarcateInvalidXml", "saveXmlDataOnly",
+	"useXSLTWhenSaving", "saveThroughXslt", "showXMLTags", "alwaysMergeEmptyNamespace", "updateFields",
+	"hdrShapeDefaults", "footnotePr", "endnotePr", "compat", "docVars",
 }
 
 // readRevision adds to attrs the revision e is, if it is one.
@@ -187,11 +198,11 @@ func (d *Document) readRevision(wrap, kind, author string) bool {
 	return false
 }
 
-// settings writes whether changes are tracked into settings.xml, when a
-// client turned it on or off.
+// settings writes whether changes are tracked, and whom revisions were made
+// for, into settings.xml, when a client changed them.
 func (w *writer) settings() error {
 	track := tracking(w.tree)
-	if track == tracking(w.d.loaded) {
+	if track == tracking(w.d.loaded) && w.sameBehalf() {
 		return nil
 	}
 	name := w.d.mainRels.OfType(w.d.main, relSettings)
@@ -210,10 +221,13 @@ func (w *writer) settings() error {
 		root.Set("xmlns:w", NS)
 		doc = &xmldom.Document{Prolog: []byte(xmlHeader), Root: root}
 	}
-	remove(doc.Root, "trackRevisions")
-	if track {
-		insert(doc.Root, newW(doc.Root, "trackRevisions"), settingsOrder)
+	if track != tracking(w.d.loaded) {
+		remove(doc.Root, "trackRevisions")
+		if track {
+			insert(doc.Root, newW(doc.Root, "trackRevisions"), settingsOrder)
+		}
 	}
+	w.writeBehalf(doc.Root)
 	return w.write(name, typeSettings, doc.Bytes(), relSettings)
 }
 

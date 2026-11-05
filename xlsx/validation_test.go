@@ -125,7 +125,7 @@ func TestValidationChecked(t *testing.T) {
 			t.Errorf("%s taken", bad)
 		}
 	}
-	many := "[" + strings.Repeat(`{"ref":"A1","type":"custom","f1":"A1"},`, maxRules) + `{"ref":"A1","type":"custom","f1":"A1"}]`
+	many := "[" + strings.Repeat(`{"ref":"A1","type":"custom","f1":"A1"},`, MaxRules) + `{"ref":"A1","type":"custom","f1":"A1"}]`
 	if checkValidations(json.RawMessage(many)) {
 		t.Error("too many validations taken")
 	}

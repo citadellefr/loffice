@@ -7,12 +7,15 @@ import (
 	"strings"
 
 	"github.com/citadellefr/loffice/chart"
+	"github.com/citadellefr/loffice/drawingml"
+	"github.com/citadellefr/loffice/internal/partrel"
 	"github.com/citadellefr/loffice/internal/xmldom"
 	"github.com/citadellefr/trame/ot"
 )
 
 const (
 	wpNS  = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+	dgmNS = "http://schemas.openxmlformats.org/drawingml/2006/diagram"
 	aNS   = "http://schemas.openxmlformats.org/drawingml/2006/main"
 	vmlNS = "urn:schemas-microsoft-com:vml"
 )
@@ -35,6 +38,14 @@ type Picture struct {
 	Line string   `json:"line,omitempty"`
 	// Chart is the chart the drawing shows, drawn but not edited.
 	Chart *chart.Chart `json:"chart,omitempty"`
+	// Diagram is the drawing recorded of the SmartArt the drawing shows,
+	// drawn but not edited.
+	Diagram *drawingml.Diagram `json:"diagram,omitempty"`
+}
+
+// blank tells whether nothing of the picture can be drawn.
+func (p *Picture) blank() bool {
+	return p.Media == "" && p.Chart == nil && p.Diagram == nil && p.Text == nil
 }
 
 // Float is the position of an anchored drawing.
@@ -69,11 +80,7 @@ func (r *reader) describe(e *xmldom.Element, attrs ot.Attrs) {
 	case NS:
 	case mcNS:
 		if e.Local == "AlternateContent" {
-			if c := e.Child(mcNS, "Choice"); c != nil {
-				for _, inner := range c.Elements() {
-					r.describe(inner, attrs)
-				}
-			}
+			r.alternate(e, attrs)
 		}
 		return
 	case "http://schemas.openxmlformats.org/officeDocument/2006/math":
@@ -120,6 +127,24 @@ func (r *reader) describe(e *xmldom.Element, attrs ot.Attrs) {
 	}
 }
 
+// alternate describes what an AlternateContent shows: its choice, or its
+// fallback when the choice has nothing to draw.
+func (r *reader) alternate(e *xmldom.Element, attrs ot.Attrs) {
+	for _, branch := range []string{"Choice", "Fallback"} {
+		b := e.Child(mcNS, branch)
+		if b == nil {
+			continue
+		}
+		for _, inner := range b.Elements() {
+			r.describe(inner, attrs)
+		}
+		var p Picture
+		if json.Unmarshal([]byte(attrs["img"]), &p) == nil && !p.blank() {
+			return
+		}
+	}
+}
+
 // drawing reads a w:drawing.
 func (r *reader) drawing(e *xmldom.Element) *Picture {
 	for _, c := range e.Elements() {
@@ -151,6 +176,9 @@ func (r *reader) drawing(e *xmldom.Element) *Picture {
 		if ref := find(c, chart.NS, "chart"); ref != nil {
 			p.Chart = r.chart(ref)
 		}
+		if ref := find(c, dgmNS, "relIds"); ref != nil {
+			p.Diagram = r.diagram(ref)
+		}
 		if c.Local == "anchor" {
 			p.Float = anchor(c)
 		}
@@ -175,6 +203,32 @@ func (r *reader) chart(ref *xmldom.Element) *chart.Chart {
 		return nil
 	}
 	return c
+}
+
+// diagram reads the drawing Word recorded of the SmartArt a dgm:relIds
+// points to, nil when it has none.
+func (r *reader) diagram(ids *xmldom.Element) *drawingml.Diagram {
+	data, ok := r.d.names.Lookup(ids.Get("r:dm"))
+	if !ok || data.External {
+		return nil
+	}
+	name := partrel.DiagramDrawing(r.d.pkg, r.source, r.rels, data.Target)
+	if name == "" {
+		return nil
+	}
+	root, _, _, err := r.part(name)
+	if err != nil {
+		return nil
+	}
+	return drawingml.ReadDiagram(root, r.d.media)
+}
+
+// media is the picture a name points to, without its "@".
+func (d *Document) media(name string) string {
+	if l, ok := d.names.Lookup(name); ok && l.Type == partrel.Image && !l.External {
+		return strings.TrimPrefix(name, "@")
+	}
+	return ""
 }
 
 func anchor(a *xmldom.Element) *Float {

@@ -2,6 +2,7 @@ package legacy
 
 import (
 	"math"
+	"strings"
 	"unicode/utf16"
 )
 
@@ -43,6 +44,8 @@ const (
 	recLabelSST       = 0x00FD
 	recSupBook        = 0x01AE
 	recCondFmt        = 0x01B0
+	recCF             = 0x01B1
+	recValidations    = 0x01B2
 	recHyperlink      = 0x01B8
 	recValidation     = 0x01BE
 	recBlank          = 0x0201
@@ -59,6 +62,8 @@ const (
 	recSharedFormula  = 0x04BC
 	recBOF            = 0x0809
 	recSheetExt       = 0x0862
+	recCFEx           = 0x0879
+	recCF12           = 0x087A
 )
 
 // What a BOF record tells of the substream it opens: the version of the
@@ -179,50 +184,72 @@ func longText(b []byte) (s string, size int, rich bool) {
 	return s, size + 2, rich
 }
 
+// sstString is a string of the table, and the runs of fonts it has.
+type sstString struct {
+	text string
+	runs []fontRun
+}
+
+// fontRun is a part of a string and the font it takes.
+type fontRun struct {
+	text string
+	font int
+}
+
 // sharedStrings reads the table of strings, which goes on in the records
 // that follow it. A string cut by the end of a record starts again in the
 // next with flags of its own: its characters may change width there.
-func sharedStrings(chunks [][]byte) (out []string, rich bool) {
+func sharedStrings(chunks [][]byte) []sstString {
+	var out []sstString
 	if len(chunks[0]) < 8 {
-		return nil, false
+		return nil
 	}
 	count := int(le.Uint32(chunks[0][4:]))
 	b, rest := chunks[0][8:], chunks[1:]
-	// take moves past n bytes, across records
-	take := func(n int) bool {
-		for n > len(b) {
-			if len(rest) == 0 {
-				return false
-			}
-			n -= len(b)
-			b, rest = rest[0], rest[1:]
+	// next moves to the start of the next record
+	next := func() bool {
+		if len(rest) == 0 {
+			return false
 		}
-		b = b[n:]
+		b, rest = rest[0], rest[1:]
 		return true
 	}
+	// take reads n bytes, across records
+	take := func(n int) ([]byte, bool) {
+		var got []byte
+		for n > len(b) {
+			got = append(got, b...)
+			n -= len(b)
+			if !next() {
+				return nil, false
+			}
+		}
+		got = append(got, b[:n]...)
+		b = b[n:]
+		return got, true
+	}
 	for len(out) < count {
-		if len(b) == 0 && len(rest) > 0 {
-			b, rest = rest[0], rest[1:]
+		if len(b) == 0 {
+			next()
 		}
 		if len(b) < 3 {
-			return out, rich
+			return out
 		}
 		n, flags := int(le.Uint16(b)), b[2]
 		b = b[3:]
-		after := 0
+		runs, ext := 0, 0
 		if flags&strRich != 0 {
 			if len(b) < 2 {
-				return out, rich
+				return out
 			}
-			after += 4 * int(le.Uint16(b))
-			rich = rich || after > 0
+			runs = int(le.Uint16(b))
 			b = b[2:]
 		}
 		if flags&strExt != 0 {
 			if len(b) < 4 {
-				return out, rich
+				return out
 			}
-			after += int(le.Uint32(b))
+			ext = int(le.Uint32(b))
 			b = b[4:]
 		}
 		units := make([]uint16, 0, n)
@@ -230,14 +257,14 @@ func sharedStrings(chunks [][]byte) (out []string, rich bool) {
 		for len(units) < n {
 			if len(b) == 0 {
 				if len(rest) == 0 || len(rest[0]) == 0 {
-					return out, rich
+					return out
 				}
 				wide = rest[0][0]&strWide != 0
 				b, rest = rest[0][1:], rest[1:]
 			}
 			if wide {
 				if len(b) < 2 {
-					return out, rich
+					return out
 				}
 				units = append(units, le.Uint16(b))
 				b = b[2:]
@@ -246,12 +273,50 @@ func sharedStrings(chunks [][]byte) (out []string, rich bool) {
 				b = b[1:]
 			}
 		}
-		out = append(out, string(utf16.Decode(units)))
-		if !take(after) {
+		str := sstString{text: string(utf16.Decode(units))}
+		if runs > 0 {
+			raw, ok := take(4 * runs)
+			if !ok {
+				return append(out, str)
+			}
+			str.runs = fontRuns(raw, str.text, units)
+		}
+		out = append(out, str)
+		if _, ok := take(ext); !ok {
 			break
 		}
 	}
-	return out, rich
+	return out
+}
+
+// fontRuns cut a string into its runs, each told by its text and its font,
+// -1 for that of the cell. Runs out of order or out of the string are left
+// out, and none are given when they would split a character.
+func fontRuns(raw []byte, text string, units []uint16) []fontRun {
+	var runs []fontRun
+	start, font := 0, -1
+	for ; len(raw) >= 4; raw = raw[4:] {
+		from := int(le.Uint16(raw))
+		if from >= len(units) || from < start {
+			continue
+		}
+		if from > start {
+			runs = append(runs, fontRun{string(utf16.Decode(units[start:from])), font})
+		}
+		start, font = from, int(le.Uint16(raw[2:]))
+	}
+	if font < 0 {
+		return nil
+	}
+	runs = append(runs, fontRun{string(utf16.Decode(units[start:])), font})
+	var joined strings.Builder
+	for _, r := range runs {
+		joined.WriteString(r.text)
+	}
+	if joined.String() != text {
+		return nil
+	}
+	return runs
 }
 
 // rk is a number packed in four bytes: an integer or the high half of a

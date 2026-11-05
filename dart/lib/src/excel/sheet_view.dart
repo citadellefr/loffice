@@ -119,6 +119,9 @@ class SheetView extends StatefulWidget {
     this.onFilter,
     this.tables = const [],
     this.onTableFilter,
+    this.chart,
+    this.onChart,
+    this.onChartRect,
   });
 
   final Workbook book;
@@ -167,6 +170,13 @@ class SheetView extends StatefulWidget {
   /// with their table, their column and their rectangle on screen.
   final List<SheetTable> tables;
   final void Function(SheetTable table, int col, Rect at)? onTableFilter;
+
+  /// The index of the chart selected, which [onChart] asks to select or,
+  /// for null, to leave; [onChartRect] puts one in another rectangle, in
+  /// pixels of the sheet at 100 %.
+  final int? chart;
+  final ValueChanged<int?>? onChart;
+  final void Function(int index, Rect rect)? onChartRect;
 
   @override
   State<SheetView> createState() => SheetViewState();
@@ -371,10 +381,41 @@ class SheetViewState extends State<SheetView> {
     return _Target.cell(row, col);
   }
 
+  /// The chart under a point of the view, a handle of the one selected
+  /// first, then the one on top.
+  _ChartHit? _chartHit(Offset p) {
+    if (p.dx < _rowHeader || p.dy < _colHeader) return null;
+    final l = _layout;
+    final charts = SheetChart.of(widget.sheet);
+    final selected = charts.where((c) => c.index == widget.chart).firstOrNull;
+    if (selected != null) {
+      final r = screenRect(selected.rect(l));
+      for (final h in _handles) {
+        if ((_handleAt(r, h) - p).distance <= 7) return _ChartHit(selected, h);
+      }
+    }
+    for (final c in charts.reversed) {
+      if (screenRect(c.rect(l)).contains(p)) return _ChartHit(c);
+    }
+    return null;
+  }
+
+  void _grab(_ChartHit hit, Offset at, {required bool touch}) {
+    final selected = widget.chart == hit.chart.index;
+    widget.onChart?.call(hit.chart.index);
+    if (widget.onChartRect == null || touch && !selected) return;
+    _drag = _Drag.chart(hit.chart.index, hit.chart.rect(_layout), at, hit.handle);
+  }
+
   void _down(PointerDownEvent e) {
     if (_arrowRect?.contains(e.localPosition) ?? false) return;
     if (_filterArrows.any((a) => a.$2.contains(e.localPosition))) return;
+    final hit = _chartHit(e.localPosition);
     if (e.buttons == kSecondaryMouseButton) {
+      if (hit != null) {
+        widget.onChart?.call(hit.chart.index);
+        return;
+      }
       final t = _target(e.localPosition);
       if (t.kind == _Kind.cell && !widget.selection.area.contains(t.row, t.col)) {
         widget.selection.select(t.row, t.col);
@@ -392,6 +433,11 @@ class SheetViewState extends State<SheetView> {
         return;
       }
     }
+    if (hit != null) {
+      _grab(hit, e.localPosition, touch: touch);
+      return;
+    }
+    widget.onChart?.call(null);
     final t = _target(e.localPosition);
     final shift = HardwareKeyboard.instance.isShiftPressed;
     final s = widget.selection;
@@ -465,6 +511,9 @@ class SheetViewState extends State<SheetView> {
       case _DragKind.resize:
         final delta = (d.dim == 'c' ? e.localPosition.dx - d.start.dx : e.localPosition.dy - d.start.dy) / _z;
         setState(() => d.size = math.max(0, d.original + delta));
+      case _DragKind.chart:
+        final delta = (e.localPosition - d.start) / _z;
+        setState(() => d.rect = _dragged(d.frame, d.handle, delta));
       case _DragKind.fill:
         final (row, col) = cellAt(e.localPosition);
         final from = d.area!;
@@ -506,6 +555,9 @@ class SheetViewState extends State<SheetView> {
       case _DragKind.resize:
         if (d.size != d.original) widget.onResize?.call(d.dim, d.index, d.size);
         setState(() {});
+      case _DragKind.chart:
+        if (d.rect != d.frame) widget.onChartRect?.call(d.index, d.rect);
+        setState(() {});
       case _DragKind.fill:
         final to = d.target;
         if (to != null && to != d.area) widget.onFill?.call(d.area!, to);
@@ -520,7 +572,7 @@ class SheetViewState extends State<SheetView> {
   /// The thread or note of the cell under the pointer, shown beside it.
   CellThread? get _hovered {
     final p = _pointer;
-    if (p == null || widget.editing || _size.isEmpty || _target(p).kind != _Kind.cell) return null;
+    if (p == null || widget.editing || _size.isEmpty || _chartHit(p) != null || _target(p).kind != _Kind.cell) return null;
     var (row, col) = cellAt(p);
     final merged = _layout.mergeAt(row, col);
     if (merged != null) (row, col) = (merged.top, merged.left);
@@ -537,7 +589,9 @@ class SheetViewState extends State<SheetView> {
     final was = _hovered?.id;
     _pointer = e.localPosition;
     final t = _target(e.localPosition);
+    final hit = _chartHit(e.localPosition);
     final c = switch (t.kind) {
+      _ when hit != null => hit.cursor(widget.chart == hit.chart.index),
       _Kind.colEdge => SystemMouseCursors.resizeColumn,
       _Kind.rowEdge => SystemMouseCursors.resizeRow,
       _Kind.fill => SystemMouseCursors.precise,
@@ -569,7 +623,7 @@ class SheetViewState extends State<SheetView> {
             onPointerUp: _up,
             onPointerCancel: _lift,
             child: GestureDetector(
-              onDoubleTap: widget.onEdit,
+              onDoubleTap: widget.chart == null ? widget.onEdit : null,
               onLongPressStart: (e) {
                 final (row, col) = cellAt(e.localPosition);
                 widget.selection.select(row, col);
@@ -592,6 +646,8 @@ class SheetViewState extends State<SheetView> {
                         texts: _texts,
                         fillTarget: d?.kind == _DragKind.fill ? d!.target : null,
                         resizing: d?.kind == _DragKind.resize ? (d!.dim, d.index, d.size) : null,
+                        chart: widget.chart,
+                        dragged: d?.kind == _DragKind.chart ? (d!.index, d.rect) : null,
                         editing: widget.editing,
                         scheme: Theme.of(context).colorScheme,
                       ),
@@ -664,7 +720,43 @@ class _Target {
   final int row, col;
 }
 
-enum _DragKind { scroll, cells, cols, rows, resize, fill }
+/// A chart under the pointer, and which of the handles of its frame when
+/// it is one.
+class _ChartHit {
+  const _ChartHit(this.chart, [this.handle]);
+
+  final SheetChart chart;
+  final (int, int)? handle;
+
+  MouseCursor cursor(bool selected) => switch (handle) {
+    (final x, final y) when x != 0 && y != 0 => x == y ? SystemMouseCursors.resizeUpLeftDownRight : SystemMouseCursors.resizeUpRightDownLeft,
+    (final x, _) when x != 0 => SystemMouseCursors.resizeLeftRight,
+    (_, _) => SystemMouseCursors.resizeUpDown,
+    null => selected ? SystemMouseCursors.move : SystemMouseCursors.click,
+  };
+}
+
+/// The handles of the frame of a chart: which sides they move, left and
+/// up as -1, right and down as 1.
+const _handles = [(-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1)];
+
+const _minChart = 20.0;
+
+Offset _handleAt(Rect r, (int, int) h) => Offset(r.center.dx + h.$1 * r.width / 2, r.center.dy + h.$2 * r.height / 2);
+
+/// A chart dragged by [delta] pixels: moved, or for a handle with the
+/// sides it moves.
+Rect _dragged(Rect r, (int, int)? handle, Offset delta) {
+  if (handle == null) return r.shift(Offset(math.max(delta.dx, -r.left), math.max(delta.dy, -r.top)));
+  var (left, top, right, bottom) = (r.left, r.top, r.right, r.bottom);
+  if (handle.$1 < 0) left = (left + delta.dx).clamp(0, right - _minChart).toDouble();
+  if (handle.$1 > 0) right = math.max(right + delta.dx, left + _minChart);
+  if (handle.$2 < 0) top = (top + delta.dy).clamp(0, bottom - _minChart).toDouble();
+  if (handle.$2 > 0) bottom = math.max(bottom + delta.dy, top + _minChart);
+  return Rect.fromLTRB(left, top, right, bottom);
+}
+
+enum _DragKind { scroll, cells, cols, rows, resize, fill, chart }
 
 class _Drag {
   _Drag.scroll(this.start, this.row, this.col) : kind = _DragKind.scroll, dim = '', index = 0, original = 0;
@@ -675,6 +767,9 @@ class _Drag {
     size = original;
   }
   _Drag.fill(this.area) : kind = _DragKind.fill, start = Offset.zero, row = 0, col = 0, dim = '', index = 0, original = 0;
+  _Drag.chart(this.index, this.frame, this.start, this.handle) : kind = _DragKind.chart, row = 0, col = 0, dim = '', original = 0 {
+    rect = frame;
+  }
 
   final _DragKind kind;
   final Offset start;
@@ -684,6 +779,11 @@ class _Drag {
   final double original;
   double size = 0;
   var moved = false;
+
+  /// For a chart: where it was, where it is dragged to, the handle held.
+  Rect frame = Rect.zero;
+  Rect rect = Rect.zero;
+  (int, int)? handle;
   CellArea? area;
   CellArea? target;
 }
@@ -702,6 +802,8 @@ class _SheetPainter extends CustomPainter {
     required this.texts,
     required this.fillTarget,
     required this.resizing,
+    required this.chart,
+    required this.dragged,
     required this.editing,
     required this.scheme,
   });
@@ -718,6 +820,8 @@ class _SheetPainter extends CustomPainter {
   final TextCache texts;
   final CellArea? fillTarget;
   final (String, int, double)? resizing;
+  final int? chart;
+  final (int, Rect)? dragged;
   final bool editing;
   final ColorScheme scheme;
 
@@ -764,13 +868,35 @@ class _SheetPainter extends CustomPainter {
       cells.paint(canvas, area);
       _selection(canvas);
       for (final c in SheetChart.of(sheet)) {
-        paintSheetChart(canvas, view.screenRect(c.rect(l)), c.spec, book, sheet, zoom: z, fonts: fonts);
+        final box = view.screenRect(dragged?.$1 == c.index ? dragged!.$2 : c.rect(l));
+        paintSheetChart(canvas, box, c.spec, book, sheet, zoom: z, fonts: fonts);
+        if (c.index == chart) _frame(canvas, box);
       }
       canvas.restore();
     }
     _headers(canvas, size, panes);
     if (l.frozenCols > 0) canvas.drawLine(Offset(fx, top), Offset(fx, size.height), Paint()..color = const Color(0xFF9E9E9E));
     if (l.frozenRows > 0) canvas.drawLine(Offset(left, fy), Offset(size.width, fy), Paint()..color = const Color(0xFF9E9E9E));
+  }
+
+  void _frame(Canvas canvas, Rect box) {
+    canvas.drawRect(
+      box,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..color = _selectColor,
+    );
+    for (final h in _handles) {
+      final handle = Rect.fromCenter(center: _handleAt(box, h), width: 8, height: 8);
+      canvas.drawRect(handle, Paint()..color = Colors.white);
+      canvas.drawRect(
+        handle,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..color = _selectColor,
+      );
+    }
   }
 
   void _selection(Canvas canvas) {

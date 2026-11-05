@@ -97,11 +97,9 @@ func (r *reader) styles(attrs ot.Values, rels *partrel.Rels) {
 	for id := range styles {
 		r.d.fileStyles[id] = true
 	}
-	for _, b := range builtinStyles {
-		if styles[b.id] == nil {
-			st := readStyle(builtin(b.xml))
-			st.Builtin = true
-			styles[b.id] = st
+	for id, st := range readBuiltinStyles() {
+		if styles[id] == nil {
+			styles[id] = st
 		}
 	}
 	put("styles", styles)
@@ -110,8 +108,8 @@ func (r *reader) styles(attrs ot.Values, rels *partrel.Rels) {
 	if root := r.optional(rels.OfType(r.d.main, relNumbering)); root != nil {
 		numbering = readNumbering(root, styles)
 	}
-	for name, xml := range builtinLists {
-		numbering[name] = &Numbering{Abstract: "bref-" + name, Levels: levelsOf(builtin(xml))}
+	for name, levels := range readBuiltinLists() {
+		numbering[name] = &Numbering{Abstract: "bref-" + name, Levels: levels}
 	}
 	put("numbering", numbering)
 

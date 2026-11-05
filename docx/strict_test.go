@@ -116,3 +116,34 @@ func TestNeitherStrictNorTransitional(t *testing.T) {
 		}
 	}
 }
+
+func TestStrictKeepsTextThatNamesANamespace(t *testing.T) {
+	const quoted = `"http://purl.oclc.org/ooxml/wordprocessingml/main" "http://schemas.openxmlformats.org/wordprocessingml/2006/main"`
+	for _, name := range []string{"strict.docx", "transitional.docx"} {
+		data, err := os.ReadFile("../testdata/docx/" + name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		parts := rawParts(t, data)
+		parts["word/document.xml"] = bytes.Replace(parts["word/document.xml"], []byte("Open XML"), []byte(quoted), 1)
+		d, tree, err := Open(zipOf(t, parts), opc.Limits{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		apply(t, d, tree, ot.Edit{{Op: ot.OpTxt, ID: firstText(t, tree).ID, Text: ot.Delta{{Insert: "x"}}}})
+		saved, err := d.Save(tree)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if doc := string(rawParts(t, saved)["word/document.xml"]); !strings.Contains(doc, ">"+quoted+"<") {
+			t.Errorf("%s: text changed:\n%s", name, doc)
+		}
+		_, again, err := Open(saved, opc.Limits{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := sameTree(tree, again); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+}

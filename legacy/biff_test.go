@@ -3,7 +3,7 @@ package legacy
 import (
 	"encoding/hex"
 	"errors"
-	"slices"
+	"reflect"
 	"testing"
 )
 
@@ -50,15 +50,26 @@ func TestText(t *testing.T) {
 // A string cut by the end of a record goes on in the next, where its
 // characters may be wider.
 func TestSharedStringsContinued(t *testing.T) {
-	got, rich := sharedStrings([][]byte{
+	got := sharedStrings([][]byte{
 		unhex(t, "0200000002000000"+"0300"+"00"+"6162"),
 		unhex(t, "01"+"6300"+"0200"+"08"+"0100"+"6869"+"00000100"),
 	})
-	if !slices.Equal(got, []string{"abc", "hi"}) || !rich {
-		t.Fatalf("%q, rich %v", got, rich)
+	want := []sstString{{text: "abc"}, {text: "hi", runs: []fontRun{{"hi", 1}}}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("%v, want %v", got, want)
 	}
-	if got, _ := sharedStrings([][]byte{unhex(t, "0100000001000000"+"0500"+"00"+"6162")}); len(got) != 0 {
-		t.Fatalf("a string cut short is read: %q", got)
+	if got := sharedStrings([][]byte{unhex(t, "0100000001000000"+"0500"+"00"+"6162")}); len(got) != 0 {
+		t.Fatalf("a string cut short is read: %v", got)
+	}
+}
+
+// The runs of a string cover it, the first from its start.
+func TestFontRuns(t *testing.T) {
+	units := []uint16{'a', 'b', 'c', 'd'}
+	got := fontRuns(unhex(t, "01000700"+"03000800"+"09000900"+"00000100"), "abcd", units)
+	want := []fontRun{{"a", -1}, {"bc", 7}, {"d", 8}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("%v, want %v", got, want)
 	}
 }
 

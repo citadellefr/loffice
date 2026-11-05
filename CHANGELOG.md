@@ -11,11 +11,47 @@
   selection and its recent edits (`recent` in its presence) for editors to
   highlight. `UndoMine` takes back only its edits, rebased over those of
   others, and fails with `ErrChanged` when someone changed the same content
-  since. It sets back the formulas, validations, conditional formats,
-  filters, tables, print breaks and names that deleting rows or columns
-  broke, and tells in `Record.Lost` the notes, others' comments and charts
-  it cannot make again.
+  since, or inserted or deleted rows or columns that move what it would set
+  back. It sets back the formulas, array formulas, merges, validations,
+  conditional formats, filters, tables, print breaks and names that deleting
+  rows or columns broke, and tells in `Record.Lost` the notes, others'
+  comments and charts it cannot make again.
+- `agent` keeps whom its revisions are for in the document, one `behalf` node
+  per author and date written as a document variable of `settings.xml`
+  (`docx.BehalfNode`, `docx.BehalfOf`), instead of in a journal of the
+  session; two instances of the same name, even in the same second, are told
+  apart. Deleting, replacing or formatting text the agent inserted for
+  another user is now a revision, and the same user's text still goes away
+  at once.
+- `legacy` converts more of the `.xls` workbooks: the fonts within a text,
+  links, notes, how sheets print (margins, headers, footers, breaks, fit),
+  conditional formats, validations, filters on values and the protection of
+  sheets. What stays unconverted (scales, bars and icons, other filter
+  conditions) is still told in the losses. `xlsx` gains the "protect"
+  attribute of a sheet and `Document.RichText`.
+- `xlsx` edits charts: the "charts" field of a sheet takes charts inserted
+  from cells (`"source":"A1:C4"`, a clustered column, bar, line, pie,
+  scatter or area chart, given its series by the server as Excel does),
+  moved, resized, removed, and changed in type, title, legend, axis titles
+  and series ranges. Each chart has an `id`, its part; a series is the one
+  of its `index`, and a series added takes one the plot has not.
+  `chart.New` writes a chart and `chart.Patch` rewrites only what changed;
+  the values a chart caches follow the cells it reads when they change. The
+  Dart workbook editor has Insert > Chart and the Chart Design and Format
+  tabs.
 
+## 0.12.0 — 2026-11-04
+
+- The PDF export of the Dart package writes what it left blank: pattern fills
+  as tiling patterns of the preset's pixels, tiled pictures as tiling
+  patterns of the picture, opaque PNG pictures as they are (Flate with its
+  predictor, palettes included) and the others, transparent ones, as colors
+  with their opacity as a soft mask, shadows (`drawShadow`) and blurs
+  (`MaskFilter.blur`) as the shape grown in fainter and fainter layers. No
+  method of a `Canvas` fails the export any more: the rest is written in
+  its plainest form or left aside, and `PdfExport.ignored` (the `ignored`
+  callback of `wordPdf`, `deckPdf` and `workbookPdf`) tells what, as
+  `missing` tells the characters.
 - `formula` calculates the array shaping functions of Excel 365: TAKE, DROP,
   CHOOSECOLS, CHOOSEROWS, EXPAND, VSTACK, HSTACK, TOCOL, TOROW, WRAPCOLS,
   WRAPROWS and TEXTSPLIT, with their French names in the Dart formula text,
@@ -30,6 +66,15 @@
   refuses before anything is sent.
 - `agent.Apply` returns the error of its context when it is cancelled while
   the hub does not answer, and leaves nothing behind.
+- `pptx` and `docx` expose the drawing PowerPoint and Word record of a
+  SmartArt, read-only: the `diagram` attribute of a `frame` of a slide and the
+  `diagram` of a picture's `img` in Word hold its shapes, as the attributes of
+  the shapes of a slide, with the box of their text. A frame of an OLE object
+  or of another object has the picture it shows as `blip`, and Word reads the
+  fallback of an `mc:AlternateContent` whose choice has nothing to draw. Saving
+  without an edit keeps the files as they are. The Dart editors draw them, on
+  screen and in PDF exports; the grey rectangle stands only for an object with
+  nothing to draw.
 - `xlsx` edits merged cells and links: a cell's `m` is refused when its area
   overlaps another, and a new field `link` (`{"url":"https://…"}`,
   `{"loc":"Sheet2!A1"}`, `"tip"`) is written as Excel writes it, a

@@ -15,6 +15,13 @@ import (
 // footnotes.
 func build(t testing.TB, body string) []byte {
 	t.Helper()
+	return buildWith(t, body, "", nil)
+}
+
+// buildWith is build with more relationships of the document, and more
+// parts.
+func buildWith(t testing.TB, body, rels string, extra map[string]string) []byte {
+	t.Helper()
 	const ns = `xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" ` +
 		`xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ` +
 		`xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml"`
@@ -24,7 +31,7 @@ func build(t testing.TB, body string) []byte {
 		"_rels/.rels": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`,
 		"word/_rels/document.xml.rels": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.com/" TargetMode="External"/><Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"/><Relationship Id="rId6" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/></Relationships>`,
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.com/" TargetMode="External"/><Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"/><Relationship Id="rId6" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>` + rels + `</Relationships>`,
 		"word/footnotes.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:footnotes ` + ns + `><w:footnote w:type="separator" w:id="-1"><w:p><w:r><w:separator/></w:r></w:p></w:footnote><w:footnote w:id="1"><w:p><w:r><w:footnoteRef/></w:r><w:r><w:t xml:space="preserve"> Source.</w:t></w:r></w:p></w:footnote></w:footnotes>`,
 		"word/styles.xml": `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -35,9 +42,14 @@ func build(t testing.TB, body string) []byte {
 <w:document ` + ns + `><w:body>` + body + `<w:sectPr><w:headerReference w:type="default" r:id="rId2"/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1417" w:right="1417" w:bottom="1417" w:left="1417" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr></w:body></w:document>`,
 		"word/media/image1.png": "\x89PNG\r\n\x1a\n",
 	}
+	names := []string{"[Content_Types].xml", "_rels/.rels", "word/_rels/document.xml.rels", "word/styles.xml", "word/header1.xml", "word/footnotes.xml", "word/document.xml", "word/media/image1.png"}
+	for name, content := range extra {
+		parts[name] = content
+		names = append(names, name)
+	}
 	var b bytes.Buffer
 	z := zip.NewWriter(&b)
-	for _, name := range []string{"[Content_Types].xml", "_rels/.rels", "word/_rels/document.xml.rels", "word/styles.xml", "word/header1.xml", "word/footnotes.xml", "word/document.xml", "word/media/image1.png"} {
+	for _, name := range names {
 		f, err := z.Create(name)
 		if err != nil {
 			t.Fatal(err)

@@ -11,6 +11,7 @@ import (
 	"unicode/utf16"
 
 	"github.com/citadellefr/loffice/formula"
+	"github.com/citadellefr/loffice/xlsx"
 	"github.com/citadellefr/trame/ot"
 )
 
@@ -203,50 +204,21 @@ func (s *state) inverse(c ot.Change) ot.Edit {
 // unshifted are the changes that set again the attributes of the workbook
 // that point into the lines c removes: removing them moves or drops those,
 // and inserting the lines back does not mend them. The charts go apart, as
-// nobody may set them.
+// the Check may refuse to set them.
 func (s *state) unshifted(c ot.Change) ot.Edit {
 	sheet := s.tree.Node(c.ID)
 	name := str(sheet.Attrs, "name")
 	rows := c.Dim == ot.DimRows
-	from, to := c.At, c.At+c.N
-	into := func(i int) bool { return i >= from && i < to }
 	var out ot.Edit
 	for _, n := range s.tree.Children(sheet.Parent) {
 		if n.Grid == nil {
 			continue
 		}
-		own := n.ID == c.ID
 		set, charts := ot.Values{}, ot.Values{}
-		for _, k := range []string{"valid", "cf", "filter", "tables", "print", "charts"} {
+		for _, k := range sheetRefs {
 			raw := n.Attrs[k]
-			if raw == nil {
-				continue
-			}
-			hit := refsInto(raw, name, own, rows, from, to)
-			if own && k == "print" {
-				var p struct{ Rows, Cols []int }
-				_ = json.Unmarshal(raw, &p)
-				breaks := p.Cols
-				if rows {
-					breaks = p.Rows
-				}
-				hit = hit || slices.ContainsFunc(breaks, into)
-			}
-			if own && k == "charts" {
-				var list []struct{ From, To *struct{ Col, Row int } }
-				_ = json.Unmarshal(raw, &list)
-				for _, p := range list {
-					for _, corner := range []*struct{ Col, Row int }{p.From, p.To} {
-						if corner != nil && rows {
-							hit = hit || into(corner.Row+1)
-						} else if corner != nil {
-							hit = hit || into(corner.Col+1)
-						}
-					}
-				}
-			}
 			switch {
-			case !hit:
+			case raw == nil || !touches(k, raw, name, n.ID == c.ID, rows, c.At, c.At+c.N):
 			case k == "charts":
 				charts[k] = raw
 			default:
@@ -261,10 +233,42 @@ func (s *state) unshifted(c ot.Change) ot.Edit {
 		}
 	}
 	book := s.tree.Node(sheet.Parent)
-	if raw := book.Attrs["names"]; raw != nil && refsInto(raw, name, false, rows, from, to) {
+	if raw := book.Attrs["names"]; raw != nil && touches("names", raw, name, false, rows, c.At, c.At+c.N) {
 		out = append(out, ot.Change{Op: ot.OpSet, ID: book.ID, Attrs: ot.Values{"names": raw}})
 	}
 	return out
+}
+
+// sheetRefs are the attributes of a sheet that point to its cells.
+var sheetRefs = []string{"valid", "cf", "filter", "tables", "print", "charts"}
+
+// touches tells whether attribute k, raw, points into lines from to to of
+// the sheet named name, of its own when own.
+func touches(k string, raw json.RawMessage, name string, own, rows bool, from, to int) bool {
+	if refsInto(raw, name, own, rows, from, to) {
+		return true
+	}
+	into := func(i int) bool { return i >= from && i < to }
+	switch {
+	case own && k == "print":
+		var p struct{ Rows, Cols []int }
+		_ = json.Unmarshal(raw, &p)
+		if rows {
+			return slices.ContainsFunc(p.Rows, into)
+		}
+		return slices.ContainsFunc(p.Cols, into)
+	case own && k == "charts":
+		var list []struct{ From, To *struct{ Col, Row int } }
+		_ = json.Unmarshal(raw, &list)
+		for _, p := range list {
+			for _, corner := range []*struct{ Col, Row int }{p.From, p.To} {
+				if corner != nil && (rows && into(corner.Row+1) || !rows && into(corner.Col+1)) {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 // refsInto tells whether a formula or area of raw points into lines from
@@ -305,9 +309,44 @@ func refsInto(raw json.RawMessage, name string, own, rows bool, from, to int) bo
 	return walk(v)
 }
 
-// broken are the changes that set again the formulas of the workbook that
-// removing lines c from rows r1 to r2 and columns c1 to c2 breaks, those
-// that inserting the lines back does not mend.
+// spread are the fields of a cell that point to other cells: its formula,
+// the cells its array formula fills and those it is merged with.
+type spread struct {
+	F  string  `json:"f,omitempty"`
+	FA string  `json:"fa,omitempty"`
+	M  *[2]int `json:"m,omitempty"`
+}
+
+// shifted is what the fields of a cell at row and col of a sheet become
+// once n lines are inserted, or -n removed, at at of the sheet named name,
+// which is its own when own.
+func (f spread) shifted(name string, own, rows bool, row, col, at, n int) spread {
+	out := spread{}
+	if f.F != "" {
+		out.F, _ = formula.Shift(f.F, name, own, rows, at, n)
+	}
+	if !own {
+		out.FA, out.M = f.FA, f.M
+		return out
+	}
+	if f.FA != "" {
+		out.FA, _ = formula.Shift(f.FA, name, true, rows, at, n)
+	}
+	if f.M != nil {
+		m := xlsx.SpanShifted(*f.M, row, col, rows, at, n)
+		out.M = &m
+	}
+	return out
+}
+
+func (f spread) equal(g spread) bool {
+	return f.F == g.F && f.FA == g.FA && (f.M == nil) == (g.M == nil) && (f.M == nil || *f.M == *g.M)
+}
+
+// broken are the changes that set again the formulas, array ranges and
+// merges of the workbook that removing lines c from rows r1 to r2 and
+// columns c1 to c2 breaks, those that inserting the lines back does not
+// mend.
 func (s *state) broken(c ot.Change, r1, r2, c1, c2 int) ot.Edit {
 	var out ot.Edit
 	name := str(s.tree.Node(c.ID).Attrs, "name")
@@ -319,24 +358,31 @@ func (s *state) broken(c ot.Change, r1, r2, c1, c2 int) ot.Edit {
 		own := sheet.ID == c.ID
 		set := ot.Change{Op: ot.OpCel, ID: sheet.ID}
 		sheet.Grid.Each(1, formula.MaxRows, func(row, col int, raw json.RawMessage) bool {
-			if col == 0 || own && row >= r1 && row <= r2 && col >= c1 && col <= c2 || !bytes.Contains(raw, []byte(`"f":`)) {
+			if col == 0 || own && row >= r1 && row <= r2 && col >= c1 && col <= c2 {
 				return true
 			}
-			var fields struct {
-				F string `json:"f"`
-			}
-			if json.Unmarshal(raw, &fields) != nil || fields.F == "" {
+			was, ok := spreadOf(raw)
+			if !ok {
 				return true
 			}
-			gone, err := formula.Shift(fields.F, name, own, rows, c.At, -c.N)
-			if err != nil {
+			if was.shifted(name, own, rows, row, col, c.At, -c.N).shifted(name, own, rows, row, col, c.At, c.N).equal(was) {
 				return true
 			}
-			if back, err := formula.Shift(gone, name, own, rows, c.At, c.N); err == nil && back == fields.F {
-				return true
+			orNull := func(v string) any {
+				if v == "" {
+					return nil
+				}
+				return v
 			}
-			f, _ := json.Marshal(map[string]string{"f": fields.F})
-			set.Cells = append(set.Cells, ot.Cell{Row: row, Col: col, Fields: f})
+			fields := map[string]any{}
+			if was.F != "" || was.FA != "" {
+				fields["f"], fields["fa"] = orNull(was.F), orNull(was.FA)
+			}
+			if was.M != nil {
+				fields["m"] = was.M
+			}
+			b, _ := json.Marshal(fields)
+			set.Cells = append(set.Cells, ot.Cell{Row: row, Col: col, Fields: b})
 			return true
 		})
 		if len(set.Cells) > 0 {
@@ -344,6 +390,50 @@ func (s *state) broken(c ot.Change, r1, r2, c1, c2 int) ot.Edit {
 		}
 	}
 	return out
+}
+
+// spreadOf reads the fields of a cell that point to others, false when it
+// has none.
+func spreadOf(raw json.RawMessage) (spread, bool) {
+	var f spread
+	if !bytes.Contains(raw, []byte(`"f":`)) && !bytes.Contains(raw, []byte(`"fa":`)) && !bytes.Contains(raw, []byte(`"m":`)) ||
+		json.Unmarshal(raw, &f) != nil {
+		return f, false
+	}
+	return f, f.F != "" || f.FA != "" || f.M != nil
+}
+
+// moves tells whether lines h inserts or removes move what c sets back as
+// it was: a formula, the cells of an array formula or of a merge, the area
+// of a sheet's or the book's attribute. What it sets back would then point
+// to other cells than it did.
+func (s *state) moves(h, c ot.Change) bool {
+	sheet := s.tree.Node(h.ID)
+	if sheet == nil || sheet.Grid == nil {
+		return false
+	}
+	name := str(sheet.Attrs, "name")
+	own := c.ID == h.ID
+	rows := h.Dim == ot.DimRows
+	n := h.N
+	if h.Op == ot.OpRem {
+		n = -n
+	}
+	switch c.Op {
+	case ot.OpCel:
+		for _, cell := range c.Cells {
+			if f, ok := spreadOf(cell.Fields); ok && !f.shifted(name, own, rows, cell.Row, cell.Col, h.At, n).equal(f) {
+				return true
+			}
+		}
+	case ot.OpSet:
+		for k, raw := range c.Attrs {
+			if (k == "names" || slices.Contains(sheetRefs, k)) && touches(k, raw, name, own, rows, h.At, max(formula.MaxRows, formula.MaxCols)+1) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func cmpOr(v, or json.RawMessage) json.RawMessage {
@@ -433,7 +523,7 @@ func (s *state) clash(h, c ot.Change) string {
 	if c.Op == ot.OpNew {
 		id = c.Parent
 	}
-	if h.Op == ot.OpDel && s.under(id, h.ID) {
+	if h.Op == ot.OpDel && s.under(id, h.ID) || shifts(h) && s.moves(h, c) {
 		return s.name(h.ID)
 	}
 	switch c.Op {

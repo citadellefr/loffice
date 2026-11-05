@@ -51,19 +51,19 @@ type Loss string
 
 const (
 	Charts      Loss = "charts"
-	Drawings    Loss = "drawings" // pictures, shapes, form controls
-	Comments    Loss = "comments"
-	Links       Loss = "links"
-	Conditional Loss = "conditional"
-	Validation  Loss = "validation"
+	Drawings    Loss = "drawings"    // pictures, shapes, form controls
+	Comments    Loss = "comments"    // notes that cannot be read back
+	Links       Loss = "links"       // links to files, and those that cannot be read
+	Conditional Loss = "conditional" // scales, bars, icons and the rules of Excel 2007
+	Validation  Loss = "validation"  // those that cannot be written as they are
 	Pivots      Loss = "pivots"
 	Macros      Loss = "macros"
-	Filters     Loss = "filters"    // what the filters of a sheet show
+	Filters     Loss = "filters"    // conditions other than values and blanks
 	Formulas    Loss = "formulas"   // formulas not understood, left as their values
 	External    Loss = "external"   // formulas that read other workbooks, left as their values
-	RichText    Loss = "rich"       // fonts of parts of the text of a cell
-	Print       Loss = "print"      // headers, footers, page breaks
-	Protection  Loss = "protection" // of the sheets and of the workbook
+	RichText    Loss = "rich"       // fonts of parts of the text of a label
+	Print       Loss = "print"      // how a sheet prints, when it cannot be read
+	Protection  Loss = "protection" // of the workbook, of objects and scenarios
 )
 
 // blank is an empty workbook, which a converted one is written into.
@@ -76,8 +76,10 @@ const blankSheet = "S1"
 
 // Workbook converts an Excel workbook of 97 to 2003 (.xls) into an .xlsx:
 // its sheets, their cells with their values, formulas and formats, the
-// sizes of rows and columns, merged cells, frozen panes, filtered areas
-// and the names defined. lost is what it held that the .xlsx does not.
+// sizes of rows and columns, merged cells, frozen panes, filtered areas,
+// the names defined, the fonts within a text, links, notes, how sheets
+// print, conditional formats, validations, filters and the protection of
+// sheets. lost is what it held that the .xlsx does not.
 // limits bound the cells read.
 func Workbook(data []byte, limits Limits) (out []byte, lost []Loss, err error) {
 	// before Excel 5 a workbook was its records alone, without a container
@@ -98,13 +100,19 @@ func Workbook(data []byte, limits Limits) (out []byte, lost []Loss, err error) {
 		}
 		return nil, nil, ErrInvalid
 	}
+	doc, tree, err := xlsx.Open(blank, xlsx.Limits{})
+	if err != nil {
+		return nil, nil, err
+	}
 	b := &book{
+		doc:     doc,
 		limits:  limits.withDefaults(),
 		formats: map[int]string{},
 		lost:    map[Loss]bool{},
 		xfIDs:   map[int]string{},
 		styles:  map[string]string{},
 		filters: map[int]string{},
+		richs:   map[int]string{},
 	}
 	for i := range b.palette {
 		b.palette[i] = xlsx.IndexedColor(i + 8)
@@ -116,10 +124,6 @@ func Workbook(data []byte, limits Limits) (out []byte, lost []Loss, err error) {
 		return nil, nil, err
 	}
 	edit, err := b.edit(stream)
-	if err != nil {
-		return nil, nil, err
-	}
-	doc, tree, err := xlsx.Open(blank, xlsx.Limits{})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -142,7 +146,7 @@ type book struct {
 	// palette are the colors 8 to 63.
 	palette  [56]string
 	sheets   []boundSheet
-	strings  []string
+	strings  []sstString
 	supbooks []supbook
 	externs  []extern
 	names    []name
@@ -155,7 +159,11 @@ type book struct {
 	nodes  ot.Edit
 	// filters are the filtered areas, by sheet.
 	filters map[int]string
-	limits  Limits
+	// richs are the rich texts made, by index of the table of strings.
+	richs map[int]string
+	// doc is the workbook that is written into, which makes rich texts.
+	doc    *xlsx.Document
+	limits Limits
 	// cells counts the cells read, and size what they hold.
 	cells, size int
 }
@@ -277,10 +285,7 @@ func (b *book) globals(stream []byte) error {
 				next, _ := r.next()
 				chunks = append(chunks, next.data)
 			}
-			var rich bool
-			if b.strings, rich = sharedStrings(chunks); rich {
-				b.lose(RichText)
-			}
+			b.strings = sharedStrings(chunks)
 		case recSupBook:
 			sup := supbook{kind: supExternal}
 			if len(d) == 4 {

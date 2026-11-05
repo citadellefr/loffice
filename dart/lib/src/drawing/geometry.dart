@@ -40,6 +40,23 @@ class Geometry {
     return Geometry._(_guides(json['av']), _guides(json['gd']), rect is List<Object?> && rect.length == 4 && rect.every((x) => x is String) ? rect.cast<String>() : null, paths);
   }
 
+  /// The geometry of a shape's "geom" value, a rectangle for none.
+  static Geometry of(Map<String, Object?>? geom) {
+    final preset = geom?['prst'];
+    if (preset is String) return Geometry.preset(preset) ?? Geometry.preset('rect')!;
+    return Geometry.fromJson(geom?['cust']) ?? Geometry.preset('rect')!;
+  }
+
+  /// The adjust values of a shape's "geom" value, for [paths].
+  static Map<String, String> adjustments(Map<String, Object?>? geom) {
+    final av = geom?['av'];
+    return {
+      if (av is Map<String, Object?>)
+        for (final e in av.entries)
+          if (e.value is String) e.key: e.value! as String,
+    };
+  }
+
   static final _presets = <String, Geometry?>{};
 
   /// The preset shape of that name, null for an unknown one.

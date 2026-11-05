@@ -39,7 +39,7 @@ func init() {
 			}
 			return Num(float64(sheets[0] + 1))
 		}},
-		"SHEETS": {min: 0, max: 1, call: func(c *Context, args []Expr) Value {
+		"SHEETS": {min: 0, max: 1, volatile: true, call: func(c *Context, args []Expr) Value {
 			if len(args) == 0 {
 				b, ok := c.Book.(sheetCounter)
 				if !ok {
@@ -82,7 +82,7 @@ func init() {
 			}
 			return c.scalar(v[0])
 		}),
-		"CELL": {min: 1, max: 2, call: func(c *Context, args []Expr) Value {
+		"CELL": {min: 1, max: 2, volatile: true, call: func(c *Context, args []Expr) Value {
 			kind, err := c.text(c.Eval(args[0]))
 			if err != nil {
 				return *err
@@ -97,13 +97,13 @@ func init() {
 			}
 			return c.cell(strings.ToLower(kind), at)
 		}},
-		"INFO": fn(1, 1, func(c *Context, v []Value) Value {
+		"INFO": volatile(fn(1, 1, func(c *Context, v []Value) Value {
 			kind, err := c.text(v[0])
 			if err != nil {
 				return *err
 			}
 			return c.info(strings.ToLower(kind))
-		}),
+		})),
 		"VALUETOTEXT": fn(1, 2, func(c *Context, v []Value) Value {
 			strict, err := c.textFormat(v)
 			if err != nil {
@@ -265,6 +265,16 @@ func (c *Context) display(v Value, strict bool) (string, *Value) {
 		return v.Str, nil
 	}
 	return c.text(v)
+}
+
+// cellReadsValue tells whether CELL reads the value of its cell for the
+// information asked, not only its place.
+func cellReadsValue(kind string) bool {
+	switch kind {
+	case "contents", "contenu", "type":
+		return true
+	}
+	return false
 }
 
 func (c *Context) cell(kind string, at Area3) Value {

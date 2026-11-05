@@ -159,6 +159,10 @@ type reader struct {
 	// of commentOrder.
 	comments     map[string]*xmldom.Element
 	commentOrder []string
+	// source and rels are the part whose blocks are read, and its
+	// relationships.
+	source string
+	rels   *partrel.Rels
 }
 
 func (r *reader) add(typ, parent, key string, attrs ot.Values, text ot.Delta) string {
@@ -315,6 +319,7 @@ func (r *reader) document() error {
 		return err
 	}
 	r.addID("body", "body", "doc", keys[1], nil, nil)
+	r.source, r.rels = r.d.main, rels
 	r.blocks(body, "body")
 	if s := child(body, "sectPr"); s != nil {
 		r.section(r.nodes[0].Attrs, s)
@@ -333,7 +338,11 @@ func (r *reader) document() error {
 			return err
 		}
 	}
-	return r.commentNodes(rels, last)
+	if err := r.commentNodes(rels, last); err != nil {
+		return err
+	}
+	r.behalf(r.optional(rels.OfType(r.d.main, relSettings)))
+	return nil
 }
 
 // notes reads the footnotes or endnotes of a part, each into a "note" node
@@ -356,6 +365,7 @@ func (r *reader) notes(kind, partName, last string) (string, error) {
 		seen[id] = true
 		last = ot.KeyBetween(last, "")
 		r.addID(id, "note", "doc", last, ot.Values{"kind": json.RawMessage(`"` + kind + `"`)}, nil)
+		r.source, r.rels = partName, rels
 		r.blocks(n, id)
 	}
 	return last, nil
@@ -369,6 +379,7 @@ func (r *reader) header(id, typ, name, key string) error {
 	}
 	r.d.parts[id] = &part{name: name, rels: rels}
 	r.addID(id, typ, "doc", key, nil, nil)
+	r.source, r.rels = name, rels
 	r.blocks(root, id)
 	return nil
 }

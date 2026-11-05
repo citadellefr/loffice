@@ -55,7 +55,7 @@ func TestConditionalChecked(t *testing.T) {
 			t.Errorf("%s taken", bad)
 		}
 	}
-	many := "[" + strings.Repeat(`{"ref":"A1","pri":1,"type":"duplicateValues","style":{}},`, maxRules) + `{"ref":"A1","pri":1,"type":"duplicateValues","style":{}}]`
+	many := "[" + strings.Repeat(`{"ref":"A1","pri":1,"type":"duplicateValues","style":{}},`, MaxRules) + `{"ref":"A1","pri":1,"type":"duplicateValues","style":{}}]`
 	if checkConditionals(json.RawMessage(many)) {
 		t.Error("too many conditional formats taken")
 	}

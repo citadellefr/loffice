@@ -345,6 +345,28 @@ func TestCalcCircles(t *testing.T) {
 	}
 }
 
+// Renaming a sheet keeps the circles found, and those an edit makes or ends
+// after it are found as well.
+func TestCalcCirclesAfterRename(t *testing.T) {
+	tree, c := calcTree(t)
+	edit(t, tree, c, ot.Edit{{Op: ot.OpCel, ID: "S1", Cells: []ot.Cell{cell(4, 1, `{"f":"A5+1"}`), cell(5, 1, `{"f":"A4+1"}`)}}})
+	if got := string(tree.Node("book").Attrs["circular"]); got != `{"S1":["A4","A5"]}` {
+		t.Fatalf("circular %s", got)
+	}
+	got := edit(t, tree, c, ot.Edit{{Op: ot.OpSet, ID: "S2", Attrs: ot.Values{"name": json.RawMessage(`"Autre"`)}}})
+	if strings.Contains(got, "circular") || string(tree.Node("book").Attrs["circular"]) != `{"S1":["A4","A5"]}` {
+		t.Fatalf("renamed: %s %s", got, tree.Node("book").Attrs["circular"])
+	}
+	edit(t, tree, c, ot.Edit{{Op: ot.OpCel, ID: "S2", Cells: []ot.Cell{cell(2, 1, `{"f":"B2"}`), cell(2, 2, `{"f":"Feuil1!A3+Autre!A2"}`)}}})
+	if got := string(tree.Node("book").Attrs["circular"]); got != `{"S1":["A4","A5"],"S2":["A2","B2"]}` {
+		t.Fatalf("made after a rename: %s", got)
+	}
+	edit(t, tree, c, ot.Edit{{Op: ot.OpCel, ID: "S1", Cells: []ot.Cell{cell(5, 1, `{"f":null,"v":1}`)}}})
+	if got := string(tree.Node("book").Attrs["circular"]); got != `{"S2":["A2","B2"]}` {
+		t.Fatalf("ended after a rename: %s", got)
+	}
+}
+
 // Iteration is read from calcPr and written back there.
 func TestCalcPr(t *testing.T) {
 	blank, err := os.ReadFile("../testdata/xlsx/blank.xlsx")
@@ -372,5 +394,72 @@ func TestCalcPr(t *testing.T) {
 	bad := ot.Edit{{Op: ot.OpSet, ID: "book", Attrs: ot.Values{"iterate": json.RawMessage(`{"count":0,"delta":0.001}`)}}}
 	if err := d.Check(tree, bad, ""); err == nil {
 		t.Fatal("no iteration taken")
+	}
+}
+
+func largeTree(b *testing.B, n int) *ot.Tree {
+	cells := make([]ot.Cell, 0, 2*n)
+	for i := 1; i <= n; i++ {
+		cells = append(cells,
+			ot.Cell{Row: i, Col: 1, Fields: json.RawMessage(`{"v":` + strconv.Itoa(i) + `}`)},
+			ot.Cell{Row: i, Col: 2, Fields: json.RawMessage(fmt.Sprintf(`{"f":"A%d*2+SUM(A%d:A%d)","v":0}`, i, max(i-4, 1), i))})
+	}
+	tree, err := ot.NewTree(ot.Edit{
+		{Op: ot.OpNew, ID: "book", Type: "book", Key: "V"},
+		{Op: ot.OpNew, ID: "S1", Type: "sheet", Parent: "book", Key: "K", Attrs: ot.Values{"name": json.RawMessage(`"Feuil1"`)}, Cells: cells},
+	})
+	if err != nil {
+		b.Fatal(err)
+	}
+	return tree
+}
+
+// 100 000 formulas without a circle: opening the book looks for circles
+// once.
+func BenchmarkOpenFormulas(b *testing.B) {
+	tree := largeTree(b, 100000)
+	for b.Loop() {
+		NewCalc(tree, formula.Options{})
+	}
+}
+
+// Renaming a sheet of the same book does not look for circles again.
+func BenchmarkRenameSheet(b *testing.B) {
+	tree := largeTree(b, 100000)
+	c := NewCalc(tree, formula.Options{})
+	i := 0
+	for b.Loop() {
+		i++
+		e := ot.Edit{{Op: ot.OpSet, ID: "S1", Attrs: ot.Values{"name": json.RawMessage(`"Feuil` + strconv.Itoa(i+1) + `"`)}}}
+		if err := tree.Apply(e); err != nil {
+			b.Fatal(err)
+		}
+		c.Follow(e, nil)
+	}
+}
+
+func TestCalcWorkbookInfo(t *testing.T) {
+	tree, c := calcTree(t)
+	edit(t, tree, c, ot.Edit{{Op: ot.OpNew, ID: "S3", Type: "sheet", Parent: "book", Key: "M", Attrs: ot.Values{"name": json.RawMessage(`"Trois"`)}}})
+	edit(t, tree, c, ot.Edit{{Op: ot.OpCel, ID: "S1", Cells: []ot.Cell{
+		cell(6, 1, `{"f":"SHEETS()"}`), cell(6, 2, `{"f":"INFO(\"numfile\")"}`), cell(6, 3, `{"f":"CELL(\"filename\",A1)"}`)}}})
+	for col, want := range map[int]string{1: `"v":3`, 2: `"v":3`, 3: `"v":""`} {
+		if got := fieldsAt(tree, "S1", 6, col); !strings.HasSuffix(got, want+"}") {
+			t.Fatalf("col %d: %s, want %s", col, got, want)
+		}
+	}
+}
+
+func TestCalcFileName(t *testing.T) {
+	tree, c := calcTree(t)
+	c.opt.FileName = "budget.xlsx"
+	c.rebuild()
+	edit(t, tree, c, ot.Edit{{Op: ot.OpCel, ID: "S1", Cells: []ot.Cell{cell(6, 3, `{"f":"CELL(\"filename\",A1)"}`)}}})
+	if got := fieldsAt(tree, "S1", 6, 3); got != `{"f":"CELL(\"filename\",A1)","v":"[budget.xlsx]Feuil1"}` {
+		t.Fatalf("got %s", got)
+	}
+	edit(t, tree, c, ot.Edit{{Op: ot.OpSet, ID: "S1", Attrs: ot.Values{"name": json.RawMessage(`"Autre"`)}}})
+	if got := fieldsAt(tree, "S1", 6, 3); got != `{"f":"CELL(\"filename\",A1)","v":"[budget.xlsx]Autre"}` {
+		t.Fatalf("after rename: %s", got)
 	}
 }

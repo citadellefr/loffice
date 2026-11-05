@@ -98,7 +98,7 @@ func waitCell(t *testing.T, a *Agent, want Cell) {
 	t.Fatalf("%s is %+v, want %+v", want.Ref, cell(t, a, "Données", want.Ref), want)
 }
 
-func apply(t *testing.T, a *Agent, edits ...Edit) Record {
+func applyDirect(t *testing.T, a *Agent, edits ...Edit) Record {
 	t.Helper()
 	rec, err := a.Apply(t.Context(), Batch{OnBehalfOf: "u1", Edits: edits})
 	if err != nil {
@@ -168,7 +168,7 @@ func TestRangeInvalid(t *testing.T) {
 	if _, _, err := a.Range("Données", "A1:XFD1000"); !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "read less") {
 		t.Error(err)
 	}
-	apply(t, a, Edit{Op: "cells", Sheet: "Données", Range: "ALL2000", Values: [][]any{{"loin"}}})
+	applyDirect(t, a, Edit{Op: "cells", Sheet: "Données", Range: "ALL2000", Values: [][]any{{"loin"}}})
 	if _, _, err := a.Range("Données", ""); !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "A1:ALL2000") {
 		t.Error(err)
 	}
@@ -186,7 +186,7 @@ func TestRangeInvalid(t *testing.T) {
 func TestCells(t *testing.T) {
 	r, a := newBook(t)
 	alice := r.human("Alice")
-	apply(t, a,
+	applyDirect(t, a,
 		Edit{Op: "cells", Sheet: "Données", Range: "A1", Values: [][]any{{10.0, "hello"}, {4.0, "=A1*2", true}}},
 		Edit{Op: "cells", Sheet: "Données", Range: "C1", Values: [][]any{{nil}}},
 	)
@@ -228,7 +228,7 @@ func typeCell(sheet string, row, col int, fields string) ot.Edit {
 func TestLines(t *testing.T) {
 	r, a := newBook(t)
 	alice := r.human("Alice")
-	apply(t, a, Edit{Op: "insert_rows", Sheet: "Données", Range: "2:3"})
+	applyDirect(t, a, Edit{Op: "insert_rows", Sheet: "Données", Range: "2:3"})
 	if f := alice.next("op"); !strings.Contains(string(f.D), `"ins"`) {
 		t.Fatalf("%s", f.D)
 	}
@@ -238,16 +238,16 @@ func TestLines(t *testing.T) {
 		got.Rows[4][0].Formula != "=SUM(A1:A4)" || got.Rows[5][0].Value != 40.0 {
 		t.Fatalf("%+v", got.Rows)
 	}
-	apply(t, a, Edit{Op: "delete_rows", Sheet: "Données", Range: "2:4"})
+	applyDirect(t, a, Edit{Op: "delete_rows", Sheet: "Données", Range: "2:4"})
 	waitCell(t, a, Cell{Ref: "A2", Value: 2.0, Formula: "=SUM(A1:A1)"})
 	if c := cell(t, a, "Données", "A3"); c.Value != 40.0 {
 		t.Fatalf("%+v", c)
 	}
-	apply(t, a, Edit{Op: "delete_columns", Sheet: "Données", Range: "B:B"})
+	applyDirect(t, a, Edit{Op: "delete_columns", Sheet: "Données", Range: "B:B"})
 	if c := cell(t, a, "Données", "B1"); c.Error != "#DIV/0!" {
 		t.Fatalf("%+v", c)
 	}
-	apply(t, a, Edit{Op: "insert_columns", Sheet: "Données", Range: "A:B"})
+	applyDirect(t, a, Edit{Op: "insert_columns", Sheet: "Données", Range: "A:B"})
 	if c := cell(t, a, "Données", "C1"); c.Value != 2.0 {
 		t.Fatalf("%+v", c)
 	}
@@ -381,8 +381,8 @@ func TestUndoSheet(t *testing.T) {
 	r, a := newBook(t)
 	alice := r.human("Alice")
 	id := sheetID(t, a)
-	apply(t, a, Edit{Op: "cells", Sheet: "Données", Range: "A1:B1", Values: [][]any{{10.0, "=A1+1"}}})
-	apply(t, a, Edit{Op: "delete_rows", Sheet: "Données", Range: "4:4"})
+	applyDirect(t, a, Edit{Op: "cells", Sheet: "Données", Range: "A1:B1", Values: [][]any{{10.0, "=A1+1"}}})
+	applyDirect(t, a, Edit{Op: "delete_rows", Sheet: "Données", Range: "4:4"})
 	f := alice.edit(typeCell(id, 2, 1, `{"v":"Alice"}`))
 	if f.T != "ack" {
 		t.Fatalf("%+v", f)
@@ -407,11 +407,11 @@ func TestUndoSheet(t *testing.T) {
 
 func TestUndoSheetOwnLines(t *testing.T) {
 	_, a := newBook(t)
-	apply(t, a, Edit{Op: "cells", Sheet: "Données", Range: "A1", Values: [][]any{{10.0}}})
-	apply(t, a, Edit{Op: "insert_rows", Sheet: "Données", Range: "2"})
-	apply(t, a, Edit{Op: "delete_rows", Sheet: "Données", Range: "2"})
-	apply(t, a, Edit{Op: "insert_columns", Sheet: "Données", Range: "A"})
-	apply(t, a, Edit{Op: "delete_columns", Sheet: "Données", Range: "A"})
+	applyDirect(t, a, Edit{Op: "cells", Sheet: "Données", Range: "A1", Values: [][]any{{10.0}}})
+	applyDirect(t, a, Edit{Op: "insert_rows", Sheet: "Données", Range: "2"})
+	applyDirect(t, a, Edit{Op: "delete_rows", Sheet: "Données", Range: "2"})
+	applyDirect(t, a, Edit{Op: "insert_columns", Sheet: "Données", Range: "A"})
+	applyDirect(t, a, Edit{Op: "delete_columns", Sheet: "Données", Range: "A"})
 	if rec, err := a.UndoMine(t.Context(), "u1"); err != nil || len(rec.Edits) != 5 {
 		t.Fatalf("%+v %v", rec, err)
 	}
@@ -431,8 +431,8 @@ func TestUndoSheetHumanLines(t *testing.T) {
 	r, a := newBook(t)
 	alice := r.human("Alice")
 	id := sheetID(t, a)
-	apply(t, a, Edit{Op: "cells", Sheet: "Données", Range: "A2", Values: [][]any{{30.0}}})
-	apply(t, a, Edit{Op: "insert_rows", Sheet: "Données", Range: "1"})
+	applyDirect(t, a, Edit{Op: "cells", Sheet: "Données", Range: "A2", Values: [][]any{{30.0}}})
+	applyDirect(t, a, Edit{Op: "insert_rows", Sheet: "Données", Range: "1"})
 	waitCell(t, a, Cell{Ref: "A4", Value: 32.0, Formula: "=SUM(A2:A3)"})
 	a.mu.Lock()
 	seen := a.s.version
@@ -463,9 +463,9 @@ func TestUndoSheetHumanLines(t *testing.T) {
 
 func TestUndoSheetFormulas(t *testing.T) {
 	_, a := newBook(t)
-	apply(t, a, Edit{Op: "cells", Sheet: "Données", Range: "D1", Values: [][]any{{"=A2+1"}}})
+	applyDirect(t, a, Edit{Op: "cells", Sheet: "Données", Range: "D1", Values: [][]any{{"=A2+1"}}})
 	waitCell(t, a, Cell{Ref: "D1", Value: 4.0, Formula: "=A2+1"})
-	apply(t, a, Edit{Op: "delete_rows", Sheet: "Données", Range: "2"})
+	applyDirect(t, a, Edit{Op: "delete_rows", Sheet: "Données", Range: "2"})
 	waitCell(t, a, Cell{Ref: "A2", Value: 2.0, Formula: "=SUM(A1:A1)"})
 	if rec, err := a.UndoMine(t.Context(), "u1"); err != nil || len(rec.Edits) != 2 {
 		t.Fatalf("%+v %v", rec, err)
@@ -481,8 +481,8 @@ func TestUndoSheetFormulas(t *testing.T) {
 
 func TestUndoSheetFormulasKept(t *testing.T) {
 	_, a := newBook(t)
-	apply(t, a, Edit{Op: "cells", Sheet: "Données", Range: "D1", Values: [][]any{{"=A2+1"}}})
-	apply(t, a, Edit{Op: "delete_rows", Sheet: "Données", Range: "2"})
+	applyDirect(t, a, Edit{Op: "cells", Sheet: "Données", Range: "D1", Values: [][]any{{"=A2+1"}}})
+	applyDirect(t, a, Edit{Op: "delete_rows", Sheet: "Données", Range: "2"})
 	waitCell(t, a, Cell{Ref: "A2", Value: 2.0, Formula: "=SUM(A1:A1)"})
 	if _, err := a.Apply(t.Context(), Batch{OnBehalfOf: "u2", Edits: []Edit{{Op: "cells", Sheet: "Données", Range: "A5", Values: [][]any{{1.0}}}}}); err != nil {
 		t.Fatal(err)
@@ -497,7 +497,7 @@ func TestUndoSheetLaterRow(t *testing.T) {
 	r, a := newBook(t)
 	alice := r.human("Alice")
 	id := sheetID(t, a)
-	apply(t, a, Edit{Op: "delete_rows", Sheet: "Données", Range: "1"})
+	applyDirect(t, a, Edit{Op: "delete_rows", Sheet: "Données", Range: "1"})
 	waitCell(t, a, Cell{Ref: "A2", Value: 3.0, Formula: "=SUM(A1:A1)"})
 	a.mu.Lock()
 	seen := a.s.version
@@ -522,7 +522,7 @@ func TestUndoSheetLaterRow(t *testing.T) {
 
 func TestUndoSheetTwoUsers(t *testing.T) {
 	_, a := newBook(t)
-	apply(t, a, Edit{Op: "cells", Sheet: "Données", Range: "A2", Values: [][]any{{30.0}}})
+	applyDirect(t, a, Edit{Op: "cells", Sheet: "Données", Range: "A2", Values: [][]any{{30.0}}})
 	if _, err := a.Apply(t.Context(), Batch{OnBehalfOf: "u2", Edits: []Edit{{Op: "insert_rows", Sheet: "Données", Range: "1"}}}); err != nil {
 		t.Fatal(err)
 	}
@@ -544,7 +544,7 @@ func TestUndoSheetChanged(t *testing.T) {
 	r, a := newBook(t)
 	alice := r.human("Alice")
 	id := sheetID(t, a)
-	apply(t, a, Edit{Op: "cells", Sheet: "Données", Range: "A1", Values: [][]any{{10.0}}})
+	applyDirect(t, a, Edit{Op: "cells", Sheet: "Données", Range: "A1", Values: [][]any{{10.0}}})
 	f := alice.edit(typeCell(id, 1, 1, `{"v":99}`))
 	if f.T != "ack" {
 		t.Fatalf("%+v", f)
@@ -562,7 +562,7 @@ func TestSheetMarks(t *testing.T) {
 	r, a := newBook(t)
 	alice := r.human("Alice")
 	id := sheetID(t, a)
-	apply(t, a, Edit{Op: "cells", Sheet: "Données", Range: "B2", Values: [][]any{{1.0, 2.0}, {3.0, 4.0}}})
+	applyDirect(t, a, Edit{Op: "cells", Sheet: "Données", Range: "B2", Values: [][]any{{1.0, 2.0}, {3.0, 4.0}}})
 	var eph struct {
 		Recent []Mark `json:"recent"`
 	}
@@ -593,7 +593,7 @@ func TestUndoSheetValidations(t *testing.T) {
 	}
 	settle(t, a, f.V)
 	valid, cf = sheetAttr(t, a, id, "valid"), sheetAttr(t, a, id, "cf")
-	apply(t, a, Edit{Op: "delete_rows", Sheet: "Données", Range: "2"})
+	applyDirect(t, a, Edit{Op: "delete_rows", Sheet: "Données", Range: "2"})
 	rec, err := a.UndoMine(t.Context(), "u1")
 	if err != nil || len(rec.Lost) > 0 {
 		t.Fatal(rec, err)
@@ -613,7 +613,7 @@ func TestUndoSheetValidationsChanged(t *testing.T) {
 	if f := alice.edit(ot.Edit{{Op: ot.OpSet, ID: id, Attrs: ot.Values{"valid": json.RawMessage(`[{"ref":"B2","prompt":"y"}]`)}}}); f.T != "ack" {
 		t.Fatalf("%+v", f)
 	}
-	apply(t, a, Edit{Op: "delete_rows", Sheet: "Données", Range: "2"})
+	applyDirect(t, a, Edit{Op: "delete_rows", Sheet: "Données", Range: "2"})
 	a.mu.Lock()
 	seen := a.s.version
 	a.mu.Unlock()
@@ -668,5 +668,100 @@ func TestUnshifted(t *testing.T) {
 	}
 	if got := a.unrestorable(back[1]); got != "" {
 		t.Fatal(got)
+	}
+}
+
+func rawSpread(t *testing.T, a *Agent, id string, row, col int) spread {
+	t.Helper()
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	f, _ := spreadOf(a.s.tree.Node(id).Grid.Cell(row, col))
+	return f
+}
+
+// catchUp has a human follow the edits of the agent so far.
+func catchUp(t *testing.T, a *Agent, h *human) {
+	t.Helper()
+	a.mu.Lock()
+	seen := a.s.version
+	a.mu.Unlock()
+	for h.v < seen {
+		h.next("op")
+	}
+}
+
+func TestUndoSheetSpreads(t *testing.T) {
+	r, a := newBook(t)
+	alice := r.human("Alice")
+	id := sheetID(t, a)
+	f := alice.edit(ot.Edit{{Op: ot.OpCel, ID: id, Cells: []ot.Cell{
+		{Row: 2, Col: 3, Fields: json.RawMessage(`{"m":[2,1]}`)},
+		{Row: 1, Col: 5, Fields: json.RawMessage(`{"f":"A1:A3*2","fa":"E1:E3"}`)},
+	}}})
+	if f.T != "ack" {
+		t.Fatalf("%+v", f)
+	}
+	settle(t, a, f.V)
+	merge, array := rawSpread(t, a, id, 2, 3), rawSpread(t, a, id, 1, 5)
+	applyDirect(t, a, Edit{Op: "delete_rows", Sheet: "Données", Range: "3"})
+	for i := 0; *rawSpread(t, a, id, 2, 3).M != [2]int{1, 1}; i++ {
+		if i == 200 {
+			t.Fatalf("merge after delete %+v", *rawSpread(t, a, id, 2, 3).M)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	rec, err := a.UndoMine(t.Context(), "u1")
+	if err != nil || len(rec.Lost) > 0 {
+		t.Fatal(rec, err)
+	}
+	if got := rawSpread(t, a, id, 2, 3); !got.equal(merge) {
+		t.Errorf("merge %+v, want %+v", *got.M, *merge.M)
+	}
+	if got := rawSpread(t, a, id, 1, 5); !got.equal(array) {
+		t.Errorf("array %+v, want %+v", got, array)
+	}
+}
+
+func TestUndoSheetShiftedSince(t *testing.T) {
+	r, a := newBook(t)
+	alice := r.human("Alice")
+	id := sheetID(t, a)
+	edit := ot.Edit{
+		{Op: ot.OpSet, ID: id, Attrs: ot.Values{"valid": json.RawMessage(`[{"ref":"A3:A4","prompt":"x"},{"ref":"D8","prompt":"y"}]`)}},
+		{Op: ot.OpCel, ID: id, Cells: []ot.Cell{{Row: 8, Col: 2, Fields: json.RawMessage(`{"f":"A4+A1"}`)}}},
+	}
+	if f := alice.edit(edit); f.T != "ack" {
+		t.Fatalf("%+v", f)
+	}
+	for _, at := range []int{20, 1} {
+		applyDirect(t, a, Edit{Op: "delete_rows", Sheet: "Données", Range: "4"})
+		catchUp(t, a, alice)
+		f := alice.edit(ot.Edit{{Op: ot.OpIns, ID: id, Dim: ot.DimRows, At: at, N: 2}})
+		if f.T != "ack" {
+			t.Fatalf("%+v", f)
+		}
+		settle(t, a, f.V)
+		_, err := a.UndoMine(t.Context(), "u1")
+		if at == 20 {
+			if err != nil {
+				t.Fatalf("lines inserted below: %v", err)
+			}
+			if got := sheetAttr(t, a, id, "valid"); got != `[{"ref":"A3:A4","prompt":"x"},{"ref":"D8","prompt":"y"}]` {
+				t.Fatalf("valid %s", got)
+			}
+			if got := rawSpread(t, a, id, 8, 2); got.F != "A4+A1" {
+				t.Fatalf("B8 %+v", got)
+			}
+			continue
+		}
+		if !errors.Is(err, ErrChanged) || !strings.Contains(err.Error(), "Données") {
+			t.Fatalf("lines inserted above: %v", err)
+		}
+		for i := 0; sheetAttr(t, a, id, "valid") != `[{"ref":"A5:A5","prompt":"x"},{"ref":"D9","prompt":"y"}]`; i++ {
+			if i == 200 {
+				t.Fatalf("valid %s", sheetAttr(t, a, id, "valid"))
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
 	}
 }

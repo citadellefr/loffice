@@ -148,6 +148,65 @@ func (c *Context) scan(args []Expr, all bool) Value {
 	return acc
 }
 
+// operand is an array MAP, BYROW and BYCOL call a LAMBDA over: a range
+// gives references to its cells, rows or columns, any other array its values.
+type operand struct {
+	t          *Table
+	area       Area3
+	rows, cols int
+}
+
+func (c *Context) operand(v Value) operand {
+	if v.Type == TypeRange && len(v.Refs) == 1 {
+		a := c.trim(v.Refs[0])
+		if o := (operand{area: a, rows: a.R2 - a.R1 + 1, cols: a.C2 - a.C1 + 1}); o.rows*o.cols <= maxCells {
+			return o
+		}
+	}
+	t := c.array(v)
+	return operand{t: t, rows: t.Rows, cols: t.Cols}
+}
+
+// sub is the reference to rows r1 to r2 and columns c1 to c2 of a range.
+func (o operand) sub(r1, r2, c1, c2 int) Value {
+	a := o.area
+	return Value{Type: TypeRange, Refs: []Area3{{a.Sheet, Area{R1: a.R1 + r1, R2: a.R1 + r2, C1: a.C1 + c1, C2: a.C1 + c2}}}}
+}
+
+// at is the element at row i and column j, stretched like a table.
+func (o operand) at(i, j int) Value {
+	if o.t != nil {
+		return stretched(o.t, i, j)
+	}
+	if o.rows == 1 {
+		i = 0
+	}
+	if o.cols == 1 {
+		j = 0
+	}
+	if i >= o.rows || j >= o.cols {
+		return ErrNA
+	}
+	return o.sub(i, i, j, j)
+}
+
+// line is the row i, or the column.
+func (o operand) line(i int, row bool) Value {
+	switch {
+	case o.t == nil && row:
+		return o.sub(i, i, 0, o.cols-1)
+	case o.t == nil:
+		return o.sub(0, o.rows-1, i, i)
+	case row:
+		return Value{Type: TypeArray, Arr: &Table{Rows: 1, Cols: o.cols, Cells: o.t.Cells[i*o.cols : (i+1)*o.cols]}}
+	}
+	col := &Table{Rows: o.rows, Cols: 1, Cells: make([]Value, o.rows)}
+	for k := range o.rows {
+		col.Cells[k] = o.t.At(k, i)
+	}
+	return Value{Type: TypeArray, Arr: col}
+}
+
 // lines calls a LAMBDA of one parameter with each row of an array, or each
 // column, for BYROW and BYCOL.
 func (c *Context) lines(args []Expr, rows bool) Value {
@@ -155,21 +214,14 @@ func (c *Context) lines(args []Expr, rows bool) Value {
 	if err != nil {
 		return *err
 	}
-	t := c.array(c.Eval(args[0]))
-	n, size := t.Rows, t.Cols
+	o := c.operand(c.Eval(args[0]))
+	n := o.rows
 	if !rows {
-		n, size = t.Cols, t.Rows
+		n = o.cols
 	}
 	cells := make([]Value, n)
 	for i := range cells {
-		line := &Table{Rows: 1, Cols: size, Cells: t.Cells[i*size : (i+1)*size]}
-		if !rows {
-			line = &Table{Rows: size, Cols: 1, Cells: make([]Value, size)}
-			for k := range size {
-				line.Cells[k] = t.At(k, i)
-			}
-		}
-		cells[i] = c.element(c.call(l, []Value{{Type: TypeArray, Arr: line}}, nil))
+		cells[i] = c.element(c.call(l, []Value{o.line(i, rows)}, nil))
 	}
 	if rows {
 		return Value{Type: TypeArray, Arr: &Table{Rows: n, Cols: 1, Cells: cells}}
@@ -224,11 +276,11 @@ func init() {
 			if err != nil {
 				return *err
 			}
-			tables := make([]*Table, n)
+			operands := make([]operand, n)
 			rows, cols := 0, 0
 			for i, a := range args[:n] {
-				tables[i] = c.array(c.Eval(a))
-				rows, cols = max(rows, tables[i].Rows), max(cols, tables[i].Cols)
+				operands[i] = c.operand(c.Eval(a))
+				rows, cols = max(rows, operands[i].rows), max(cols, operands[i].cols)
 			}
 			if rows*cols > maxCells {
 				return ErrNum
@@ -237,8 +289,8 @@ func init() {
 			values := make([]Value, n)
 			for i := range rows {
 				for j := range cols {
-					for k, t := range tables {
-						values[k] = stretched(t, i, j)
+					for k, o := range operands {
+						values[k] = o.at(i, j)
 					}
 					out.Cells[i*cols+j] = c.element(c.call(l, values, nil))
 				}

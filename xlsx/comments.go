@@ -747,10 +747,15 @@ func (w *writer) dropPart(rw *sheetRels, sheet, name, typ string) {
 }
 
 func (w *writer) putRels(p *sheetPart, rw *sheetRels) error {
+	return w.putPartRels(p.name, rw)
+}
+
+// putPartRels writes the relationships of a part, removed when it has none.
+func (w *writer) putPartRels(part string, rw *sheetRels) error {
 	if !rw.changed {
 		return nil
 	}
-	name := opc.RelsName(p.name)
+	name := opc.RelsName(part)
 	if len(rw.list) == 0 {
 		if w.pkg.Has(name) {
 			return w.pkg.Remove(name)
@@ -837,17 +842,7 @@ func (w *writer) writeVML(root *xmldom.Element, rw *sheetRels, p *sheetPart, own
 	}
 	if ld == nil {
 		ld = xmldom.New(mainNS, prefixOf(root)+"legacyDrawing")
-		prefix := ""
-		for k, v := range root.Spaces() {
-			if v == relNS && k != "" {
-				prefix = k
-			}
-		}
-		if prefix == "" {
-			prefix = "r"
-			root.Set("xmlns:r", relNS)
-		}
-		ld.Set(prefix+":id", rw.add(relVML, "/"+cm.vml))
+		ld.Set(relsPrefix(root)+":id", rw.add(relVML, "/"+cm.vml))
 		root.Insert(ld, worksheetOrder)
 	}
 	return nil

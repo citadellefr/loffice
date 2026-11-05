@@ -2,6 +2,7 @@ package docx
 
 import (
 	"strconv"
+	"sync"
 
 	"github.com/citadellefr/loffice/internal/xmldom"
 )
@@ -56,6 +57,27 @@ func levels(bullet bool) string {
 	}
 	return out
 }
+
+// readBuiltinStyles are builtinStyles as Open reads them, parsed once: Open
+// only reads them.
+var readBuiltinStyles = sync.OnceValue(func() map[string]*Style {
+	out := map[string]*Style{}
+	for _, b := range builtinStyles {
+		st := readStyle(builtin(b.xml))
+		st.Builtin = true
+		out[b.id] = st
+	}
+	return out
+})
+
+// readBuiltinLists are the levels of builtinLists, parsed once.
+var readBuiltinLists = sync.OnceValue(func() map[string][]*Level {
+	out := map[string][]*Level{}
+	for name, xml := range builtinLists {
+		out[name] = levelsOf(builtin(xml))
+	}
+	return out
+})
 
 // builtin parses a builtin element, in the main namespace under "w".
 func builtin(xml string) *xmldom.Element {

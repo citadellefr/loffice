@@ -12,12 +12,15 @@ import (
 
 // cell are the fields of a cell, as package xlsx names them.
 type cell struct {
-	E  string  `json:"e,omitempty"`
-	F  string  `json:"f,omitempty"`
-	FA string  `json:"fa,omitempty"`
-	M  *[2]int `json:"m,omitempty"`
-	S  string  `json:"s,omitempty"`
-	V  any     `json:"v,omitempty"`
+	E    string     `json:"e,omitempty"`
+	F    string     `json:"f,omitempty"`
+	FA   string     `json:"fa,omitempty"`
+	Link *xlsx.Link `json:"link,omitempty"`
+	M    *[2]int    `json:"m,omitempty"`
+	Note *xlsx.Note `json:"note,omitempty"`
+	Rich string     `json:"rich,omitempty"`
+	S    string     `json:"s,omitempty"`
+	V    any        `json:"v,omitempty"`
 }
 
 // line are the fields of a row or of a column.
@@ -73,6 +76,28 @@ type sheet struct {
 	isFrozen bool
 	pane     frozen
 	filtered bool
+
+	// cf is the header of the conditional formats being read, cfLast the
+	// rule its last CF made.
+	cf           *conditionalFormat
+	cfLast       int
+	conditionals []xlsx.Conditional
+	validations  []xlsx.Validation
+
+	links []areaLink
+	tips  map[[4]int]string
+	// notes are those the sheet tells, and texts what its drawings say, by
+	// the number of the drawing; box is the text being read, noteDrawn tells
+	// that the last drawing was a note, noteObject which.
+	notes      []noteRecord
+	texts      map[uint16]string
+	box        *noteText
+	noteDrawn  bool
+	noteObject uint16
+
+	printing      printing
+	protection    protection
+	filterColumns []xlsx.FilterColumn
 }
 
 type cellFormula struct {
@@ -96,12 +121,15 @@ func (b *book) sheet(stream []byte, index int, key string) (ot.Change, error) {
 		return ot.Change{}, ErrInvalid
 	}
 	s := &sheet{
-		b:      b,
-		attrs:  ot.Values{"name": mustJSON(bound.name)},
-		cells:  map[[2]int]*cell{},
-		lines:  map[[2]int]*line{},
-		shared: map[[2]int][]byte{},
-		arrays: map[[2]int]arrayFormula{},
+		b:        b,
+		attrs:    ot.Values{"name": mustJSON(bound.name)},
+		cells:    map[[2]int]*cell{},
+		lines:    map[[2]int]*line{},
+		shared:   map[[2]int][]byte{},
+		arrays:   map[[2]int]arrayFormula{},
+		texts:    map[uint16]string{},
+		cfLast:   -1,
+		printing: printing{margins: defaultMargins},
 	}
 	switch bound.state {
 	case 1:
@@ -193,7 +221,11 @@ func (s *sheet) read(id uint16, d []byte) {
 	case recLabelSST:
 		if len(d) >= 10 {
 			if i := le.Uint32(d[6:]); int64(i) < int64(len(b.strings)) {
-				s.cell(d).V = b.strings[i]
+				c := s.cell(d)
+				c.V = b.strings[i].text
+				if len(b.strings[i].runs) > 0 {
+					c.Rich = b.richText(int(i))
+				}
 			}
 		}
 	case recLabel, recRString:
@@ -307,33 +339,72 @@ func (s *sheet) read(id uint16, d []byte) {
 	case recAutoFilterInfo:
 		s.filtered = true
 	case recAutoFilter:
-		b.lose(Filters)
+		s.autoFilter(d)
 	case recNote:
-		b.lose(Comments)
+		s.note(d)
 	case recHyperlink:
-		b.lose(Links)
-	case recCondFmt:
-		b.lose(Conditional)
-	case recValidation:
-		b.lose(Validation)
+		s.hyperlink(d)
+	case recLinkTip:
+		s.linkTip(d)
+	case recCondFmt, recCF, recCF12, recCFEx:
+		s.conditional(id, d)
+	case recValidations, recValidation:
+		s.validation(id, d)
 	case recPivotView:
 		b.lose(Pivots)
-	case recHPageBreaks, recVPageBreaks:
-		b.lose(Print)
-	case recHeader, recFooter:
-		if len(d) > 0 {
-			b.lose(Print)
-		}
+	case recLeftMargin, recRightMargin, recTopMargin, recBottomMargin:
+		s.printing.margin(id, d)
+	case recSetup:
+		s.printing.setup(d)
+	case recWsBool:
+		s.printing.fit = len(d) >= 2 && le.Uint16(d)&0x100 != 0
+	case recHCenter:
+		s.printing.CenterH = flag(d)
+	case recVCenter:
+		s.printing.CenterV = flag(d)
+	case recPrintGrid:
+		s.printing.Grid = flag(d)
+	case recPrintHeaders:
+		s.printing.Heads = flag(d)
+	case recHeader:
+		s.printing.Head = headerFooter(d)
+	case recFooter:
+		s.printing.Foot = headerFooter(d)
+	case recHeaderFooter:
+		s.printing.extra(d)
+	case recHPageBreaks:
+		s.printing.Rows = breaks(d, biffRows)
+	case recVPageBreaks:
+		s.printing.Cols = breaks(d, biffCols)
 	case recProtect:
-		if len(d) >= 2 && le.Uint16(d) == 1 {
-			b.lose(Protection)
+		s.protection.on = flag(d)
+	case recPassword:
+		if len(d) >= 2 {
+			s.protection.password = le.Uint16(d)
 		}
+	case recObjProtect:
+		s.protection.objects = flag(d)
+	case recScenProtect:
+		s.protection.scenarios = flag(d)
+	case recFeatHeader:
+		if len(d) >= featProtectData+4 && le.Uint16(d[12:]) == featProtection {
+			s.protection.permissions, s.protection.hasPermissions = le.Uint32(d[featProtectData:]), true
+		}
+	case recTxo:
+		s.textBox(d)
+	case recContinue:
+		s.boxText(d)
 	case recObj:
 		if len(d) >= 6 {
+			s.noteDrawn = false
 			switch le.Uint16(d[4:]) {
 			case objChart:
 				b.lose(Charts)
-			case objDropdown, objNote:
+			case objDropdown:
+			case objNote:
+				if len(d) >= 8 {
+					s.noteDrawn, s.noteObject = true, le.Uint16(d[6:])
+				}
 			default:
 				b.lose(Drawings)
 			}
@@ -411,15 +482,26 @@ func (s *sheet) write() {
 // change creates the sheet.
 func (s *sheet) change(index int, key string) (ot.Change, error) {
 	s.write()
+	s.putLinks()
+	s.putNotes()
+	if p := s.printing.result(); p != nil {
+		s.attrs["print"] = mustJSON(p)
+	}
+	if p := s.protection.result(); p != nil {
+		s.attrs["protect"] = mustJSON(p)
+	} else if s.protection.objects || s.protection.scenarios {
+		s.b.lose(Protection)
+	}
 	if s.isFrozen && s.pane != (frozen{}) {
 		s.attrs["frozen"] = mustJSON(s.pane)
 	}
-	if ref := s.b.filters[index]; s.filtered && ref != "" {
-		// the name of the area is written 'Sheet'!$A$1:$C$9
-		if a, ok := formula.ParseArea(strings.ReplaceAll(ref[strings.LastIndexByte(ref, '!')+1:], "$", "")); ok {
-			s.attrs["filter"] = mustJSON(xlsx.AutoFilter{Ref: a.String()})
-		}
+	if len(s.conditionals) > 0 {
+		s.attrs["cf"] = mustJSON(s.conditionals)
 	}
+	if len(s.validations) > 0 {
+		s.attrs["valid"] = mustJSON(s.validations)
+	}
+	s.filter(index)
 	cells := make([]ot.Cell, 0, len(s.lines)+len(s.cells))
 	for at, l := range s.lines {
 		if *l != (line{}) {
@@ -441,4 +523,29 @@ func (s *sheet) change(index int, key string) (ot.Change, error) {
 		return a.Col - b.Col
 	})
 	return ot.Change{Op: ot.OpNew, ID: sheetID(index), Type: "sheet", Parent: "book", Key: key, Attrs: s.attrs, Cells: cells}, nil
+}
+
+// filter gives the sheet the filter it has, with what its columns show.
+func (s *sheet) filter(index int) {
+	ref := s.b.filters[index]
+	if !s.filtered || ref == "" {
+		if len(s.filterColumns) > 0 {
+			s.b.lose(Filters)
+		}
+		return
+	}
+	// the name of the area is written 'Sheet'!$A$1:$C$9
+	a, ok := formula.ParseArea(strings.ReplaceAll(ref[strings.LastIndexByte(ref, '!')+1:], "$", ""))
+	if !ok {
+		return
+	}
+	filter := xlsx.AutoFilter{Ref: a.String()}
+	for _, c := range s.filterColumns {
+		if c.Col <= a.C2-a.C1 {
+			filter.Cols = append(filter.Cols, c)
+		} else {
+			s.b.lose(Filters)
+		}
+	}
+	s.attrs["filter"] = mustJSON(filter)
 }

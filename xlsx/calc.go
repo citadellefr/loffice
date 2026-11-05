@@ -165,8 +165,9 @@ func (c *Calc) Formulas() int {
 // inserted or removed.
 func (c *Calc) Follow(e ot.Edit, since []ot.Edit) ot.Edit {
 	f := &follow{c: c, cells: map[string]map[[2]int]map[string]json.RawMessage{}, sheets: map[string]ot.Values{}}
-	// whether sheets came, went, moved or were renamed, or names changed
-	books, iterate := false, false
+	// whether sheets came, went, moved or were renamed, or names changed,
+	// and which of those change what formulas read
+	books, graph, iterate := false, false, false
 	for _, ch := range e {
 		h, sheet := c.handles[ch.ID]
 		_, name := ch.Attrs["name"]
@@ -178,15 +179,23 @@ func (c *Calc) Follow(e ot.Edit, since []ot.Edit) ot.Edit {
 			}
 		case ot.OpNew:
 			books = books || ch.Type == "sheet"
+			graph = graph || ch.Type == "sheet"
 		case ot.OpDel:
 			books = books || sheet
+			graph = graph || sheet
 		case ot.OpSet:
 			books = books || sheet && (name || ch.Key != "") || ch.ID == "book" && names
+			graph = graph || sheet && ch.Key != "" || ch.ID == "book" && names
 			iterate = iterate || ch.ID == "book" && ch.Attrs["iterate"] != nil
 		}
 	}
 	if books {
 		f.sheetsChanged()
+	}
+	for _, ch := range e {
+		if (ch.Op == ot.OpSet || ch.Op == ot.OpNew) && ch.Attrs[chartsKey] != nil {
+			f.placeCharts(ch.ID)
+		}
 	}
 	for _, ch := range e {
 		if ch.Op == ot.OpIns || ch.Op == ot.OpRem {
@@ -199,7 +208,16 @@ func (c *Calc) Follow(e ot.Edit, since []ot.Edit) ot.Edit {
 	f.tables(e)
 	f.flush()
 	if books || f.moved || iterate || f.retable {
+		// sheets renamed keep their places, and formulas read what they did
+		same := !graph && !f.moved && !f.retable
+		var circular []formula.Pos
+		if same {
+			circular = c.engine.Circular()
+		}
 		c.rebuild()
+		if same {
+			c.engine.Known(circular)
+		}
 	}
 	f.recalc(e, iterate)
 	f.flush()
@@ -608,7 +626,7 @@ func (f *follow) shift(ch ot.Change) {
 			var fields cellFields
 			_ = json.Unmarshal(raw, &fields)
 			if fields.M != nil {
-				if m := spanShifted(*fields.M, row, col, rows, ch.At, n); m != *fields.M {
+				if m := SpanShifted(*fields.M, row, col, rows, ch.At, n); m != *fields.M {
 					f.setCell(ch.ID, row, col, "m", m)
 				}
 			}
@@ -623,10 +641,10 @@ func (f *follow) shift(ch ot.Change) {
 	f.moved = true
 }
 
-// spanShifted is the span of cells merged from row and col once rows or
+// SpanShifted is the span of cells merged from row and col once rows or
 // columns are inserted or removed at at: those inserted inside it widen
 // it, those removed from it narrow it. The first cell has moved already.
-func spanShifted(m [2]int, row, col int, rows bool, at, n int) [2]int {
+func SpanShifted(m [2]int, row, col int, rows bool, at, n int) [2]int {
 	first, span := col, &m[1]
 	if rows {
 		first, span = row, &m[0]
@@ -975,6 +993,18 @@ func (c *Calc) Sheets(first, last string) ([]int, bool) {
 		out = append(out, h)
 	}
 	return out, true
+}
+
+// SheetCount is the number of sheets of the workbook.
+func (c *Calc) SheetCount() int { return len(c.sheets) }
+
+// FileName is what CELL("filename") gives of a sheet, empty while the
+// document has no name.
+func (c *Calc) FileName(sheet int) string {
+	if c.opt.FileName == "" || sheet < 0 || sheet >= len(c.sheets) {
+		return ""
+	}
+	return "[" + c.opt.FileName + "]" + c.names[c.sheets[sheet]]
 }
 
 func (c *Calc) Name(name string, sheet int) (string, bool) {

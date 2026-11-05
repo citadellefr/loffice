@@ -52,7 +52,10 @@ whole or not at all, which `Preview` shows first: replacing text, inserting
 paragraphs written in Markdown, deleting, formatting, commenting, accepting
 and rejecting revisions. Its changes of text are revisions signed with its
 name unless the batch is direct. Each batch names the user the agent acts
-for, and `UndoMine` rejects what it did for one of them. A batch prepared on
+for, and `UndoMine` rejects what it did for one of them: the document says
+whom each batch was for, in a document variable of `settings.xml` that Word
+keeps, so that a new session knows it without a journal. Text the agent
+inserted for another user is deleted as a revision, not silently. A batch prepared on
 a version whose blocks changed since fails without writing; the host's
 `Allow` can refuse any write before it is sent. The agent keeps up with the
 room however long its model thinks.
@@ -69,10 +72,12 @@ agent's selection move to what it edits, and the list of its recent edits,
 for editors to highlight a while. `UndoMine` takes back its edits for a user
 by edits that undo them, rebased over what others did since, the last first,
 and refuses, saying what, when someone else changed the same content
-meanwhile. Formulas, validations, conditional formats, filters, tables,
-print breaks and names that deleting rows or columns broke are set back with
-them. The notes of a slide, the comments of others and the charts of a
-sheet, which nobody may make again, come back in `Record.Lost` instead.
+meanwhile. Formulas, array formulas, merges, validations, conditional
+formats, filters, tables, print breaks and names that deleting rows or
+columns broke are set back with them, and it refuses when someone inserted
+or deleted rows or columns since that would move them. The notes of a slide,
+the comments of others and the charts of a sheet, which the `Check` may
+refuse, come back in `Record.Lost` instead.
 
 ## MCP server
 
@@ -241,4 +246,12 @@ LOFFICE_OUT=/tmp/out go test ./pptx -run Corpus
 dotnet run --project tools/validate -- corpus/files /tmp/out
 LOFFICE_EDITED=/tmp/edited go test ./pptx -run Edits   # a document edited
 LOFFICE_EDITED=1 dotnet run --project tools/validate -- corpus/files /tmp/edited
+```
+
+`tools/validate/run.sh` does it for every family, rewritten then edited, as CI
+does. Without `dotnet` in the PATH it gets the SDK from nix, so nothing is
+installed on the machine:
+
+```sh
+tools/validate/run.sh /tmp/validate   # work directory, optional
 ```

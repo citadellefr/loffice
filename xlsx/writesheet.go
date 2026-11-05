@@ -80,6 +80,9 @@ func (w *writer) sheet(n *ot.Node, p *sheetPart) error {
 	if err := w.writeLinks(root, p.name, c.links); err != nil {
 		return err
 	}
+	if err := w.chartDrawing(root, n, p); err != nil {
+		return err
+	}
 	w.stringRefs[p] = c.strings
 	doc := &xmldom.Document{Prolog: p.doc.Prolog, Root: root, Tail: p.doc.Tail}
 	return w.put(p.name, typeWorksheet, doc.Bytes())
@@ -145,6 +148,9 @@ func (w *writer) settings(root *xmldom.Element, old, attrs ot.Values) error {
 	}
 	if changed(filterKey) {
 		writeFilter(root, old[filterKey], attrs[filterKey])
+	}
+	if changed(protectKey) {
+		writeProtect(root, attrs[protectKey])
 	}
 	if changed(validKey) {
 		writeValidations(root, attrs[validKey])

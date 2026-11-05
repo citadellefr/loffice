@@ -454,8 +454,8 @@ func raw(v any) json.RawMessage {
 }
 
 // unrestorable tells what a change that takes back the agent's would make
-// again that the Check lets nobody make: the notes of a slide, the comment
-// of someone else, or the charts of a sheet. It is "" for the others.
+// again that the Check refuses: the notes of a slide, the comment of
+// someone else, or the charts of a sheet. It is "" for the others.
 func (a *Agent) unrestorable(c ot.Change) string {
 	if c.Op == ot.OpSet && c.Attrs["charts"] != nil {
 		return "the charts of " + a.s.name(c.ID)

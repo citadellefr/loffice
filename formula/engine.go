@@ -43,6 +43,9 @@ type Options struct {
 	// Iteration calculates the formulas of a circle again and again, as
 	// the workbook asks; without, they hold 0, as in Excel.
 	Iteration *Iteration
+	// FileName is the name of the document, which CELL("filename") puts
+	// before the sheet's.
+	FileName string
 }
 
 // Iteration calculates a circle at most Count times, until no value
@@ -354,7 +357,7 @@ func (e *Engine) reads(x Expr, p Pos, seen map[string]bool, f func(Area3), calls
 			e.readsName(nameExpr{name: x.name}, p, seen, f, calls)
 		}
 		for i, a := range x.args {
-			if placing(x.name, i) {
+			if placing(x, i) {
 				e.reads(a, p, map[string]bool{}, func(Area3) {}, calls)
 			} else {
 				e.reads(a, p, seen, f, calls)
@@ -399,16 +402,21 @@ func (e *Engine) readsTable(tb Tables, s Structured, p Pos, f func(Area3)) {
 	}
 }
 
-// placing tells whether an argument of a function is a reference whose
-// place the function reads, not its cells.
-func placing(name string, arg int) bool {
-	switch name {
+// placing tells whether an argument of a call is a reference whose place
+// the function reads, not its cells: CELL reads those of the information
+// it is asked for only when it is the contents or what depends on them.
+func placing(x callExpr, arg int) bool {
+	switch x.name {
 	case "ROW", "COLUMN", "ROWS", "COLUMNS":
 		return true
 	case "OFFSET":
 		return arg == 0
 	case "CELL":
-		return arg == 1
+		if arg != 1 {
+			return false
+		}
+		kind, literal := x.args[0].(textExpr)
+		return !literal || !cellReadsValue(strings.ToLower(string(kind)))
 	}
 	return false
 }
@@ -684,6 +692,16 @@ func (e *Engine) spillsAt(p Pos, f func(*cellFormula)) {
 		if q != p && q.Sheet == p.Sheet && cf.reach.Contains(p.Row, p.Col) {
 			f(cf)
 		}
+	}
+}
+
+// Known tells the engine the formulas in circles of the engine it replaces,
+// when the formulas it was given read as they did: it does not look for
+// them again.
+func (e *Engine) Known(circular []Pos) {
+	e.scanned = true
+	for _, p := range circular {
+		e.circular[p] = true
 	}
 }
 
@@ -1333,6 +1351,23 @@ func (b *engineBook) TableAt(sheet, row, col int) (TableDef, bool) {
 		return tb.TableAt(sheet, row, col)
 	}
 	return TableDef{}, false
+}
+
+// FileName is the name of the sheet's workbook as CELL("filename") gives
+// it, empty when the source does not know it.
+func (b *engineBook) FileName(sheet int) string {
+	if fn, ok := b.src.(fileNames); ok {
+		return fn.FileName(sheet)
+	}
+	return ""
+}
+
+// SheetCount is the number of sheets of the workbook, for SHEETS().
+func (b *engineBook) SheetCount() int {
+	if sc, ok := b.src.(sheetCounter); ok {
+		return sc.SheetCount()
+	}
+	return 0
 }
 
 // Hidden tells whether a row is hidden, and whether by a filter, when the

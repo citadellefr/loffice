@@ -132,6 +132,9 @@ func (w *writer) save() error {
 			return err
 		}
 	}
+	if err := w.charts(sheets); err != nil {
+		return err
+	}
 	removed := false
 	for id, p := range w.d.sheets {
 		if !used[p] {
@@ -173,7 +176,10 @@ func (w *writer) save() error {
 // same tells whether a sheet is as it was read.
 func (w *writer) same(id string) bool {
 	a, b := w.d.loaded.Node(id), w.tree.Node(id)
-	if a == nil || b == nil || a.Type != b.Type || !sameValues(a.Attrs, b.Attrs) {
+	if a == nil || b == nil || a.Type != b.Type || !sameValues(withoutCharts(a.Attrs), withoutCharts(b.Attrs)) {
+		return false
+	}
+	if p := w.d.sheets[id]; p != nil && p.doc != nil && p.doc.Root.Child(mainNS, "drawing") == nil && len(placedCharts(b)) > 0 {
 		return false
 	}
 	if (a.Grid == nil) != (b.Grid == nil) {
@@ -182,6 +188,14 @@ func (w *writer) same(id string) bool {
 	return a.Grid == nil || slices.EqualFunc(a.Grid.Cells(), b.Grid.Cells(), func(x, y ot.Cell) bool {
 		return x.Row == y.Row && x.Col == y.Col && bytes.Equal(x.Fields, y.Fields)
 	})
+}
+
+// withoutCharts are the attributes of a sheet but its charts, which are
+// written in parts of their own.
+func withoutCharts(attrs ot.Values) ot.Values {
+	attrs = maps.Clone(attrs)
+	delete(attrs, chartsKey)
+	return attrs
 }
 
 func sameValues(a, b ot.Values) bool {

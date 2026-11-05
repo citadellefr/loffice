@@ -92,7 +92,7 @@ class DrawingPainter {
     if (patt is Map<String, Object?>) {
       final fg = colors.resolve(patt['fg']) ?? const Color(0xFF000000);
       final bg = colors.resolve(patt['bg']) ?? const Color(0xFFFFFFFF);
-      return Paint()..shader = flat(_pattern(patt['prst'] as String? ?? '', shade(fg), shade(bg)), Color.lerp(shade(bg), shade(fg), 0.5)!);
+      return Paint()..shader = _pattern(patt['prst'] as String? ?? '', shade(fg), shade(bg));
     }
     return null;
   }
@@ -120,7 +120,8 @@ class DrawingPainter {
     final alpha = blip['alpha'];
     if (alpha is num) paint.color = Color.fromRGBO(0, 0, 0, (alpha / 100000).clamp(0, 1));
     if (blip['tile'] == true) {
-      paint.shader = ImageShader(image, TileMode.repeated, TileMode.repeated, Float64List.fromList([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]));
+      final matrix = Float64List.fromList([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+      paint.shader = tiled(ImageShader(image, TileMode.repeated, TileMode.repeated, matrix), ImageTile(image, matrix));
       canvas.drawRect(box, paint);
       return;
     }
@@ -269,7 +270,8 @@ Shader _pattern(String preset, Color fg, Color bg) => _patterns.putIfAbsent('$pr
   }
   final image = recorder.endRecording().toImageSync(8, 8);
   // a pixel of the pattern is a point of the slide at 100 %
-  return ImageShader(image, TileMode.repeated, TileMode.repeated, Float64List.fromList([0.75, 0, 0, 0, 0, 0.75, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]));
+  final matrix = Float64List.fromList([0.75, 0, 0, 0, 0, 0.75, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
+  return tiled(ImageShader(image, TileMode.repeated, TileMode.repeated, matrix), PatternTile(bits, fg, bg, matrix));
 });
 
 /// The patterns, row by row.
@@ -308,3 +310,39 @@ const _patternBits = <String, List<int>>{
   'lgGrid': [0xFF, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80],
   'dotGrid': [0xAA, 0x00, 0x80, 0x00, 0x80, 0x00, 0x80, 0x00],
 };
+
+/// The fill of a shape: its own, or the entry of [themeFills] its style
+/// points to ([backgroundFills] from index 1001), with the colors "phClr"
+/// resolves in.
+(Map<String, Object?>?, ColorContext) styledFill(
+  Map<String, Object?>? fill,
+  Map<String, Object?>? style,
+  ColorContext colors, {
+  List<Object?> themeFills = const [],
+  List<Object?> backgroundFills = const [],
+}) {
+  final ref = style?['fill'];
+  final refColors = ref is Map<String, Object?> ? colors.withPlaceholder(colors.resolve(ref['color'])) : colors;
+  if (fill != null) return (fill, refColors);
+  if (ref is! Map<String, Object?>) return (null, colors);
+  final idx = int.tryParse('${ref['idx']}') ?? 0;
+  if (idx <= 0) return (null, colors);
+  final list = idx >= 1001 ? backgroundFills : themeFills;
+  final i = idx >= 1001 ? idx - 1001 : idx - 1;
+  return (i < list.length ? list[i] as Map<String, Object?>? : null, refColors);
+}
+
+/// The line of a shape: the entry of [themeLines] its style points to, with
+/// its own properties over it.
+(Map<String, Object?>?, ColorContext) styledLine(Map<String, Object?>? line, Map<String, Object?>? style, ColorContext colors, {List<Object?> themeLines = const []}) {
+  final ref = style?['ln'];
+  var ctx = colors;
+  Map<String, Object?>? out;
+  if (ref is Map<String, Object?>) {
+    final idx = int.tryParse('${ref['idx']}') ?? 0;
+    if (idx > 0 && idx <= themeLines.length) out = themeLines[idx - 1] as Map<String, Object?>?;
+    ctx = colors.withPlaceholder(colors.resolve(ref['color']));
+  }
+  if (line != null) out = {...?out, ...line};
+  return (out, ctx);
+}

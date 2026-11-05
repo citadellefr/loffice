@@ -152,3 +152,21 @@ func (b *book) xf(index int) string {
 	b.xfIDs[index] = id
 	return id
 }
+
+// richText is the rich text of the string at an index of the table.
+func (b *book) richText(index int) string {
+	if rich, ok := b.richs[index]; ok {
+		return rich
+	}
+	var runs []xlsx.Run
+	for _, r := range b.strings[index].runs {
+		run := xlsx.Run{Text: r.text}
+		if r.font >= 0 {
+			run.Font = b.font(r.font)
+		}
+		runs = append(runs, run)
+	}
+	rich := b.doc.RichText(runs)
+	b.richs[index] = rich
+	return rich
+}

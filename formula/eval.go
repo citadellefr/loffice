@@ -256,13 +256,19 @@ func (c *Context) deref(v Value) Value {
 	return Value{Type: TypeArray, Arr: c.table(a)}
 }
 
+// trim is an area of whole rows or columns bounded by the cells its sheet
+// holds.
+func (c *Context) trim(a Area3) Area3 {
+	rows, cols := c.Book.Size(a.Sheet)
+	if a.Rows || a.Cols {
+		a.R2, a.C2 = min(a.R2, max(rows, a.R1)), min(a.C2, max(cols, a.C1))
+	}
+	return a
+}
+
 // table is the values of an area, bounded by the cells its sheet holds.
 func (c *Context) table(a Area3) *Table {
-	rows, cols := c.Book.Size(a.Sheet)
-	r2, c2 := min(a.R2, max(rows, a.R1)), min(a.C2, max(cols, a.C1))
-	if a.Rows || a.Cols {
-		a.R2, a.C2 = r2, c2
-	}
+	a = c.trim(a)
 	t := &Table{Rows: a.R2 - a.R1 + 1, Cols: a.C2 - a.C1 + 1}
 	if t.Rows*t.Cols > maxCells {
 		return &Table{Rows: 1, Cols: 1, Cells: []Value{ErrNum}}

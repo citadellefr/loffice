@@ -13,6 +13,8 @@ import '../chrome/strings.dart';
 import '../clipboard.dart';
 import '../fonts.dart';
 import '../pdf/document.dart' show pdfName;
+import 'chart_dialogs.dart';
+import 'chart_edits.dart';
 import 'charts.dart';
 import 'conditional_menu.dart';
 import 'edits.dart';
@@ -87,6 +89,9 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
 
   /// The comment being written: where, and whether it is a note.
   (int, int, bool)? _draft;
+
+  /// The chart selected: the sheet it is on and its place in the list.
+  (String, int)? _chartAt;
 
   static const _locale = NumberLocale.fr;
   static const _peerColors = [
@@ -172,6 +177,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
   }
 
   void _selected() {
+    _chartAt = null;
     final a = _selection.area;
     _nameBox.text = a.single ? cellName(a.top, a.left) : '${cellName(a.top, a.left)}:${cellName(a.bottom, a.right)}';
     if (_editing) _commit();
@@ -383,6 +389,16 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     final ctrl = keys.isControlPressed || keys.isMetaPressed;
     final shift = keys.isShiftPressed;
     final key = e.logicalKey;
+    if (_chart != null) {
+      if (key == LogicalKeyboardKey.delete || key == LogicalKeyboardKey.backspace) {
+        _removeChart();
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.escape) {
+        _selectChart(null);
+        return KeyEventResult.handled;
+      }
+    }
     final (r, c) = _selection.area.single || !shift ? _selection.active : _focus;
     void go(int row, int col) {
       if (shift) {
@@ -1093,6 +1109,81 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     _gridFocus.requestFocus();
   }
 
+  // charts
+
+  SheetChart? get _chart {
+    final at = _chartAt, sheet = _sheet;
+    if (at == null || sheet == null || at.$1 != sheet.id) return null;
+    return SheetChart.of(sheet).where((c) => c.index == at.$2).firstOrNull;
+  }
+
+  void _selectChart(int? index) {
+    final sheet = _sheet;
+    final at = index == null || sheet == null ? null : (sheet.id, index);
+    if (at != _chartAt) setState(() => _chartAt = at);
+  }
+
+  void _insertChart(ChartType type) {
+    final sheet = _sheet;
+    if (sheet == null) return;
+    final a = _selection.area;
+    final area = a.single ? currentRegion(sheet, a.top, a.left) : a;
+    final charts = ChartEdits(sheet, _wb.layout(sheet)).add(area, '${sheet.attributes['name']}', type);
+    if (_edit(_edits.setCharts(sheet, charts))) _selectChart(charts.length - 1);
+    _gridFocus.requestFocus();
+  }
+
+  void _changeChart(List<Map<String, Object?>> Function(ChartEdits edits, int index) change) {
+    final sheet = _sheet, chart = _chart;
+    if (sheet == null || chart == null) return;
+    _edit(_edits.setCharts(sheet, change(ChartEdits(sheet, _wb.layout(sheet)), chart.index)));
+  }
+
+  void _removeChart() {
+    if (_session.readOnly) return;
+    _changeChart((edits, i) => edits.remove(i));
+    setState(() => _chartAt = null);
+  }
+
+  void _resizeChart(SheetChart chart, {double? width, double? height}) {
+    final r = chart.rect(_wb.layout(_sheet!));
+    _changeChart((edits, i) => edits.place(i, Rect.fromLTWH(r.left, r.top, math.max(20, width ?? r.width), math.max(20, height ?? r.height))));
+  }
+
+  Future<void> _chartTitle(SheetChart chart) async {
+    final title = chart.spec.title;
+    final picked = await showDialog<(bool, String)>(
+      context: context,
+      builder: (context) => ChartTitleDialog(strings: _s, shown: title != null, text: title?.text ?? ''),
+    );
+    if (picked != null && mounted) _changeChart((edits, i) => edits.setTitle(i, picked.$1 ? picked.$2 : null));
+  }
+
+  Future<void> _axisTitles(SheetChart chart) async {
+    final ids = chart.spec.plots.first.axes;
+    String title(int k) => k < ids.length ? chart.spec.axis(ids[k])?.title?.text ?? '' : '';
+    final picked = await showDialog<(String, String)>(
+      context: context,
+      builder: (context) => AxisTitlesDialog(strings: _s, categories: title(0), values: title(1)),
+    );
+    if (picked != null && mounted) _changeChart((edits, i) => edits.setAxisTitles(i, picked.$1, picked.$2));
+  }
+
+  Future<void> _chartData(SheetChart chart) async {
+    final series = chart.spec.plots.first.json['series'] as List<Object?>? ?? const [];
+    String ref(Object? s, String key) {
+      final data = s is Map<String, Object?> ? s[key] : null;
+      return data is Map<String, Object?> ? '${data['ref'] ?? ''}' : '';
+    }
+
+    final picked = await showDialog<(List<SeriesInput>, String)>(
+      context: context,
+      builder: (context) =>
+          ChartDataDialog(strings: _s, series: [for (final (j, s) in series.indexed) SeriesInput(j, ref(s, 'name'), ref(s, 'val'))], categories: series.isEmpty ? '' : ref(series.first, 'cat')),
+    );
+    if (picked != null && mounted) _changeChart((edits, i) => edits.setSeries(i, picked.$1, picked.$2));
+  }
+
   // conditional formats and validation
 
   Future<void> _highlight(String kind) async {
@@ -1330,6 +1421,9 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
               onFilter: _session.readOnly ? null : _openFilter,
               tables: SheetTable.of(sheet),
               onTableFilter: _session.readOnly ? null : _sortTable,
+              chart: _chart?.index,
+              onChart: _selectChart,
+              onChartRect: _session.readOnly ? null : (i, rect) => _changeChart((edits, _) => edits.place(i, rect)),
             ),
           ),
         );
@@ -1485,6 +1579,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     final v = style.vertical;
     final frozen = _sheet == null ? null : _wb.layout(_sheet!);
     final remark = _sheet?.grid == null ? null : _activeThread;
+    final chart = _chart;
     return Ribbon(
       fileLabel: _s.file,
       onFile: () => setState(() => _backstage = true),
@@ -1704,6 +1799,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
             RibbonButton(icon: const Icon(Icons.table_rows_outlined), label: _s.insertRows, onPressed: editable ? () => _insert(rows: true) : null),
             RibbonButton(icon: const Icon(Icons.view_column_outlined), label: _s.insertColumns, onPressed: editable ? () => _insert(rows: false) : null),
           ]),
+          RibbonGroup(_s.charts, [RibbonMenu<ChartType>(icon: const Icon(Icons.bar_chart), label: _s.chart, large: true, enabled: editable, items: _chartTypeItems(null), onSelected: _insertChart)]),
           RibbonGroup(_s.links, [RibbonButton(icon: const Icon(Icons.link), label: _s.insertLink, large: true, onPressed: editable ? _editLink : null)]),
           RibbonGroup(_s.tables, [RibbonButton(icon: const Icon(Icons.table_chart_outlined), label: _s.table, large: true, onPressed: editable ? _insertTable : null)]),
         ]),
@@ -1801,8 +1897,69 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
             RibbonButton(icon: const Icon(Icons.zoom_out), label: '100 %', large: true, onPressed: () => setState(() => _zoom = 1)),
           ]),
         ]),
+        if (chart != null) ..._chartTabs(chart, editable),
       ],
     );
+  }
+
+  List<PopupMenuEntry<ChartType>> _chartTypeItems(ChartType? current) => [
+    for (final (key, label) in _s.chartTypes) CheckedPopupMenuItem(value: ChartType.values.byName(key), checked: ChartType.values.byName(key) == current, child: Text(label)),
+  ];
+
+  /// The tabs of the chart selected.
+  List<RibbonTab> _chartTabs(SheetChart chart, bool editable) {
+    final spec = chart.spec;
+    final plot = spec.plots.firstOrNull;
+    final rect = chart.rect(_wb.layout(_sheet!));
+    const pixelsPerCm = 96 / 2.54;
+    return [
+      RibbonTab(_s.chartDesign, [
+        RibbonGroup(_s.chartTypeGroup, [
+          RibbonMenu<ChartType>(
+            icon: const Icon(Icons.bar_chart),
+            label: _s.changeChartType,
+            large: true,
+            enabled: editable && plot != null,
+            items: _chartTypeItems(plot == null ? null : ChartType.of(plot)),
+            onSelected: (type) => _changeChart((edits, i) => edits.retype(i, type)),
+          ),
+        ]),
+        RibbonGroup(_s.chartData, [
+          RibbonButton(icon: const Icon(Icons.table_chart_outlined), label: _s.selectData, large: true, onPressed: editable && plot != null ? () => _chartData(chart) : null),
+        ]),
+        RibbonGroup(_s.chartLayouts, [
+          RibbonButton(icon: const Icon(Icons.title), label: _s.chartTitle, large: true, selected: spec.title != null, onPressed: editable ? () => _chartTitle(chart) : null),
+          RibbonMenu<String>(
+            icon: const Icon(Icons.format_list_bulleted),
+            label: _s.legend,
+            large: true,
+            enabled: editable,
+            items: [for (final (key, label) in _s.legendPositions) CheckedPopupMenuItem(value: key, checked: key == (spec.legend?.position ?? 'none'), child: Text(label))],
+            onSelected: (pos) => _changeChart((edits, i) => edits.setLegend(i, pos == 'none' ? null : pos)),
+          ),
+          RibbonButton(icon: const Icon(Icons.timeline), label: _s.axisTitles, large: true, onPressed: editable && plot != null && !plot.round ? () => _axisTitles(chart) : null),
+        ]),
+      ]),
+      RibbonTab(_s.chartFormat, [
+        RibbonGroup(_s.size, [
+          RibbonMeasure(
+            label: _s.height,
+            icon: Icons.height,
+            value: rect.height,
+            scale: pixelsPerCm,
+            onChanged: editable ? (v) => _resizeChart(chart, height: v) : null,
+          ),
+          RibbonMeasure(
+            label: _s.width,
+            icon: Icons.swap_horiz,
+            value: rect.width,
+            scale: pixelsPerCm,
+            onChanged: editable ? (v) => _resizeChart(chart, width: v) : null,
+          ),
+        ]),
+        RibbonGroup(_s.charts, [RibbonButton(icon: const Icon(Icons.delete_outline), label: _s.deleteChart, large: true, onPressed: editable ? _removeChart : null)]),
+      ]),
+    ];
   }
 
   RibbonTab _printTab(bool editable) {

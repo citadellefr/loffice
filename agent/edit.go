@@ -255,23 +255,16 @@ func (a *Agent) Focus(block string) error {
 }
 
 // date is the date of the next batch's revisions: one per batch, for the
-// revisions to tell which batch made them.
+// revisions to tell which batch made them, and whom it was for.
 func (a *Agent) date() time.Time {
 	d := a.opt.Now().UTC().Truncate(time.Second)
 	if n := len(a.journal); n > 0 && !d.After(a.journal[n-1].Date) {
 		d = a.journal[n-1].Date.Add(time.Second)
 	}
-	return d
-}
-
-// behalfOf is the user of the batch of that date.
-func (a *Agent) behalfOf(date time.Time) string {
-	for _, r := range a.journal {
-		if r.Date.Equal(date) {
-			return r.OnBehalfOf
-		}
+	for docx.BehalfOf(a.s.tree, a.peer.Name, d.Format(time.RFC3339)) != "" {
+		d = d.Add(time.Second)
 	}
-	return ""
+	return d
 }
 
 func gone(id string) error {
@@ -288,7 +281,7 @@ func (a *Agent) plan(b Batch, date time.Time) (ot.Edit, *state, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	p := &planner{orig: a.s, s: a.s.clone(), base: base, name: a.peer.Name, date: date.Format(time.RFC3339), direct: b.Direct, kind: a.kind}
+	p := &planner{orig: a.s, s: a.s.clone(), base: base, name: a.peer.Name, user: b.OnBehalfOf, date: date.Format(time.RFC3339), direct: b.Direct, kind: a.kind}
 	v := a.s.version + 1
 	var out ot.Edit
 	for i, ed := range b.Edits {
@@ -309,8 +302,35 @@ func (a *Agent) plan(b Batch, date time.Time) (ot.Edit, *state, error) {
 	if a.isSheets() && len(split(out)) > 1 {
 		return nil, nil, fmt.Errorf("%w: rows and columns are inserted or deleted in a batch of their own", ErrInvalid)
 	}
+	if !a.direct() && !b.Direct && revises(b.Edits) {
+		behalf, err := p.behalf()
+		if err != nil {
+			return nil, nil, err
+		}
+		out = append(out, behalf)
+	}
 	p.s.version = v
 	return out, p.s, nil
+}
+
+// revises tells whether edits make revisions of text.
+func revises(edits []Edit) bool {
+	return slices.ContainsFunc(edits, func(e Edit) bool {
+		return e.Op == "replace" || e.Op == "insert" || e.Op == "delete" || e.Op == "format"
+	})
+}
+
+// behalf is the node that tells whom the batch's revisions are for.
+func (p *planner) behalf() (ot.Change, error) {
+	id, attrs, ok := docx.BehalfNode(p.name, p.date, p.user)
+	if !ok {
+		return ot.Change{}, fmt.Errorf("%w: invalid user %q", ErrInvalid, p.user)
+	}
+	last := ""
+	if kids := p.orig.tree.Children("doc"); len(kids) > 0 {
+		last = kids[len(kids)-1].Key
+	}
+	return ot.Change{Op: ot.OpNew, ID: id, Type: docx.BehalfType, Parent: "doc", Key: ot.KeyBetween(last, ""), Attrs: attrs}, nil
 }
 
 // planner resolves the edits of a batch one after the other on s, a copy
@@ -319,6 +339,7 @@ type planner struct {
 	orig, s *state
 	base    uint64
 	name    string
+	user    string
 	date    string
 	direct  bool
 	kind    string
@@ -394,14 +415,21 @@ func (p *planner) tracked(kind string) ot.Attrs {
 	return ot.Attrs{kind: p.name, kind + "d": p.date}
 }
 
-// strike deletes a character: as a revision, unless direct or one the
-// agent inserted.
+// mine tells whether the batch's user is who the agent inserted text for.
+// What the document does not say it was inserted for is not.
+func (p *planner) mine(attrs ot.Attrs) bool {
+	return attrs["ins"] == p.name && (attrs["insd"] == p.date || docx.BehalfOf(p.orig.tree, p.name, attrs["insd"]) == p.user)
+}
+
+// strike deletes a character: as a revision, unless direct or inserted by
+// the agent for the same user. What it inserted for another stays a
+// revision, for that user to review.
 func (p *planner) strike(b *builder, r rune, attrs ot.Attrs) {
 	n := utf16.RuneLen(r)
 	switch {
 	case !visible(r, attrs):
 		b.retain(n, nil)
-	case p.direct || attrs["ins"] == p.name && r != '\n':
+	case p.direct || p.mine(attrs) && r != '\n':
 		b.remove(n)
 	default:
 		b.retain(n, p.tracked("del"))
