@@ -9,6 +9,8 @@ import 'package:loffice/loffice.dart';
 import 'package:loffice/src/drawing/color.dart';
 import 'package:loffice/src/drawing/paint.dart';
 import 'package:loffice/src/pdf/canvas.dart';
+import 'package:loffice/src/powerpoint/deck.dart';
+import 'package:loffice/src/powerpoint/slide_painter.dart';
 
 /// What the canvas of an export writes, read back from the file. With
 /// $LOFFICE_PDF set, the files are written there.
@@ -196,6 +198,40 @@ void main() {
     expect(pdf.content, contains('24 w'));
     expect(' h B\n'.allMatches(pdf.content), hasLength(8));
     expect(' h f\n'.allMatches(pdf.content), hasLength(1));
+  });
+
+  test('the outer shadow of a slide shape is written under it', () async {
+    final edit = Edit.fromJson(jsonDecode(File('../testdata/pptx/shp-shapes.json').readAsStringSync()))!;
+    final deck = Deck(Tree.fromEdit(edit)!);
+    final shape = deck.tree['s257-9']!;
+    Future<_Pdf> slide() async => (await exported((canvas) => SlidePainter(deck).paint(canvas, deck.slides[1]))).$1;
+    final plain = opacities(await slide());
+    expect(plain, hasLength(1));
+    deck.tree.apply(
+      Edit([
+        Change.set(
+          shape.id,
+          attributes: {
+            'shadow': {
+              'color': {
+                'rgb': '000000',
+                'mods': [
+                  ['alpha', 40000],
+                ],
+              },
+              'blur': 50800,
+              'dist': 38100,
+              'dir': 2700000,
+            },
+          },
+        ),
+      ]),
+    );
+    final (pdf, export) = await exported((canvas) => SlidePainter(deck).paint(canvas, deck.slides[1]));
+    expect(export.ignored, isEmpty);
+    final all = opacities(pdf);
+    expect(all, hasLength(11));
+    expect(total(all.sublist(1, 10)), closeTo(0.4, 0.01));
   });
 
   test('a blurred shape is written as the shape and its blur', () async {
