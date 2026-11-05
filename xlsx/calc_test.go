@@ -367,6 +367,41 @@ func TestCalcCirclesAfterRename(t *testing.T) {
 	}
 }
 
+// A renaming that makes valid a reference to a sheet that was not there
+// closes the circle the reference makes at once.
+func TestCalcCircleRenamedIntoReference(t *testing.T) {
+	tree, c := calcTree(t)
+	edit(t, tree, c, ot.Edit{
+		{Op: ot.OpCel, ID: "S1", Cells: []ot.Cell{cell(4, 1, `{"f":"Feuil9!A1"}`)}},
+		{Op: ot.OpCel, ID: "S2", Cells: []ot.Cell{cell(1, 1, `{"f":"Feuil1!A4+1"}`)}},
+	})
+	if got := tree.Node("book").Attrs["circular"]; got != nil {
+		t.Fatalf("circular %s before the renaming", got)
+	}
+	edit(t, tree, c, ot.Edit{{Op: ot.OpSet, ID: "S2", Attrs: ot.Values{"name": json.RawMessage(`"Feuil9"`)}}})
+	if got := string(tree.Node("book").Attrs["circular"]); got != `{"S1":["A4"],"S2":["A1"]}` {
+		t.Fatalf("circular %s after the renaming", got)
+	}
+}
+
+// A renaming that makes no reference valid does not look for circles again:
+// one the engine was not told of stays unseen until an edit that does.
+func TestCalcRenameDoesNotScan(t *testing.T) {
+	tree, c := calcTree(t)
+	edit(t, tree, c, ot.Edit{{Op: ot.OpCel, ID: "S1", Cells: []ot.Cell{cell(6, 1, `{"v":1}`)}}})
+	if err := tree.Apply(ot.Edit{{Op: ot.OpCel, ID: "S1", Cells: []ot.Cell{cell(4, 1, `{"f":"A5+1"}`), cell(5, 1, `{"f":"A4+1"}`)}}}); err != nil {
+		t.Fatal(err)
+	}
+	edit(t, tree, c, ot.Edit{{Op: ot.OpSet, ID: "S2", Attrs: ot.Values{"name": json.RawMessage(`"Autre"`)}}})
+	if got := tree.Node("book").Attrs["circular"]; got != nil {
+		t.Fatalf("circles looked for after a renaming: %s", got)
+	}
+	edit(t, tree, c, ot.Edit{{Op: ot.OpNew, ID: "S3", Type: "sheet", Parent: "book", Key: "M", Attrs: ot.Values{"name": json.RawMessage(`"Trois"`)}}})
+	if got := string(tree.Node("book").Attrs["circular"]); got != `{"S1":["A4","A5"]}` {
+		t.Fatalf("circular %s after a new sheet", got)
+	}
+}
+
 // Iteration is read from calcPr and written back there.
 func TestCalcPr(t *testing.T) {
 	blank, err := os.ReadFile("../testdata/xlsx/blank.xlsx")
