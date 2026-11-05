@@ -28,6 +28,10 @@ type state struct {
 	nodes  map[string]string
 	// mod is the revision that last changed a node or what is under it.
 	mod map[string]uint64
+	// cells are the revisions that last changed the cells of each sheet,
+	// and shifted the last that inserted or removed its rows or columns.
+	cells   map[string]map[[2]int]uint64
+	shifted map[string]uint64
 }
 
 type para struct {
@@ -44,6 +48,8 @@ func newState(tree *ot.Tree, version uint64) *state {
 		tables:  map[string]string{},
 		nodes:   map[string]string{},
 		mod:     map[string]uint64{},
+		cells:   map[string]map[[2]int]uint64{},
+		shifted: map[string]uint64{},
 	}
 	var walk func(parent string)
 	walk = func(parent string) {
@@ -67,6 +73,11 @@ func (s *state) clone() *state {
 	c.tables = maps.Clone(s.tables)
 	c.nodes = maps.Clone(s.nodes)
 	c.mod = maps.Clone(s.mod)
+	c.cells = make(map[string]map[[2]int]uint64, len(s.cells))
+	for id, cells := range s.cells {
+		c.cells[id] = maps.Clone(cells)
+	}
+	c.shifted = maps.Clone(s.shifted)
 	return &c
 }
 
@@ -101,6 +112,8 @@ func (s *state) removed(id string) {
 		delete(s.tables, id)
 	}
 	delete(s.mod, id)
+	delete(s.cells, id)
+	delete(s.shifted, id)
 }
 
 // touch records that revision v changed node id, and so its ancestors.
@@ -161,11 +174,30 @@ func (s *state) change(c ot.Change, v uint64) error {
 		if err := s.tree.Apply(ot.Edit{c}); err != nil {
 			return err
 		}
-		if s.tree.Node(c.ID) != nil {
-			s.touch(c.ID, v)
+		if s.tree.Node(c.ID) == nil {
+			return nil
+		}
+		s.touch(c.ID, v)
+		switch c.Op {
+		case ot.OpCel:
+			if s.cells[c.ID] == nil {
+				s.cells[c.ID] = map[[2]int]uint64{}
+			}
+			for _, cell := range c.Cells {
+				s.cells[c.ID][[2]int{cell.Row, cell.Col}] = v
+			}
+		case ot.OpIns, ot.OpRem:
+			s.shifted[c.ID] = v
+			delete(s.cells, c.ID)
 		}
 	}
 	return nil
+}
+
+// cellChanged is the revision that last changed a cell of a sheet, or
+// moved it.
+func (s *state) cellChanged(sheet string, row, col int) uint64 {
+	return max(s.cells[sheet][[2]int{row, col}], s.shifted[sheet])
 }
 
 func (s *state) subtree(id string, out []string) []string {

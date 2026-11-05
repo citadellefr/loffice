@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- `agent` and `mcp` edit presentations and workbooks, directly and in view of
+  everyone: fourteen tools (`slide_list`, `slide_read`, `shape_text_set`,
+  `shape_add`, `slide_add`, `slide_delete`, `notes_set`, `sheet_list`,
+  `range_read`, `cells_set`, `rows_insert`, `rows_delete`, `columns_insert`,
+  `columns_delete`), and `comment_add` on a slide, through the same `Check`,
+  batches, dry runs and versions as Word. The agent shows the room its
+  selection and its recent edits (`recent` in its presence) for editors to
+  highlight. `UndoMine` takes back only its edits, rebased over those of
+  others, and fails with `ErrChanged` when someone changed the same content
+  since, or inserted or deleted rows or columns that move what it would set
+  back. It sets back the formulas, array formulas, merges, validations,
+  conditional formats, filters, tables, print breaks and names that deleting
+  rows or columns broke, and tells in `Record.Lost` the notes, others'
+  comments and charts it cannot make again.
 - `agent` keeps whom its revisions are for in the document, one `behalf` node
   per author and date written as a document variable of `settings.xml`
   (`docx.BehalfNode`, `docx.BehalfOf`), instead of in a journal of the

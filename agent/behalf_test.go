@@ -125,6 +125,7 @@ func part(t *testing.T, data []byte, name string) string {
 func TestBehalfNodesAreChecked(t *testing.T) {
 	r := newRoom(t, loffice.Options{})
 	a := r.join("Héraut", Options{})
+	heraut, alice := r.human("Héraut"), r.human("Alice")
 	apply(t, a, "u1", Edit{Op: "replace", Block: "p2", Find: "en avance", Text: "à l'heure"})
 	date := a.Journal()[0].Date.Format(time.RFC3339)
 
@@ -135,7 +136,6 @@ func TestBehalfNodesAreChecked(t *testing.T) {
 		}
 		return ot.Edit{{Op: ot.OpNew, ID: id, Type: docx.BehalfType, Parent: "doc", Key: "~", Attrs: attrs}}
 	}
-	heraut, alice := r.human("Héraut"), r.human("Alice")
 	if f := heraut.edit(node("Héraut", date, "u2")); f.T != "nack" {
 		t.Errorf("a second user for the same author and date: %+v", f)
 	}

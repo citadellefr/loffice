@@ -14,8 +14,11 @@
 // the agent knows when it sends it, fails without writing anything; what
 // others send meanwhile is rebased as for anyone.
 //
-// Word documents are edited so far; PowerPoint and Excel will take the
-// same batches, edited directly rather than as revisions.
+// PowerPoint and Excel have no revisions: the agent edits them directly,
+// in view of everyone, and shows the room its selection and the edits it
+// made lately, for editors to highlight. UndoMine takes back its edits
+// there too, rebased over what others did since, and refuses when someone
+// else changed the same content meanwhile.
 package agent
 
 import (
@@ -54,6 +57,9 @@ var (
 	ErrDenied = errors.New("agent: write denied")
 	// ErrRefused is an edit the document refused.
 	ErrRefused = errors.New("agent: edit refused")
+	// ErrChanged is an edit of the agent that someone else changed since:
+	// it cannot be taken back without undoing theirs.
+	ErrChanged = errors.New("agent: changed by someone else since")
 )
 
 // Server is the hub the agent joins: a loffice.Hub or a trame.Hub.
@@ -93,6 +99,12 @@ type Agent struct {
 	flight  *flight
 	err     error
 	journal []Record
+
+	// mine are the batches applied to a document without revisions, for
+	// UndoMine; recent and selection are what the room is shown.
+	mine      []*mine
+	recent    []Mark
+	selection any
 }
 
 // flight is an edit sent, waiting for the hub to take it.
@@ -106,6 +118,11 @@ type flight struct {
 	// applied is the edit as the hub applied it.
 	applied ot.Edit
 	version uint64
+	// owner is the user a batch is for, and batch its edits, in a
+	// document without revisions; undoing is the batch it takes back.
+	owner   string
+	batch   []Edit
+	undoing *mine
 }
 
 // Join connects to the document key of the hub as peer, whose Name signs
@@ -225,6 +242,7 @@ func (a *Agent) fail(err error) {
 
 type frame struct {
 	T     string          `json:"t"`
+	SID   uint32          `json:"sid"`
 	N     uint64          `json:"n"`
 	V     uint64          `json:"v"`
 	Ack   uint64          `json:"ack"`
@@ -263,6 +281,9 @@ func (a *Agent) receive(data []byte) {
 			a.fail(err)
 			return
 		}
+		if a.direct() {
+			a.rebaseMine(e, "", f.SID == 0)
+		}
 		a.applied(e, f.V)
 		if a.flight != nil {
 			a.flight.since = append(a.flight.since, e)
@@ -276,7 +297,18 @@ func (a *Agent) receive(data []byte) {
 		for _, h := range f2.since {
 			e = ot.TransformEdit(h, e, true)
 		}
-		a.applied(e, f.V)
+		switch {
+		case !a.direct():
+			a.applied(e, f.V)
+		case f2.undoing != nil:
+			a.undone(e, f.V, f2)
+		default:
+			a.rebaseMine(e, f2.owner, false)
+			a.appliedMine(e, f.V, f2)
+		}
+		if a.direct() && a.err == nil {
+			a.mark(e)
+		}
 		f2.applied, f2.version = e, f.V
 		a.flight = nil
 		f2.done <- nil
@@ -299,16 +331,17 @@ func (a *Agent) applied(e ot.Edit, v uint64) {
 	}
 }
 
-// submit sends an edit made on the agent's document and waits for the hub
-// to apply it, or refuse it. Callers hold a.sending and a.mu, which submit
-// releases. If ctx ends first, the flight comes back with the error: the hub
-// may still apply the edit, and the callers keep a.sending until it has.
-func (a *Agent) submit(ctx context.Context, e ot.Edit) (*flight, error) {
+// submit sends the edit of a flight, made on the agent's document, and
+// waits for the hub to apply it, or refuse it. Callers hold a.sending and
+// a.mu, which submit releases. If ctx ends first, the flight comes back
+// with the error: the hub may still apply the edit, and the callers keep
+// a.sending until it has.
+func (a *Agent) submit(ctx context.Context, f *flight) (*flight, error) {
 	a.n++
-	f := &flight{n: a.n, base: a.s.version, edit: e, done: make(chan error, 1)}
+	f.n, f.base, f.done = a.n, a.s.version, make(chan error, 1)
 	a.flight = f
 	a.mu.Unlock()
-	d, err := json.Marshal(e)
+	d, err := json.Marshal(f.edit)
 	if err == nil {
 		frame := `{"t":"op","n":` + strconv.FormatUint(f.n, 10) + `,"v":` + strconv.FormatUint(f.base, 10) + `,"d":` + string(d) + `}`
 		err = a.conn.send([]byte(frame))
@@ -340,9 +373,23 @@ type Cursor struct {
 	Extent int    `json:"e"`
 }
 
-// show publishes the agent's cursor to the room.
-func (a *Agent) show(c Cursor) error {
-	d, err := json.Marshal(map[string]Cursor{"s": c})
+// show publishes the agent's selection to the room, with its recent
+// edits.
+func (a *Agent) show(selection any) error {
+	a.mu.Lock()
+	a.selection = selection
+	a.mu.Unlock()
+	return a.publish()
+}
+
+// publish shows the room the agent's selection and its recent edits.
+func (a *Agent) publish() error {
+	a.mu.Lock()
+	d, err := json.Marshal(struct {
+		S      any    `json:"s"`
+		Recent []Mark `json:"recent,omitempty"`
+	}{a.selection, a.recent})
+	a.mu.Unlock()
 	if err != nil {
 		return err
 	}

@@ -15,7 +15,9 @@ import (
 )
 
 var toolNames = []string{"doc_list", "doc_outline", "doc_read", "doc_search", "text_replace", "block_insert", "block_delete", "text_format",
-	"comment_add", "comment_reply", "revision_list", "revision_accept", "revision_reject", "batch", "select", "undo_mine"}
+	"comment_add", "comment_reply", "revision_list", "revision_accept", "revision_reject", "batch", "select", "undo_mine",
+	"slide_list", "slide_read", "shape_text_set", "shape_add", "slide_add", "slide_delete", "notes_set",
+	"sheet_list", "range_read", "cells_set", "rows_insert", "rows_delete", "columns_insert", "columns_delete"}
 
 // handshake is what a client does on connecting, and gives the tools.
 func handshake(t *testing.T, c client) []map[string]any {
@@ -198,7 +200,7 @@ func TestEveryTool(t *testing.T) {
 		t.Fatal(got)
 	}
 	ok(t, c, "revision_reject", u(map[string]any{"revisions": []string{"p2/1", "p2/2"}}))
-	if got := ok(t, c, "undo_mine", as("u1", docKey, nil)); !strings.Contains(got, "Rejected") {
+	if got := ok(t, c, "undo_mine", as("u1", docKey, nil)); !strings.Contains(got, "Undid") {
 		t.Fatal(got)
 	}
 	if got := ok(t, c, "undo_mine", as("u1", docKey, nil)); !strings.Contains(got, "Nothing to undo") {
@@ -375,7 +377,7 @@ func TestOnBehalfOfIsRequired(t *testing.T) {
 func TestRefusedWriteSendsNothing(t *testing.T) {
 	h := newHost(t)
 	c := newHTTPClient(t, h.srv)
-	watcher := h.someone("Alice")
+	watcher := h.someone(docKey, "Alice")
 	_, before, err := watcher.Read(agent.Critic)
 	if err != nil {
 		t.Fatal(err)
@@ -419,7 +421,7 @@ func TestStaleBatchDoesNotOverwrite(t *testing.T) {
 	preview := ok(t, c, "batch", u(map[string]any{"edits": edits, "dry_run": true}))
 	version, _, _ := strings.Cut(strings.TrimPrefix(preview, "Nothing changed. version: "), "\n")
 
-	other := h.someone("Alice")
+	other := h.someone(docKey, "Alice")
 	if _, err := other.Apply(t.Context(), agent.Batch{OnBehalfOf: "a", Direct: true, Edits: []agent.Edit{{Op: "replace", Block: "p2", Find: "sous budget", Text: "dans les clous"}}}); err != nil {
 		t.Fatal(err)
 	}

@@ -652,7 +652,7 @@ func (f *follow) shift(ch ot.Change) {
 			var fields cellFields
 			_ = json.Unmarshal(raw, &fields)
 			if fields.M != nil {
-				if m := spanShifted(*fields.M, row, col, rows, ch.At, n); m != *fields.M {
+				if m := SpanShifted(*fields.M, row, col, rows, ch.At, n); m != *fields.M {
 					f.setCell(ch.ID, row, col, "m", m)
 				}
 			}
@@ -667,10 +667,10 @@ func (f *follow) shift(ch ot.Change) {
 	f.moved = true
 }
 
-// spanShifted is the span of cells merged from row and col once rows or
+// SpanShifted is the span of cells merged from row and col once rows or
 // columns are inserted or removed at at: those inserted inside it widen
 // it, those removed from it narrow it. The first cell has moved already.
-func spanShifted(m [2]int, row, col int, rows bool, at, n int) [2]int {
+func SpanShifted(m [2]int, row, col int, rows bool, at, n int) [2]int {
 	first, span := col, &m[1]
 	if rows {
 		first, span = row, &m[0]
