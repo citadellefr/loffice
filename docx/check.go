@@ -65,6 +65,9 @@ func (d *Document) Check(tree *ot.Tree, e ot.Edit, author string) error {
 			if !ok || (c.Type == "text") != (c.Text != nil) || !d.signed(c.Text, author) {
 				return ErrReadOnly
 			}
+			if err := d.checkPictures(nil, c.Text); err != nil {
+				return err
+			}
 			created[c.ID] = c.Type
 		case ot.OpDel:
 			switch typeOf(c.ID) {
@@ -90,6 +93,13 @@ func (d *Document) Check(tree *ot.Tree, e ot.Edit, author string) error {
 		case ot.OpTxt:
 			if t := typeOf(c.ID); t != "" && t != "text" || !d.signed(c.Text, author) {
 				return ErrReadOnly
+			}
+			var old ot.Delta
+			if n := tree.Node(c.ID); n != nil {
+				old = n.Text.Delta()
+			}
+			if err := d.checkPictures(old, c.Text); err != nil {
+				return err
 			}
 		default:
 			return ErrReadOnly
