@@ -33,7 +33,7 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m96** (à_revérifier) Values of type TypeLambda never leave the calculation: a cell, scalar() and the engine's cellValue turn them into #CALC!. — _ag5, t11_
 
 ### tools/validate/run.sh
-- **m121** (à_revérifier) tools/validate/run.sh [dossier [famille...]] lance toute la validation Open XML SDK (réécritures et éditions de opc, pptx, xlsx, legacy, docx) et prend dotnet de nix s'il manque dans le PATH ; il compile Validate.dll une fois dans <dossier>/validate. Les familles peuvent tourner en parallèle avec un même dossier ; opc (3641 fichiers) prend ~25 min, le total ~35 min. — _ag4, t29_
+- **m121** tools/validate/run.sh [dossier [famille...]] lance toute la validation Open XML SDK (réécritures et éditions de opc, pptx, xlsx, legacy, docx) et prend dotnet de nix s'il manque dans le PATH ; il compile Validate.dll une fois dans <dossier>/validate. Les familles peuvent tourner en parallèle avec un même dossier ; opc (3641 fichiers) prend ~25 min, le total ~35 min. — _ag4, t29_
 - **m167** Validation Open XML locale sans dotnet installé : `nix shell nixpkgs#dotnet-sdk_8 -c dotnet build tools/validate -c Release -o /tmp/v` puis `LOFFICE_EDITED=1 dotnet /tmp/v/Validate.dll corpus/files <dossier de docx réécrits>` ; corpus/files est un lien : find ne le suit pas, utiliser un glob Go. — _ag1, t36_
 
 ### xlsx/links.go
@@ -56,7 +56,7 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m50** (à_revérifier) agent/agent.go : un client trame qui réutilise peer.Client doit reprendre la numérotation n de ses ops à partir du champ ack de la trame doc (ou vider Client). Le hub (room.apply) ignore sans répondre (ni ack ni nack) un op dont n <= acks[Client], et le client attend alors indéfiniment. — _ag5, t23_
 
 ### agent/direct.go
-- **m151** Annuler un rem de lignes ou colonnes xlsx par un ins ne rétablit pas les formules que la suppression a tronquées ou passées en #REF! (Follower, sid 0). L'agent repose donc ces formules (state.broken) : celles dont Shift(-n) suivi de Shift(+n) ne redonne pas le texte d'origine. — _ag2, t26_
+- **m151** xlsx : une suppression de lignes ou colonnes réécrit par le serveur (Follower, éditions sid 0) les formules des autres cellules, parfois en #REF! ; l'inverse d'un OpRem (ins + cellules) ne les rétablit pas. L'agent repose donc ces formules (state.broken, agent/direct.go) : celles dont Shift(-n) suivi de Shift(+n) ne redonne pas le texte d'origine. — _ag2, t26_
 
 ### agent/edit.go
 - **m52** (à_revérifier) docx : pour supprimer le dernier paragraphe d'un flux, on supprime la marque précédente et le contenu, et la marque finale prend les attributs de la précédente. Un flux ne peut pas perdre sa marque finale (ErrNoMark), et un body ou un tc doit finir par un paragraphe. Voir removeRange dans agent/edit.go. — _ag5, t23_
@@ -71,10 +71,10 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m183** Revue de fusion loffice : git diff et les fichiers lus doivent venir de la tête de branche ET du résultat fusionné. Une branche a4 peut passer ses tests seule et ne plus compiler sur main (helper de test du même nom dans le même paquet) ou reposer sur une règle du Check que main a changée. Simuler la fusion dans un clone jetable (git clone puis git merge) avant le verdict. — _oa, t26_
 
 ### agent/slides.go
-- **m150** Dans l'arbre pptx, les enfants d'un master ne sont pas que des layouts : pptx place aussi les formes du masque sous le nœud master (types sp, pic…). Pour lister les dispositions, filtrer Type=="layout". — _ag2, t26_
+- **m150** pptx : les enfants d'un nœud master ne sont pas que ses layouts, les formes du masque (sp, pic…) y sont aussi (pptx/pptx.go) ; pour lister les dispositions (agent/slides.go), filtrer Type=="layout". Les fixtures testdata/pptx ont des masques sans forme et ne révèlent pas le cas : tester sur corpus/files/python-pptx (ex. mst-placeholders.pptx). — _ag2, t26_
 
 ### dart/
-- **m2** dart/ Flutter et Dart ne sont pas dans le PATH de cette machine. Soit `nix shell nixpkgs#flutter -c flutter test` depuis loffice/dart (suite complète ≈ 1 min 40), soit ajouter au PATH /nix/store/x8cc2489gk0lhbgm5q3y7pxfb7v9r706-flutter-wrapped-3.47.4-sdk-links/bin (Flutter 3.47.4, Dart 3.13.3) avant flutter test / dart analyze. — _orchestra_
+- **m2** (à_revérifier) dart/ Flutter et Dart ne sont pas dans le PATH de cette machine. Soit `nix shell nixpkgs#flutter -c flutter test` depuis loffice/dart (suite complète ≈ 1 min 40), soit ajouter au PATH /nix/store/x8cc2489gk0lhbgm5q3y7pxfb7v9r706-flutter-wrapped-3.47.4-sdk-links/bin (Flutter 3.47.4, Dart 3.13.3) avant flutter test / dart analyze. — _orchestra_
 
 ### dart/analysis_options.yaml
 - **m6** dart format ne lit formatter.page_width de analysis_options.yaml qu'après `flutter pub get` (il lui faut .dart_tool/package_config.json) ; sans cela le réglage est ignoré silencieusement et la largeur reste 80. — _ag1, t1_
@@ -121,6 +121,7 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 
 ### tools/validate/Program.cs
 - **m75** Validation Open XML SDK hors CI : dotnet vit dans /nix/store/qybc3wpz3hz5daipbmnj7rgc73hn35j2-dotnet-sdk-wrapped-8.0.425/bin/dotnet (pas dans le PATH ; sinon `nix shell nixpkgs#dotnet-sdk_8 -c dotnet ...`). Écrire d'abord les classeurs avec LOFFICE_EDITED, LOFFICE_MOVED ou LOFFICE_COMMENTED (les tests de graphiques écrivent sous charts/), puis `DOTNET_CLI_HOME=/tmp/x LOFFICE_EDITED=1 dotnet run -c Release --project tools/validate -- corpus/files <dossier>` (~3 min), ou `dotnet build tools/validate -o /tmp/x` puis `dotnet /tmp/x/Validate.dll <originaux> <réécrits>` (la dll s'appelle Validate.dll). Les deux dossiers doivent porter les mêmes chemins relatifs. tools/validate/run.sh automatise l'ensemble (voir m121). — _ag5, t15_
+- **m204** Les graphiques écrits par python-pptx/POI portent des c:axId négatifs, invalides pour l'Open XML SDK. Changer le type renomme l'élément de tracé (c:barChart → c:lineChart) et déplace donc ces erreurs ; tools/validate/Program.cs (Unplaced) ignore ce nom d'élément pour ne pas les compter comme nouvelles. — _ag3, t45_
 
 ### xlsx/
 - **m10** Dans loffice (et dans ses worktrees a4), lancer go avec GOWORK=off : le go.work parent (/home/me/Code/Citadelle/go.work) n'inclut ni loffice ni les worktrees, et go build/vet/test échouent sinon (« directory prefix . does not contain modules listed in go.work »). `go test ./xlsx` sans -short dure ≈ 4 min : le lancer en arrière-plan ou avec un délai long. dotnet, qpdf et soffice ne sont pas installés : nix est disponible (nix shell nixpkgs#dotnet-sdk_8 etc.) pour les obtenir sans toucher au système. — _ag6, t6_
@@ -131,6 +132,9 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m148** (à_revérifier) Le coût d'un renommage de feuille sur 100 000 formules vient surtout de formula.Rename (réécriture des textes) et du Set de chaque formule dans Calc.rebuild, pas de la recherche des cercles (≈ 60 ms). BenchmarkRenameSheet et BenchmarkOpenFormulas (xlsx/calc_test.go) le mesurent. — _ag3, t34_
 - **m175** loffice xlsx : quand des lignes ou colonnes sont supprimées (rem), le Follower (xlsx/calc.go shift) ne décale pas seulement les formules. Il décale ou retire aussi valid, cf, charts, filter, tables, print, names, le nœud looks et les attributs m/fa des cellules. Réinsérer les lignes ne répare pas ce qui pointait dans la bande supprimée : l'inverse d'un rem doit reposer ces attributs (agent state.unshifted). Le Check refuse d'écrire charts, qui part donc dans Record.Lost. — _ag2, t26_
 
+### xlsx/chartbook_test.go
+- **m203** Dans les tests xlsx du dépôt loffice, la feuille du classeur de test s'appelle « Feuille1 » et non « Sheet1 » : une référence de graphique « Sheet1!… » ne la trouve pas (ErrChartLayout dans chartbook). — _ag3, t45_
+
 ### xlsx/check.go
 - **m43** (à_revérifier) xlsx : Document.Check (checkCell, xlsx/check.go) refuse toute clé de cellule qu'il ne connaît pas. Une nouvelle clé du modèle de cellule (par ex. cm) doit y recevoir son cas, sinon toute édition qui la porte est refusée (« this part of the workbook cannot be edited »). TestCorpusEdits, lancé seulement sans -short, le détecte. — _ag6, t6_
 
@@ -140,7 +144,7 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 ## contrat
 
 ### agent/
-- **m5** (à_revérifier) Contraintes de l'hôte (serveur Citadelle, Héraut) pour le MCP de loffice : voie principale = http.Handler monté par le serveur, Héraut l'appelle en HTTP depuis son conteneur (stdio = dev local seulement) ; autorisation à deux niveaux par une fonction de l'hôte à chaque requête (service appelant autorisé par l'admin, modèle Services v3, + droits de l'utilisateur « au nom de » sur ce document ; l'IA n'a aucun droit propre) ; écriture refusée si l'utilisateur n'a pas consenti ; auteur Word = nom stable de l'IA, demandeur en métadonnée du lot, UndoMine par demandeur ; aperçu→application avec version/ETag, échec sans écrasement ; délais de plusieurs dizaines de secondes ; rien d'exposé ni d'affiché si l'hôte n'active pas l'IA. — _orchestra_
+- **m5** Contraintes de l'hôte (serveur Citadelle, Héraut) pour le MCP de loffice : voie principale = http.Handler monté par le serveur, Héraut l'appelle en HTTP depuis son conteneur (stdio = dev local seulement) ; autorisation à deux niveaux par une fonction de l'hôte à chaque requête (service appelant autorisé par l'admin, modèle Services v3, + droits de l'utilisateur « au nom de » sur ce document ; l'IA n'a aucun droit propre) ; écriture refusée si l'utilisateur n'a pas consenti ; auteur Word = nom stable de l'IA, demandeur en métadonnée du lot, UndoMine par demandeur ; aperçu→application avec version/ETag, échec sans écrasement ; délais de plusieurs dizaines de secondes ; rien d'exposé ni d'affiché si l'hôte n'active pas l'IA. — _orchestra_
 
 ### agent/direct.go
 - **m130** UndoMine en édition directe : chaque utilisateur a une pile. Ses annulations s'enchaînent, la dernière d'abord, et ne sont jamais rebasées sur ses propres lots : rebaser sur eux perd de l'information, par exemple deux réécritures du même texte donnent « UnAlpha ». Seule une édition étrangère les traverse, en descendant la pile avec l'édition transformée à chaque étage (rebaseMine, rebase). — _ag2, t26_
@@ -178,6 +182,9 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 
 ### formula/value.go
 - **m137** formula.Table peut être compacte : Cells ne tient que held() lignes, les lignes suivantes répètent la dernière tenue. Lire par At(i,j) ; ne jamais indexer Cells au-delà de held() sur une table issue de c.grid. c.grid rend une table éventuellement compacte, c.array une table dense (bornée par maxCells, rognée si la queue est vide). Une nouvelle fonction de tableau sur de grandes plages doit passer par c.grid et calculer sur les lignes tenues. — _ag4, t33_
+
+### internal/chartpart/chartpart.go
+- **m205** Graphiques docx/pptx (internal/chartpart) : le nœud porte « chart » (modèle chart.Chart, patché sur la seule partie) et « chartData » ({categories, series:[{index,name,values}]}, absent sans classeur incorporé ou pour une disposition non simple). Toute modification des données sans chartData est refusée par ErrReadOnly. En docx, le graphique est un nœud de type « chart » placé après le corps, que l'image désigne par img.chartNode. — _ag3, t45_
 
 ### mcp/tools.go
 - **m113** (à_revérifier) loffice MCP : l'outil select (curseur ou présence de l'IA) reste autorisé comme une lecture (Access.Write=false), décision de l'hôte Citadelle : la présence ne modifie pas le document. Aucun tag de version loffice (v0.12.0…) ne doit être posé ni publié sans l'accord transmis par sys:main/orchestra. — _orchestra_
@@ -225,7 +232,7 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m201** Charge et machine (humain, 11/11/2026). Au plus 3 à 4 agents actifs à la fois, et des tâches réparties sur plusieurs instances (paramètre instance) plutôt que toutes sur une seule. La machine (31 Go, sans swap) est partagée : tout run de navigateur ou de VM se lance dans bancs.slice (`systemd-run --user --scope -q --slice=bancs.slice -p MemoryMax=6G -p MemorySwapMax=0 -- …`). Pas de banc pour un changement sans effet sur le client. — _orchestra_
 
 ### agent/
-- **m4** (à_revérifier) Coédition IA dans PowerPoint et Excel (sans suivi des modifications) : l'IA écrit directement, de façon visible (curseur et nom de l'IA, surlignage temporaire de ce qu'elle vient de modifier), avec « annuler les miennes » qui retire seulement ses éditions. Dans Word, suivi des modifications signé de son nom. — _orchestra_
+- **m4** Coédition IA dans PowerPoint et Excel (sans suivi des modifications) : l'IA écrit directement, de façon visible (curseur et nom de l'IA, surlignage temporaire de ce qu'elle vient de modifier), avec « annuler les miennes » qui retire seulement ses éditions. Dans Word, suivi des modifications signé de son nom. — _orchestra_
 - **m114** (à_revérifier) Coédition IA (décision de l'humain, 04/11) : l'IA écrit en direct dans le document même quand d'autres personnes l'ont ouvert ; aucune attente ni verrou parce que des humains sont présents dans la salle. — _orchestra_
 
 ### chart/
