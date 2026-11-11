@@ -404,6 +404,114 @@ void main() {
     await finish(tester);
   });
 
+  testWidgets('the animations pane adds, moves, starts, times and deletes the effects of a slide', (tester) async {
+    await open(tester, 'shp-shapes');
+    final slide = slides().first.id;
+    final pic = hub.doc['s256-6']!;
+    final deck = Deck(hub.doc);
+    final painter = SlidePainter(deck);
+    List<Map<String, Object?>> effects() => [...(hub.doc[slide]!.attributes['animations'] as List<Object?>? ?? const []).cast<Map<String, Object?>>()];
+    Future<void> add(String button, String effect) async {
+      await tester.tap(find.byTooltip(button));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(effect).last);
+      await settle(tester);
+    }
+
+    Future<void> enter(String key, String text) async {
+      await tester.enterText(find.descendant(of: find.byKey(ValueKey(key)), matching: find.byType(TextField)), text);
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await settle(tester);
+    }
+
+    await tester.tap(find.text('Animations'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Volet Animation'));
+    await tester.pump();
+    expect(find.textContaining('Sélectionnez une forme'), findsOneWidget);
+    await tester.tap(find.byTooltip('Ajouter une entrée'), warnIfMissed: false);
+    await tester.pump();
+    expect(find.text('Fondu'), findsNothing);
+
+    final rect = tester.getRect(find.byType(SlideCanvas));
+    final scale = math.min((rect.width - 48) / deck.size.width, (rect.height - 48) / deck.size.height);
+    final origin = rect.topLeft + Offset((rect.width - deck.size.width * scale) / 2, (rect.height - deck.size.height * scale) / 2);
+    await tester.tapAt(origin + painter.transformOf(pic).apply(painter.sizeOf(pic)!.center(Offset.zero)) * scale);
+    await tester.pump(const Duration(milliseconds: 400));
+    await add('Ajouter une entrée', 'Fondu');
+    await add('Ajouter une sortie', 'Disparition');
+    await add('Ajouter une entrée', 'Zoom');
+    expect(effects(), [
+      {'target': pic.id, 'class': 'entr', 'preset': 10, 'trigger': 'click', 'dur': 500},
+      {'target': pic.id, 'class': 'exit', 'preset': 1, 'trigger': 'click', 'dur': 500},
+      {'target': pic.id, 'class': 'entr', 'preset': 53, 'subtype': 16, 'trigger': 'click', 'dur': 500},
+    ]);
+    expect(find.text('Fondu · Picture 5'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('trigger1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Avec la précédente').last);
+    await settle(tester);
+    await enter('delay1', '1,5');
+    await enter('dur1', '2');
+    expect(effects()[1], {'target': pic.id, 'class': 'exit', 'preset': 1, 'trigger': 'with', 'delay': 1500, 'dur': 2000});
+
+    await tester.tap(find.byTooltip('Descendre').first);
+    await settle(tester);
+    expect(effects().map((e) => e['preset']), [1, 10, 53]);
+    await tester.tap(find.byTooltip('Monter').last);
+    await settle(tester);
+    expect(effects().map((e) => e['preset']), [1, 53, 10]);
+
+    await tester.tap(find.byTooltip('Supprimer').first);
+    await settle(tester);
+    expect(effects().map((e) => e['preset']), [53, 10]);
+    await tester.tap(find.byTooltip('Supprimer').first);
+    await settle(tester);
+    await tester.tap(find.byTooltip('Supprimer').first);
+    await settle(tester);
+    expect(hub.doc[slide]!.attributes['animations'], isNull);
+    await finish(tester);
+  });
+
+  testWidgets('an effect the writer cannot make is listed and moved, its start changed, its times left', (tester) async {
+    await open(tester, 'shp-shapes');
+    final slide = slides().first.id;
+    expect(
+      session.edit(
+        Edit([
+          Change.set(
+            slide,
+            attributes: {
+              'animations': [
+                {'target': 's256-6', 'class': 'emph', 'preset': 6, 'trigger': 'click', 'dur': 2000, 'xml': '<p:par/>'},
+                {'target': 's256-6', 'class': 'entr', 'preset': 1, 'trigger': 'after'},
+              ],
+            },
+          ),
+        ]),
+      ),
+      isTrue,
+    );
+    await tester.tap(find.text('Animations'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Volet Animation'));
+    await tester.pump();
+    expect(find.text('Effet personnalisé · Picture 5'), findsOneWidget);
+    expect(find.text('Apparition · Picture 5'), findsOneWidget);
+    TextField field(String key) => tester.widget(find.descendant(of: find.byKey(ValueKey(key)), matching: find.byType(TextField)));
+    expect(field('dur0').enabled, isFalse);
+    expect(field('delay0').enabled, isFalse);
+    expect(field('dur1').enabled, isTrue);
+
+    await tester.tap(find.byTooltip('Descendre').first);
+    await settle(tester);
+    final list = (hub.doc[slide]!.attributes['animations']! as List<Object?>).cast<Map<String, Object?>>();
+    expect(list.map((e) => e['preset']), [1, 6]);
+    expect(list[1]['xml'], '<p:par/>');
+    await finish(tester);
+  });
+
   testWidgets('comments written, answered and deleted on a slide', (tester) async {
     await open(tester, 'shp-shapes');
     List<Node> comments() => [

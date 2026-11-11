@@ -685,6 +685,37 @@ class LofficeStrings {
   String get timing => 'Minutage';
   String get duration => 'Durée';
   String get applyToAll => 'Appliquer partout';
+  String get animations => 'Animations';
+  String get animationPane => 'Volet Animation';
+  String get addEntrance => 'Ajouter une entrée';
+  String get addExit => 'Ajouter une sortie';
+  String get noAnimationsHint => 'Sélectionnez une forme, puis ajoutez-lui une entrée ou une sortie.';
+  String get delay => 'Délai';
+  String get startOnClick => 'Au clic';
+  String get startWithPrevious => 'Avec la précédente';
+  String get startAfterPrevious => 'Après la précédente';
+  String get customAnimation => 'Effet personnalisé';
+  String paragraphs(int from, int to) => from == to ? '¶ ${from + 1}' : '¶ ${from + 1}-${to + 1}';
+
+  /// The trigger of an effect: "click", "with" or "after".
+  String trigger(String trigger) => switch (trigger) {
+    'click' => startOnClick,
+    'with' => startWithPrevious,
+    _ => startAfterPrevious,
+  };
+
+  /// An effect of PowerPoint's gallery by its class, preset and subtype.
+  String animationEffect(String kind, int preset, int subtype) => switch ((kind, preset, subtype)) {
+    ('entr', 1, _) => 'Apparition',
+    ('exit', 1, _) => 'Disparition',
+    (_, 10, _) => 'Fondu',
+    ('entr', 2, 1) => 'Entrée brusque du haut',
+    ('entr', 2, 2) => 'Entrée brusque de la droite',
+    ('entr', 2, 4) => 'Entrée brusque du bas',
+    ('entr', 2, 8) => 'Entrée brusque de la gauche',
+    ('entr', 53, _) => 'Zoom',
+    _ => customAnimation,
+  };
   String get onMouseClick => 'Manuellement';
   String get advanceAfter => 'Après';
   String transition(String effect) => switch (effect) {

@@ -62,12 +62,17 @@ func animatedShape(id int) string {
 // first three animated.
 func animatedSlide(t *testing.T) (*Document, *ot.Tree) {
 	t.Helper()
+	return slideWithTiming(t, slideTiming())
+}
+
+func slideWithTiming(t *testing.T, timing string) (*Document, *ot.Tree) {
+	t.Helper()
 	_, _, data := openFile(t, "transitional.pptx")
 	parts := rawParts(t, data)
 	xml := string(parts["ppt/slides/slide1.xml"])
 	extra := animatedShape(3) + animatedShape(4) + animatedShape(5)
 	xml = strings.Replace(xml, "</p:spTree>", extra+"</p:spTree>", 1)
-	xml = strings.Replace(xml, "</p:cSld>", "</p:cSld>"+slideTiming(), 1)
+	xml = strings.Replace(xml, "</p:cSld>", "</p:cSld>"+timing, 1)
 	parts["ppt/slides/slide1.xml"] = []byte(xml)
 	d, tree, err := Open(zipOf(t, parts), opc.Limits{})
 	if err != nil {

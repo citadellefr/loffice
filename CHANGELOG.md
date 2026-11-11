@@ -10,6 +10,21 @@
 
 ## 0.13.0 — 2026-11-11
 
+- The animations of a slide are modeled: the `animations` attribute of the
+  slide node, the effects in the order they play (shape, class, preset,
+  trigger, delay, duration, paragraphs), as the transition is. The timing is
+  rewritten only when the list changes; an effect the writer does not make
+  (emphasis, paths, other presets) is kept as it is, and can be moved and
+  deleted. `Check` refuses effects on shapes that are not on the slide and
+  values out of bounds. Deleting a shape takes its effects out of the list as
+  deleting them does: the effect that follows the one that started a group
+  or a step starts it, a sequence that began by itself keeps the click of the
+  next group, and the steps after a deleted one start as soon as those
+  before them end.
+- PowerPoint: an Animations tab opens a pane listing the effects of the slide
+  in order, adding an entrance or an exit to the selected shape, and moving,
+  deleting and changing the start, delay and duration of each; an effect the
+  writer does not make is listed and moved, only its start changing.
 - Deleting an animated shape from a slide drops only the effects that aimed at
   it, with their builds and the click or group they leave empty; the other
   animations of the slide stay as they were.
