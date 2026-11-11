@@ -89,22 +89,16 @@ Report? Check(string path)
 // Added are the errors after that were not before. Runs of the same
 // formatting merged move the elements after them, so an error counts as
 // the same wherever it moved in its part: errors are compared by their
-// text without positions, paths or lines, as many after as before. An edit
-// copies what it splits, errors and all: in an edited document an error
-// that was there before may come back more often, or inside a revision
-// the edit tracks. In an edited document a chart whose type changes keeps the errors of
+// text without positions, paths or lines. Splitting a run copies its
+// properties, errors and all: an error that was there before may come back
+// more often, or inside a revision an edit tracks. In an edited document a chart whose type changes keeps the errors of
 // its plot, which takes another element: its name is left out of the path.
 static IEnumerable<string> Added(HashSet<Error> before, IEnumerable<Error> after, bool edited)
 {
-    var count = before.GroupBy(e => Unplaced(e.Text, edited)).ToDictionary(g => g.Key, g => edited ? int.MaxValue : g.Count());
+    var known = before.Select(e => Unplaced(e.Text, edited)).ToHashSet();
     foreach (var e in after.OrderBy(e => e.Text))
-    {
-        var key = Unplaced(e.Text, edited);
-        if (count.TryGetValue(key, out var n) && n > 0)
-            count[key] = n - 1;
-        else
+        if (!known.Contains(Unplaced(e.Text, edited)))
             yield return e.Text;
-    }
 }
 
 static string Unplaced(string text, bool edited) => System.Text.RegularExpressions.Regex.Replace(text, edited ? @"\[\d+\]|Line \d+, position \d+|/w:(ins|del)(?=\[)|(?<=/c:)\w+Chart(?=\[)" : @"\[\d+\]|Line \d+, position \d+|/w:(ins|del)(?=\[)", "");
