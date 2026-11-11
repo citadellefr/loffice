@@ -1,12 +1,18 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:loffice/loffice.dart';
-import 'package:loffice/src/pdf/canvas.dart' show Ignored;
+import 'package:loffice/src/chrome/export_notice.dart';
+import 'package:loffice/src/pdf/canvas.dart' show Ignored, PdfExport;
 import 'package:trame/testing.dart';
+
+Future<void> registerFonts() => OfficeFonts.register({
+  for (final f in Directory('fonts').listSync().whereType<File>().where((f) => f.path.endsWith('.ttf'))) f.uri.pathSegments.last.replaceAll('.ttf', ''): f.readAsBytesSync(),
+});
 
 void main() {
   test('the notice of an export names what was left aside', () {
@@ -14,16 +20,53 @@ void main() {
     expect(strings.exportNotice({}, {}), isNull);
     final notice = strings.exportNotice({'ß'}, {Ignored.blendMode, Ignored.colorFilter, Ignored.vertices})!;
     expect(notice, contains('ß'));
-    expect(notice, contains('L’export en PDF a laissé de côté : des filtres de couleur, des modes de fusion, des éléments graphiques'));
+    expect(notice, contains('L’export en PDF a laissé de côté : des filtres de couleur, des modes de fusion, des formes en relief'));
     expect(notice, isNot(contains('Ignored')));
   });
 
-  testWidgets('File > Export as PDF hands the host the document, named after it', (tester) async {
+  test('every kind of element left aside has its own words', () {
+    const strings = LofficeStrings();
+    final labels = [for (final i in Ignored.values) strings.ignoredLabel(i)];
+    expect(labels.toSet().length, labels.length);
+    for (final label in labels) {
+      expect(labels.where((l) => l == label).length, lessThanOrEqualTo(2));
+    }
+    expect(strings.ignoredLabel(Ignored.maskFilter), 'des effets de flou');
+  });
+
+  test('the notice never says the same thing twice', () {
+    const strings = LofficeStrings();
+    final notice = strings.exportNotice({'ß'}, {...Ignored.values})!;
+    for (final i in Ignored.values) {
+      expect(RegExp(RegExp.escape(strings.ignoredLabel(i))).allMatches(notice).length, 1);
+    }
+    expect(strings.exportNotice({}, {}), isNull);
+  });
+
+  testWidgets('what an export left aside is told in a snack bar', (tester) async {
+    await tester.runAsync(registerFonts);
+    final export = PdfExport();
     await tester.runAsync(
-      () => OfficeFonts.register({
-        for (final f in Directory('fonts').listSync().whereType<File>().where((f) => f.path.endsWith('.ttf'))) f.uri.pathSegments.last.replaceAll('.ttf', ''): f.readAsBytesSync(),
+      () => export.page(const Size(100, 100), (canvas) {
+        canvas.drawVertices(ui.Vertices(VertexMode.triangles, const [Offset.zero, Offset(10, 0), Offset(0, 10)]), BlendMode.srcOver, Paint());
+        canvas.drawRect(const Rect.fromLTWH(0, 0, 10, 10), Paint()..colorFilter = const ColorFilter.mode(Color(0xFF000000), BlendMode.srcIn));
       }),
     );
+    expect(export.ignored, {Ignored.vertices, Ignored.colorFilter});
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(builder: (context) => TextButton(onPressed: () => showExportNotice(ScaffoldMessenger.maybeOf(context), const LofficeStrings(), export), child: const Text('go'))),
+        ),
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pump();
+    expect(find.textContaining('L’export en PDF a laissé de côté : des filtres de couleur, des formes en relief'), findsOneWidget);
+  });
+
+  testWidgets('File > Export as PDF hands the host the document, named after it', (tester) async {
+    await tester.runAsync(registerFonts);
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -64,11 +107,7 @@ void main() {
   });
 
   testWidgets('a workbook is exported on the pages it prints on', (tester) async {
-    await tester.runAsync(
-      () => OfficeFonts.register({
-        for (final f in Directory('fonts').listSync().whereType<File>().where((f) => f.path.endsWith('.ttf'))) f.uri.pathSegments.last.replaceAll('.ttf', ''): f.readAsBytesSync(),
-      }),
-    );
+    await tester.runAsync(registerFonts);
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);

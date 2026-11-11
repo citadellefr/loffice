@@ -561,8 +561,12 @@ class LofficeStrings {
     Ignored.imageFilter => 'des filtres d’image',
     Ignored.blendMode => 'des modes de fusion',
     Ignored.maskFilter => 'des effets de flou',
-    Ignored.shader => 'des remplissages',
-    Ignored.picture || Ignored.paragraph || Ignored.vertices || Ignored.atlas || Ignored.other => 'des éléments graphiques',
+    Ignored.shader => 'des dégradés ou des motifs',
+    Ignored.picture => 'des illustrations intégrées',
+    Ignored.paragraph => 'des blocs de texte mis en forme',
+    Ignored.vertices => 'des formes en relief',
+    Ignored.atlas => 'des planches d’images',
+    Ignored.other => 'd’autres éléments graphiques',
   };
 
   /// What to tell once a PDF is exported, or null when nothing was left aside.
