@@ -1,3 +1,5 @@
+import '../pdf/canvas.dart' show Ignored;
+
 /// The words of the editors, as the French version of Office has them.
 class LofficeStrings {
   const LofficeStrings();
@@ -543,6 +545,25 @@ class LofficeStrings {
   String exportFailed(String reason) => 'Échec de l’export en PDF : $reason';
   String get nothingToPrint => 'Aucune feuille du classeur n’a de quoi imprimer.';
   String exportMissing(String characters) => 'Aucune police de l’export ne dessine ces caractères, laissés en blanc : $characters';
+  String exportIgnored(String what) => 'L’export en PDF a laissé de côté : $what';
+  String ignoredLabel(Ignored what) => switch (what) {
+    Ignored.colorFilter => 'des filtres de couleur',
+    Ignored.imageFilter => 'des filtres d’image',
+    Ignored.blendMode => 'des modes de fusion',
+    Ignored.maskFilter => 'des effets de flou',
+    Ignored.shader => 'des remplissages',
+    Ignored.picture || Ignored.paragraph || Ignored.vertices || Ignored.atlas || Ignored.other => 'des éléments graphiques',
+  };
+
+  /// What to tell once a PDF is exported, or null when nothing was left aside.
+  String? exportNotice(Set<String> missing, Set<Ignored> ignored) {
+    final notices = [
+      if (missing.isNotEmpty) exportMissing(missing.join(' ')),
+      if (ignored.isNotEmpty) exportIgnored({for (final i in Ignored.values.where(ignored.contains)) ignoredLabel(i)}.join(', ')),
+    ];
+    return notices.isEmpty ? null : notices.join('\n');
+  }
+
   String get editedBy => 'Modifié par';
 
   // status

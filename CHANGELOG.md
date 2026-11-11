@@ -19,6 +19,12 @@
   conditional formats, filters, tables, print breaks and names that deleting
   rows or columns broke, and tells in `Record.Lost` the notes, others'
   comments and charts it cannot make again.
+- `pptx` exposes the outer shadow of a shape (`a:effectLst/a:outerShdw`: color,
+  blur, distance, direction) as its `shadow` attribute, read only (the
+  effects are written back as they were); the slide painter draws it on the
+  screen and in the PDF export. Shadows of the theme's effect styles, inner
+  shadows, glows and reflections are not drawn, nor are those of the shapes
+  of Word and Excel.
 - `agent` keeps whom its revisions are for in the document, one `behalf` node
   per author and date written as a document variable of `settings.xml`
   (`docx.BehalfNode`, `docx.BehalfOf`), instead of in a journal of the

@@ -8,6 +8,7 @@ import 'package:loffice/loffice.dart';
 import 'package:loffice/src/excel/export.dart';
 import 'package:loffice/src/excel/page_painter.dart';
 import 'package:loffice/src/excel/workbook.dart';
+import 'package:loffice/src/pdf/canvas.dart' show Ignored;
 import 'package:loffice/src/powerpoint/deck.dart';
 import 'package:loffice/src/powerpoint/export.dart';
 import 'package:loffice/src/powerpoint/slide_painter.dart';
@@ -42,7 +43,7 @@ void main() {
     File('$out/$name-screen.png').writeAsBytesSync(png!.buffer.asUint8List());
   }
 
-  void check(String name, Uint8List pdf, int pages, Set<String> missing, Set<String> ignored) {
+  void check(String name, Uint8List pdf, int pages, Set<String> missing, Set<Ignored> ignored) {
     expect(latin1.decode(pdf.sublist(0, 8)), '%PDF-1.7');
     expect(RegExp(r'/Type /Page ').allMatches(latin1.decode(pdf)).length, pages, reason: name);
     expect(missing, isEmpty, reason: name);
@@ -56,7 +57,7 @@ void main() {
       final context = WordContext(doc);
       final layout = WordLayout(doc, context, ParaCache());
       final painter = PagePainter(context: context);
-      var missing = <String>{}, ignored = <String>{};
+      var missing = <String>{}, ignored = <Ignored>{};
       final pdf = await wordPdf(layout, painter, title: name(file), missing: (m) => missing = m, ignored: (i) => ignored = i);
       check(name(file), pdf, layout.pages.length, missing, ignored);
       await screen(name(file), layout.pages.first.size, (c) => painter.paint(c, layout.pages.first));
@@ -67,7 +68,7 @@ void main() {
     for (final file in trees('pptx')) {
       final deck = Deck(tree(file));
       final painter = SlidePainter(deck);
-      var missing = <String>{}, ignored = <String>{};
+      var missing = <String>{}, ignored = <Ignored>{};
       final pdf = await deckPdf(deck, painter, title: name(file), missing: (m) => missing = m, ignored: (i) => ignored = i);
       check(name(file), pdf, deck.slides.length, missing, ignored);
       await screen(name(file), deck.size, (c) => painter.paint(c, deck.slides.first));
@@ -78,7 +79,7 @@ void main() {
     for (final file in trees('xlsx')) {
       final book = Workbook(tree(file));
       final pages = workbookPages(book, title: name(file));
-      var missing = <String>{}, ignored = <String>{};
+      var missing = <String>{}, ignored = <Ignored>{};
       final pdf = await workbookPdf(book, title: name(file), missing: (m) => missing = m, ignored: (i) => ignored = i);
       check(name(file), pdf, pages.length, missing, ignored);
       await screen(name(file), pages.first.size, pages.first.paint);

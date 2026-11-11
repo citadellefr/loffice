@@ -34,6 +34,29 @@ class DrawingPainter {
     if (paint != null) canvas.drawPath(path, paint);
   }
 
+  /// Paints the outer shadow of a shape under [path], as the Go package
+  /// writes it: the shape moved by its distance in its direction, blurred.
+  /// A shape with a [stroke] width and no fill casts the shadow of its
+  /// outline. [toLocal] turns the offset, which is on the slide, into one in
+  /// the canvas, rotated and scaled as the shape is.
+  void shadow(Canvas canvas, Path path, Map<String, Object?>? shadow, {double? stroke, Offset Function(Offset)? toLocal}) {
+    if (shadow == null) return;
+    final color = colors.resolve(shadow['color']);
+    if (color == null || color.a == 0) return;
+    double v(String k) => shadow[k] is num ? (shadow[k]! as num).toDouble() : 0;
+    final distance = v('dist') / 12700, angle = v('dir') / 60000 * math.pi / 180;
+    final offset = Offset(math.cos(angle), math.sin(angle)) * distance;
+    final blur = v('blur') / 12700 / 2;
+    final paint = Paint()..color = color;
+    if (stroke != null) {
+      paint
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = stroke;
+    }
+    if (blur > 0) paint.maskFilter = MaskFilter.blur(BlurStyle.normal, blur);
+    canvas.drawPath(path.shift(toLocal == null ? offset : toLocal(offset)), paint);
+  }
+
   /// The color a fill mostly shows, for what paints with one color: text,
   /// bullets.
   Color? color(Map<String, Object?>? fill) {

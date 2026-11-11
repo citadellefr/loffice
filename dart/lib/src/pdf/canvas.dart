@@ -94,7 +94,7 @@ class PdfExport {
   /// What painters asked of their canvas and the export leaves aside: the
   /// vertices, atlases, paragraphs and pictures of the engine, filters and
   /// blend modes. Each is drawn as nothing, or as its plainest form.
-  final ignored = <String>{};
+  final ignored = <Ignored>{};
 
   /// Adds a page of [size], in points, painted by [paint].
   Future<void> page(Size size, void Function(Canvas canvas) paint) async {
@@ -243,6 +243,9 @@ class _State {
   _State copy() => _State(fill: fill, stroke: stroke, gs: gs, width: width, cap: cap, join: join, opacity: opacity, transform: transform);
 }
 
+/// What an export leaves aside of what a painter asked.
+enum Ignored { colorFilter, imageFilter, blendMode, maskFilter, shader, picture, paragraph, vertices, atlas, other }
+
 /// The canvas of a page of a [PdfExport]. It writes what the painters of the
 /// package ask of a canvas; what a PDF has no word for is left aside, and
 /// told in [PdfExport.ignored].
@@ -308,7 +311,7 @@ class PdfCanvas implements Canvas {
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
-    _export.ignored.add(RegExp(r'"(.*)"').firstMatch('${invocation.memberName}')?.group(1) ?? 'canvas');
+    _export.ignored.add(Ignored.other);
     return null;
   }
 
@@ -322,7 +325,7 @@ class PdfCanvas implements Canvas {
 
   @override
   void saveLayer(Rect? bounds, Paint paint) {
-    _leftAside(paint, 'saveLayer');
+    _leftAside(paint);
     save();
     _state.opacity *= paint.color.a;
   }
@@ -477,10 +480,10 @@ class PdfCanvas implements Canvas {
 
   /// Notes what [paint] asks beyond what an export writes: a color filter,
   /// an image filter or a blend mode.
-  void _leftAside(Paint paint, String drawing) {
-    if (paint.colorFilter != null) _export.ignored.add('$drawing with a color filter');
-    if (paint.imageFilter != null) _export.ignored.add('$drawing with an image filter');
-    if (paint.blendMode != BlendMode.srcOver) _export.ignored.add('$drawing in blend mode ${paint.blendMode.name}');
+  void _leftAside(Paint paint) {
+    if (paint.colorFilter != null) _export.ignored.add(Ignored.colorFilter);
+    if (paint.imageFilter != null) _export.ignored.add(Ignored.imageFilter);
+    if (paint.blendMode != BlendMode.srcOver) _export.ignored.add(Ignored.blendMode);
   }
 
   /// The tile that stands in a page for a repeated picture or pattern drawn
@@ -497,12 +500,12 @@ class PdfCanvas implements Canvas {
   /// of a paint are left aside.
   void _draw(String shape, Paint paint, {bool evenOdd = false, bool? stroke}) {
     if (shape.isEmpty) return;
-    _leftAside(paint, 'a shape');
+    _leftAside(paint);
     final outline = stroke ?? paint.style == PaintingStyle.stroke;
     if (paint.maskFilter case final blur?) {
       final sigma = RegExp(r', ([\d.]+)\)$').firstMatch('$blur')?.group(1);
       if (sigma == null) {
-        _export.ignored.add('a mask filter');
+        _export.ignored.add(Ignored.maskFilter);
         return;
       }
       _blur(shape, paint, double.parse(sigma), evenOdd: evenOdd, stroke: outline);
@@ -527,7 +530,7 @@ class PdfCanvas implements Canvas {
       _set((s) => s.fill, (s, v) => s.fill = v, '/Pattern cs ${_tile(tile)}', 'scn');
       _out.writeln('$shape ${evenOdd ? 'f*' : 'f'}');
     } else {
-      _export.ignored.add('a shader');
+      _export.ignored.add(Ignored.shader);
     }
   }
 
@@ -618,7 +621,7 @@ class PdfCanvas implements Canvas {
     if (blendMode == BlendMode.srcOver || blendMode == BlendMode.src) {
       drawPaint(Paint()..color = color);
     } else {
-      _export.ignored.add('a color in blend mode ${blendMode.name}');
+      _export.ignored.add(Ignored.blendMode);
     }
   }
 
@@ -669,7 +672,7 @@ class PdfCanvas implements Canvas {
   @override
   void drawImageRect(ui.Image image, Rect src, Rect dst, Paint paint) {
     if (src.isEmpty || dst.isEmpty) return;
-    _leftAside(paint, 'a picture');
+    _leftAside(paint);
     final mark = '%picture${_pictures.length}%';
     _pictures.add((mark, image));
     save();
@@ -705,19 +708,19 @@ class PdfCanvas implements Canvas {
   // what a PDF cannot be told of
 
   @override
-  void drawPicture(ui.Picture picture) => _export.ignored.add('a picture of the engine');
+  void drawPicture(ui.Picture picture) => _export.ignored.add(Ignored.picture);
 
   @override
-  void drawParagraph(ui.Paragraph paragraph, Offset offset) => _export.ignored.add('a paragraph of the engine');
+  void drawParagraph(ui.Paragraph paragraph, Offset offset) => _export.ignored.add(Ignored.paragraph);
 
   @override
-  void drawVertices(ui.Vertices vertices, BlendMode blendMode, Paint paint) => _export.ignored.add('vertices');
+  void drawVertices(ui.Vertices vertices, BlendMode blendMode, Paint paint) => _export.ignored.add(Ignored.vertices);
 
   @override
-  void drawAtlas(ui.Image atlas, List<ui.RSTransform> transforms, List<Rect> rects, List<Color>? colors, BlendMode? blendMode, Rect? cullRect, Paint paint) => _export.ignored.add('an atlas');
+  void drawAtlas(ui.Image atlas, List<ui.RSTransform> transforms, List<Rect> rects, List<Color>? colors, BlendMode? blendMode, Rect? cullRect, Paint paint) => _export.ignored.add(Ignored.atlas);
 
   @override
-  void drawRawAtlas(ui.Image atlas, Float32List rstTransforms, Float32List rects, Int32List? colors, BlendMode? blendMode, Rect? cullRect, Paint paint) => _export.ignored.add('an atlas');
+  void drawRawAtlas(ui.Image atlas, Float32List rstTransforms, Float32List rects, Int32List? colors, BlendMode? blendMode, Rect? cullRect, Paint paint) => _export.ignored.add(Ignored.atlas);
 
   // text
 
