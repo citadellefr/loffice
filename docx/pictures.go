@@ -97,6 +97,24 @@ func lastDrawing(root *xmldom.Element) int {
 	return last
 }
 
+// lastBookmark is the largest id of the bookmarks of a part.
+func lastBookmark(root *xmldom.Element) int {
+	last := 0
+	var walk func(e *xmldom.Element)
+	walk = func(e *xmldom.Element) {
+		if e.Space == NS && e.Local == "bookmarkStart" {
+			if n, err := strconv.Atoi(attr(e, "id")); err == nil {
+				last = max(last, n)
+			}
+		}
+		for _, c := range e.Elements() {
+			walk(c)
+		}
+	}
+	walk(root)
+	return last
+}
+
 // addPictures writes into the package the pictures clients added that a
 // drawing of the tree shows.
 func (w *writer) addPictures() error {

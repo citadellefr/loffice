@@ -144,7 +144,7 @@ func Open(data []byte, limits opc.Limits) (*Document, *ot.Tree, error) {
 	if d.main == "" {
 		return nil, nil, ErrNotDocument
 	}
-	r := &reader{d: d, headers: map[string]string{}, charts: chartpart.NewReader(pkg, limits), chartNodes: map[string]string{}}
+	r := &reader{d: d, headers: map[string]string{}, charts: chartpart.NewReader(pkg, limits), chartNodes: map[string]string{}, bookmarks: map[string]string{}}
 	if err := r.document(); err != nil {
 		return nil, nil, err
 	}
@@ -171,6 +171,8 @@ type reader struct {
 	charts       *chartpart.Reader
 	// chartNodes are the ids of the nodes of the charts, by part.
 	chartNodes map[string]string
+	// bookmarks are the names of the bookmarks read, by w:id.
+	bookmarks map[string]string
 	// source and rels are the part whose blocks are read, and its
 	// relationships.
 	source string

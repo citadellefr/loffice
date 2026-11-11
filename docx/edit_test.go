@@ -440,6 +440,78 @@ func TestClientObjects(t *testing.T) {
 	}
 }
 
+// A table of contents a client made, its field characters, its bookmarks
+// and its links, is written as Word writes one, and read back as fields.
+func TestClientFields(t *testing.T) {
+	d, tree := open(t, `<w:p><w:r><w:t>A</w:t></w:r></w:p>`)
+	n := firstText(t, tree)
+	link := ot.Attrs{"link": "#_Toc1"}
+	with := func(a ot.Attrs) ot.Attrs {
+		for k, v := range link {
+			a[k] = v
+		}
+		return a
+	}
+	apply(t, d, tree, ot.Edit{{Op: ot.OpTxt, ID: n.ID, Text: ot.Delta{
+		{Insert: Object, Attrs: ot.Attrs{"bm": "_Toc1"}},
+		{Insert: "A", Attrs: ot.Attrs{"b": "1"}},
+		{Insert: Object, Attrs: ot.Attrs{"bme": "_Toc1"}},
+		{Insert: "\n", Attrs: ot.Attrs{"pstyle": "Heading1"}},
+		{Insert: Object, Attrs: ot.Attrs{"fld": "begin"}},
+		{Insert: Object, Attrs: ot.Attrs{"instr": `TOC \o "1-3" \h`}},
+		{Insert: Object, Attrs: ot.Attrs{"fld": "separate"}},
+		{Insert: "A\t", Attrs: with(ot.Attrs{})},
+		{Insert: Object, Attrs: with(ot.Attrs{"fld": "begin"})},
+		{Insert: Object, Attrs: with(ot.Attrs{"instr": `PAGEREF _Toc1 \h`})},
+		{Insert: Object, Attrs: with(ot.Attrs{"fld": "separate"})},
+		{Insert: "1", Attrs: with(ot.Attrs{})},
+		{Insert: Object, Attrs: with(ot.Attrs{"fld": "end"})},
+		{Insert: "\n", Attrs: ot.Attrs{"pstyle": "TOC1"}},
+		{Insert: Object, Attrs: ot.Attrs{"fld": "end"}},
+		{Insert: Object, Attrs: ot.Attrs{"instr": `INCLUDETEXT "c:\\secret"`}},
+		{Insert: Object, Attrs: ot.Attrs{"fld": "dirty"}},
+		{Insert: "\n"},
+		{Insert: "d", Attrs: ot.Attrs{"field": `DATE \@ "d MMMM yyyy"`}},
+		{Insert: "\n"},
+	}}})
+	saved, err := d.Save(tree)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc := partOf(t, saved, "word/document.xml")
+	for _, want := range []string{
+		`<w:bookmarkStart w:id="1" w:name="_Toc1"/>`,
+		`<w:bookmarkEnd w:id="1"/>`,
+		`<w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> TOC \o "1-3" \h </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r>`,
+		`<w:hyperlink w:anchor="_Toc1"><w:r><w:t>A</w:t><w:tab/></w:r><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> PAGEREF _Toc1 \h </w:instrText></w:r>`,
+		`<w:r><w:fldChar w:fldCharType="end"/></w:r></w:hyperlink>`,
+		`<w:fldSimple w:instr=" DATE \@ &quot;d MMMM yyyy&quot; ">`,
+	} {
+		if !strings.Contains(doc, want) {
+			t.Errorf("missing %s in\n%s", want, doc)
+		}
+	}
+	if strings.Contains(doc, "INCLUDETEXT") || strings.Contains(doc, "dirty") {
+		t.Errorf("a field that is not allowed was written:\n%s", doc)
+	}
+	_, again, err := Open(saved, opc.Limits{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, op := range firstText(t, again).Text.Delta() {
+		for _, k := range []string{"bm", "bme", "fld", "instr", "field"} {
+			if v := op.Attrs[k]; v != "" {
+				got = append(got, k+"="+strings.TrimSpace(v))
+			}
+		}
+	}
+	want := `bm=_Toc1 bme=_Toc1 fld=begin instr=TOC \o "1-3" \h fld=separate fld=begin instr=PAGEREF _Toc1 \h fld=separate fld=end fld=end field=DATE \@ "d MMMM yyyy"`
+	if s := strings.Join(got, " "); s != want {
+		t.Errorf("read back\n%s\nwant\n%s", s, want)
+	}
+}
+
 func TestBuiltinStylesAndLists(t *testing.T) {
 	d, tree := open(t, `<w:p><w:r><w:t>A</w:t></w:r></w:p>`)
 	var styles map[string]Style

@@ -83,6 +83,7 @@ type Float struct {
 //	comment the node of the comment referred to
 //	cs, ce  the node of the comment whose range starts, ends
 //	bm      the name of a bookmark starting
+//	bme     the name of a bookmark ending
 //	math    "1", an equation
 func (r *reader) describe(e *xmldom.Element, attrs ot.Attrs) {
 	switch e.Space {
@@ -133,6 +134,9 @@ func (r *reader) describe(e *xmldom.Element, attrs ot.Attrs) {
 		attrs["ce"] = r.commentAnchor(e)
 	case "bookmarkStart":
 		attrs["bm"] = attr(e, "name")
+		r.bookmarks[attr(e, "id")] = attr(e, "name")
+	case "bookmarkEnd":
+		attrs["bme"] = r.bookmarks[attr(e, "id")]
 	}
 }
 
