@@ -48,15 +48,30 @@ func sheetNamed(tree *ot.Tree, name string) *ot.Node {
 	return nil
 }
 
-// chartCells reads the cells of charts in a tree.
+// chartCells reads the cells of charts in a tree, each range and each
+// style once.
 type chartCells struct {
 	tree     *ot.Tree
 	date1904 bool
 	formats  map[string]*formula.Format
+	styles   map[string]cellFormat
+	ranges   map[string]*chartRange
+}
+
+// cellFormat is the number format of a cell style.
+type cellFormat struct {
+	code string
+	f    *formula.Format
+}
+
+// chartRange is the cells of a row or column of a sheet.
+type chartRange struct {
+	values  []formula.Value
+	formats []cellFormat
 }
 
 func newChartCells(tree *ot.Tree) *chartCells {
-	c := &chartCells{tree: tree, formats: map[string]*formula.Format{}}
+	c := &chartCells{tree: tree, formats: map[string]*formula.Format{}, styles: map[string]cellFormat{}, ranges: map[string]*chartRange{}}
 	if book := tree.Node("book"); book != nil {
 		_ = json.Unmarshal(book.Attrs["date1904"], &c.date1904)
 	}
@@ -65,6 +80,14 @@ func newChartCells(tree *ot.Tree) *chartCells {
 
 // format is the number format of a cell style.
 func (c *chartCells) format(xf string) (string, *formula.Format) {
+	cf := c.style(xf)
+	return cf.code, cf.f
+}
+
+func (c *chartCells) style(xf string) cellFormat {
+	if cf, ok := c.styles[xf]; ok {
+		return cf
+	}
 	var st Style
 	if n := c.tree.Node(xf); n != nil {
 		_ = json.Unmarshal(n.Attrs["style"], &st)
@@ -75,7 +98,9 @@ func (c *chartCells) format(xf string) (string, *formula.Format) {
 		f = formula.ParseFormat(code)
 		c.formats[code] = f
 	}
-	return code, f
+	cf := cellFormat{code, f}
+	c.styles[xf] = cf
+	return cf
 }
 
 func either(s, or string) string {
@@ -85,10 +110,8 @@ func either(s, or string) string {
 	return s
 }
 
-// data is what a chart caches of the cells of ref: their numbers, or
-// their texts as shown when text is set. It tells whether ref points to a
-// row or column of cells of the tree.
-func (c *chartCells) data(ref, own string, text bool) (*chart.Data, bool) {
+// read is the cells of ref, a row or column of cells of the tree.
+func (c *chartCells) read(ref, own string) (*chartRange, bool) {
 	r, ok := chartRef(ref, own)
 	if !ok {
 		return nil, false
@@ -98,32 +121,50 @@ func (c *chartCells) data(ref, own string, text bool) (*chart.Data, bool) {
 	if n == nil || a.R1 != a.R2 && a.C1 != a.C2 || (a.R2-a.R1+1)*(a.C2-a.C1+1) > maxChartCells {
 		return nil, false
 	}
-	d := &chart.Data{Ref: ref}
+	key := r.String()
+	if g, ok := c.ranges[key]; ok {
+		return g, true
+	}
+	g := &chartRange{}
 	for row := a.R1; row <= a.R2; row++ {
 		for col := a.C1; col <= a.C2; col++ {
 			var raw json.RawMessage
 			if n.Grid != nil {
 				raw = n.Grid.Cell(row, col)
 			}
-			v := valueOf(raw)
 			var fields struct {
 				S string `json:"s"`
 			}
 			_ = json.Unmarshal(raw, &fields)
-			code, f := c.format(fields.S)
-			if d.Count == 0 && !text {
-				d.Format = code
-			}
-			d.Count++
-			if text {
-				d.Str = append(d.Str, c.text(v, f))
-				continue
-			}
-			if v.Type == formula.TypeNumber {
-				d.Num = append(d.Num, &v.Num)
-			} else {
-				d.Num = append(d.Num, nil)
-			}
+			g.values = append(g.values, valueOf(raw))
+			g.formats = append(g.formats, c.style(fields.S))
+		}
+	}
+	c.ranges[key] = g
+	return g, true
+}
+
+// data is what a chart caches of the cells of ref: their numbers, or
+// their texts as shown when text is set. It tells whether ref points to a
+// row or column of cells of the tree.
+func (c *chartCells) data(ref, own string, text bool) (*chart.Data, bool) {
+	g, ok := c.read(ref, own)
+	if !ok {
+		return nil, false
+	}
+	d := &chart.Data{Ref: ref, Count: len(g.values)}
+	if len(g.values) > 0 && !text {
+		d.Format = g.formats[0].code
+	}
+	for i := range g.values {
+		v := &g.values[i]
+		switch {
+		case text:
+			d.Str = append(d.Str, c.text(*v, g.formats[i].f))
+		case v.Type == formula.TypeNumber:
+			d.Num = append(d.Num, &v.Num)
+		default:
+			d.Num = append(d.Num, nil)
 		}
 	}
 	return d, true
@@ -131,13 +172,12 @@ func (c *chartCells) data(ref, own string, text bool) (*chart.Data, bool) {
 
 // holdsText tells whether a cell of ref holds what is no number.
 func (c *chartCells) holdsText(ref, own string) bool {
-	numbers, ok := c.data(ref, own, false)
+	g, ok := c.read(ref, own)
 	if !ok {
 		return false
 	}
-	texts, _ := c.data(ref, own, true)
-	for i, n := range numbers.Num {
-		if n == nil && texts.Str[i] != "" {
+	for i, v := range g.values {
+		if v.Type != formula.TypeNumber && c.text(v, g.formats[i].f) != "" {
 			return true
 		}
 	}
