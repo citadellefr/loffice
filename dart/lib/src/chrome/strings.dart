@@ -12,6 +12,7 @@ class LofficeStrings {
   String get transitions => 'Transitions';
   String get slideShow => 'Diaporama';
   String get review => 'Révision';
+  String get references => 'Références';
   String get view => 'Affichage';
 
   // groups and commands
@@ -438,6 +439,16 @@ class LofficeStrings {
   String get header => 'En-tête';
   String get footer => 'Pied de page';
   String get pageNumber => 'Numéro de page';
+  String get textGroup => 'Texte';
+  String get dateTime => 'Date et heure';
+  String get tableOfContents => 'Table des matières';
+  String get updateFields => 'Mettre à jour les champs';
+  String get noTocEntries => 'Aucune entrée de table des matières n’a été trouvée.';
+  String get referenceNotFound => 'Erreur ! Source de la référence introuvable.';
+  List<String> get months => const ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  List<String> get monthsShort => const ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+  List<String> get weekdays => const ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+  List<String> get weekdaysShort => const ['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.'];
   String get closeHeaderFooter => 'Fermer l’en-tête et le pied de page';
   String get normalMargins => 'Normales';
   String get narrowMargins => 'Étroites';

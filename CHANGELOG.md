@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Word fields can be updated and inserted: F9 (or "Mettre à jour les champs"
+  in the References tab and the context menu) rewrites the tables of contents,
+  the SEQ numbers, the REF texts and the DATE and TIME fields of the selection
+  or the document, as a tracked change when tracking is on; a table of
+  contents (`TOC \o "1-3" \h`) and a date can be inserted. The docx writer
+  writes the TOC, SEQ, REF and PAGEREF fields and the bookmarks a client
+  creates, with the TOC 1 to 3 styles.
 - The Dart Word, PowerPoint and Excel editors take an `AiParticipant? ai`: the
   AI's cursor is labelled with its name, and what it edited lately is lit a
   few seconds in PowerPoint and Excel; a host that provides or changes `ai`

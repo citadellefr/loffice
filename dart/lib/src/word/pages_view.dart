@@ -796,7 +796,7 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
     _text(flow, d, caret, caret);
   }
 
-  /// Replaces a range by an object the writer makes: a page break.
+  /// Replaces a range by what the writer makes: a page break, a field.
   void replaceWith(Node flow, int start, int end, String char, Attributes attributes) {
     if (_selection.spans) {
       final node = _deleteSpan();
@@ -806,7 +806,7 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
     final d = Delta()..retain(start);
     if (end > start) d.delete(end - start);
     d.insert(char, attributes);
-    _text(flow, d.chop(), start + 1, start + 1);
+    _text(flow, d.chop(), start + char.length, start + char.length);
   }
 
   /// Deletes, the caret put at [caret]: before the text struck there when
