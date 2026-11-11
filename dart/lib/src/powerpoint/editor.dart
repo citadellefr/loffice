@@ -24,6 +24,7 @@ import '../pdf/document.dart' show pdfName;
 import '../plain_text_editor.dart';
 import '../text/editing.dart';
 import '../text/text_frame.dart';
+import 'animations_pane.dart';
 import 'comments.dart';
 import 'deck.dart';
 import 'edits.dart';
@@ -242,6 +243,28 @@ class _PresentationEditorState extends State<PresentationEditor> {
       _commentsShown = false;
       _drafting = false;
     }),
+  );
+
+  var _animationsShown = false;
+
+  /// The shape new animations go on: the only one selected, not a cell.
+  String? get _animationTarget {
+    final shapes = _selectedShapes;
+    return shapes.length == 1 && shapes.first.type != 'tc' ? shapes.first.id : null;
+  }
+
+  Widget _animationsPane(Node slide) => AnimationsPane(
+    strings: _s,
+    effects: [for (final e in slide.attributes['animations'] as List<Object?>? ?? const []) e! as Map<String, Object?>],
+    nameOf: (id) => _session.document[id]?.attributes['name'] as String?,
+    selected: _animationTarget,
+    readOnly: _session.readOnly,
+    onChanged: (effects) => _edit(
+      Edit([
+        Change.set(slide.id, attributes: {'animations': effects.isEmpty ? null : effects}),
+      ]),
+    ),
+    onClose: () => setState(() => _animationsShown = false),
   );
 
   Node? get _slide {
@@ -934,6 +957,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
                           Expanded(child: canvas),
                           const Divider(height: 1),
                           if (_commentsShown && slide != null) SizedBox(height: 280, child: _commentsPane(slide)),
+                          if (_animationsShown && slide != null) SizedBox(height: 280, child: _animationsPane(slide)),
                           if (_chartDataShown && chart != null) SizedBox(height: 280, child: _chartDataPane(chart)),
                           SizedBox(height: 88, child: _Thumbnails(editor: this, horizontal: true)),
                         ],
@@ -951,6 +975,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
                             ),
                           ),
                           if (_commentsShown && slide != null) ...[const VerticalDivider(width: 1), SizedBox(width: 320, child: _commentsPane(slide))],
+                          if (_animationsShown && slide != null) ...[const VerticalDivider(width: 1), SizedBox(width: 380, child: _animationsPane(slide))],
                           if (_chartDataShown && chart != null) ...[const VerticalDivider(width: 1), SizedBox(width: 360, child: _chartDataPane(chart))],
                         ],
                       ),
@@ -1461,6 +1486,17 @@ class _PresentationEditorState extends State<PresentationEditor> {
                   onChanged: editable && _slide != null ? (ms) => _retransition({'after': ms.round()}) : null,
                 ),
               ],
+            ),
+          ]),
+        ]),
+        RibbonTab(_s.animations, [
+          RibbonGroup(_s.animations, [
+            RibbonButton(
+              icon: const Icon(Icons.auto_awesome_motion_outlined),
+              label: _s.animationPane,
+              large: true,
+              selected: _animationsShown,
+              onPressed: () => setState(() => _animationsShown = !_animationsShown),
             ),
           ]),
         ]),

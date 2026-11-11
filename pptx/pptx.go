@@ -12,7 +12,7 @@
 //	  layout "L1"                name, type, bg, clrMapOvr, showMasterSp
 //	    shapes…                  the placeholders slides inherit from
 //	slide "s256"                 layout, name, hidden, bg, clrMapOvr, showMasterSp,
-//	                             transition (transition.go)
+//	                             transition (transition.go), animations (animation.go)
 //	  sp "s256-2"                a shape; its text is the node's
 //	  pic cxn frame              a picture, a connector, a table or chart
 //	  grp                        a group, with its shapes
@@ -409,6 +409,13 @@ func (r *reader) slide(name string, sldID int64, key string) error {
 			spTree.Remove(c)
 		}
 	}
+	effects := readAnimations(s, id, func(id string) bool { return r.ids[id] })
+	for _, e := range effects {
+		if e.XML != "" {
+			r.d.trust(e.XML)
+		}
+	}
+	putJSON(attrs, "animations", effects)
 	attrs["xml"] = r.d.raw(s)
 	r.nodes[placeholder].Attrs = attrs
 	r.readComments(id, part, rels)

@@ -39,7 +39,7 @@ func save(d *Document, tree *ot.Tree, force bool) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	w := &writer{d: d, pkg: pkg, tree: tree, fresh: map[*xmldom.Element]bool{}, force: force}
+	w := &writer{d: d, pkg: pkg, tree: tree, fresh: map[*xmldom.Element]bool{}, spids: map[string]*xmldom.Element{}, force: force}
 	if err := w.save(); err != nil {
 		return nil, err
 	}
