@@ -258,6 +258,24 @@ void main() {
     });
   }
 
+  testWidgets('Word selects a chart by a tap on its drawing and shows its tabs', (tester) async {
+    await start(tester, _document(data: true), (s) => WordEditor(session: s, media: (_) async => Uint8List(0)));
+    await tester.tap(find.byType(WordPagesView));
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.end);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pump();
+    expect(find.text('Création de graphique'), findsNothing);
+    final view = tester.widget<WordPagesView>(find.byType(WordPagesView));
+    final page = find.byType(CustomPaint).evaluate().map((e) => e.renderObject! as RenderBox).firstWhere((b) => b.size.width < 1000 && b.size.height > 1000);
+    final (_, rect, _) = view.layout.pictureAt('1', 0)!;
+    await tester.tapAt(page.localToGlobal(rect.center * view.scale));
+    await tester.pump();
+    expect((view.selection.start, view.selection.end), (0, 1));
+    expect(find.text('Création de graphique'), findsOneWidget);
+    await finish(tester);
+  });
+
   test('Word draws the chart of its node, not the one the drawing read', () async {
     final tree = Tree.fromEdit(_document(data: true))!;
     final doc = WordDocument(tree);
