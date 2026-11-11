@@ -1,7 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.13.0 — 2026-11-11
 
+- The Dart package depends on `trame` 0.5.1: a `DocSession` no longer keeps a
+  presence timer nor saves a draft after `dispose`.
+- The Dart editors tell, in French, what a PDF export left aside: the missing
+  characters and the kinds of drawing it ignored (color and image filters,
+  blend modes, blurs, fills, other graphics).
 - `agent` and `mcp` edit presentations and workbooks, directly and in view of
   everyone: fourteen tools (`slide_list`, `slide_read`, `shape_text_set`,
   `shape_add`, `slide_add`, `slide_delete`, `notes_set`, `sheet_list`,
@@ -52,6 +57,21 @@
   the values a chart caches follow the cells it reads when they change. The
   Dart workbook editor has Insert > Chart and the Chart Design and Format
   tabs.
+- `formula` writes the `_xlfn.` prefixes of the Excel 2013 functions (BIT*,
+  ARABIC, SHEET, RRI…) with French names corrected after Microsoft, and
+  handles the names, prefixes and FREQUENCY of the statistical functions.
+  MAP, BYROW and BYCOL pass references for a range, `CELL("contents")` and
+  `CELL("type")` read the cell, and `CELL("filename")`, `INFO("numfile")` and
+  `SHEETS()` answer on a real workbook. Finding circular references costs
+  less, and renaming a sheet no longer looks for them; renaming that makes a
+  reference valid looks for them again.
+- `xlsx` Dart editor: notes can be edited in place, sorting moves the notes,
+  their labels are those of Excel, and a table's total row stops at the
+  first refusal. An unreadable list of tables is told explicitly in Go.
+- OOXML Strict is translated by namespaces, relationship types and `uri`
+  attributes only, never in the text. The docx and pptx fuzzers run with a
+  lighter harness and an unreadable `styles.xml` is rewritten; CI takes the
+  latest Go 1.26 for govulncheck.
 
 ## 0.12.0 — 2026-11-04
 
