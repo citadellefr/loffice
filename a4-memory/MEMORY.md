@@ -20,6 +20,9 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m26** (à_revérifier) La table de traduction français/anglais des fonctions est côté Dart (_functions et _newer dans dart/lib/src/excel/formula_text.dart), pas dans le package Go formula, qui ne connaît que les noms anglais. Une nouvelle fonction Go doit y recevoir son nom français, et son préfixe _xlfn. dans _newer si elle date d'Excel 2010 ou après. La table est une bijection (le nom français est une clé inverse) : deux noms anglais ne peuvent pas partager un nom français. — _ag2, t8_
 - **m99** (à_revérifier) Les noms français des fonctions Excel 365 de manipulation de tableaux : PRENDRE, EXCLURE, CHOISIRCOLS, CHOISIRLIGNES, ETENDRE, ASSEMB.V, ASSEMB.H, DANSCOL, DANSLIGNE, ORGA.COLS, ORGA.LIGNES, FRACTIONNER.TEXTE. Les pages Microsoft fr-FR laissent DROP et EXPAND non traduits ; EXCLURE et ETENDRE viennent d'autres sources et sont à vérifier avec Excel FR. — _ag1, t12_
 
+### dart/test/chart_extended_test.dart
+- **m218** Côté Dart, les outils (dart, flutter) ne sont pas dans le PATH : les lancer par `nix shell nixpkgs#flutter -c sh -c '…'` ; les tests de peintre utilisent un Canvas espion (noSuchMethod) avec un ColorContext à schéma d'accent non vide, sinon aucune forme remplie n'est vue. — _ag1, t55_
+
 ### formula/fn_securities.go
 - **m57** formula : les fonctions de titres (PRICE, YIELD, COUP*, DURATION, ACCRINT) partagent le type `bond` de formula/fn_securities.go (dates des coupons précédent/suivant, nombre de coupons, décompte des jours par base 0-4). Les fonctions escomptées passent par `Context.discounted` et `Context.yearFrac`, extrait de YEARFRAC dans fn_date.go. — _ag5, t9_
 
@@ -56,7 +59,7 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m50** (à_revérifier) agent/agent.go : un client trame qui réutilise peer.Client doit reprendre la numérotation n de ses ops à partir du champ ack de la trame doc (ou vider Client). Le hub (room.apply) ignore sans répondre (ni ack ni nack) un op dont n <= acks[Client], et le client attend alors indéfiniment. — _ag5, t23_
 
 ### agent/direct.go
-- **m151** xlsx : une suppression de lignes ou colonnes réécrit par le serveur (Follower, éditions sid 0) les formules des autres cellules, parfois en #REF! ; l'inverse d'un OpRem (ins + cellules) ne les rétablit pas. L'agent repose donc ces formules (state.broken, agent/direct.go) : celles dont Shift(-n) suivi de Shift(+n) ne redonne pas le texte d'origine. — _ag2, t26_
+- **m151** (à_revérifier) xlsx : une suppression de lignes ou colonnes réécrit par le serveur (Follower, éditions sid 0) les formules des autres cellules, parfois en #REF! ; l'inverse d'un OpRem (ins + cellules) ne les rétablit pas. L'agent repose donc ces formules (state.broken, agent/direct.go) : celles dont Shift(-n) suivi de Shift(+n) ne redonne pas le texte d'origine. — _ag2, t26_
 
 ### agent/edit.go
 - **m52** (à_revérifier) docx : pour supprimer le dernier paragraphe d'un flux, on supprime la marque précédente et le contenu, et la marque finale prend les attributs de la précédente. Un flux ne peut pas perdre sa marque finale (ErrNoMark), et un body ou un tc doit finir par un paragraphe. Voir removeRange dans agent/edit.go. — _ag5, t23_
@@ -74,7 +77,7 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m150** (à_revérifier) pptx : les enfants d'un nœud master ne sont pas que ses layouts, les formes du masque (sp, pic…) y sont aussi (pptx/pptx.go) ; pour lister les dispositions (agent/slides.go), filtrer Type=="layout". Les fixtures testdata/pptx ont des masques sans forme et ne révèlent pas le cas : tester sur corpus/files/python-pptx (ex. mst-placeholders.pptx). — _ag2, t26_
 
 ### dart/
-- **m2** (à_revérifier) dart/ Flutter et Dart ne sont pas dans le PATH de cette machine. Soit `nix shell nixpkgs#flutter -c flutter test` depuis loffice/dart (suite complète ≈ 1 min 40), soit ajouter au PATH /nix/store/x8cc2489gk0lhbgm5q3y7pxfb7v9r706-flutter-wrapped-3.47.4-sdk-links/bin (Flutter 3.47.4, Dart 3.13.3) avant flutter test / dart analyze. — _orchestra_
+- **m2** dart/ Flutter et Dart ne sont pas dans le PATH de cette machine. Soit `nix shell nixpkgs#flutter -c flutter test` depuis loffice/dart (suite complète ≈ 1 min 40), soit ajouter au PATH /nix/store/x8cc2489gk0lhbgm5q3y7pxfb7v9r706-flutter-wrapped-3.47.4-sdk-links/bin (Flutter 3.47.4, Dart 3.13.3) avant flutter test / dart analyze. — _orchestra_
 
 ### dart/analysis_options.yaml
 - **m6** dart format ne lit formatter.page_width de analysis_options.yaml qu'après `flutter pub get` (il lui faut .dart_tool/package_config.json) ; sans cela le réglage est ignoré silencieusement et la largeur reste 80. — _ag1, t1_
@@ -116,8 +119,17 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 ### mcp/office_test.go
 - **m132** Un test d'annulation xlsx doit vérifier toute la grille, pas une cellule : après une annulation fausse, B1 peut valoir la bonne valeur par hasard alors que lignes et colonnes sont restées décalées. — _ag2, t26_
 
+### pptx/corpus_test.go
+- **m213** Les tests pptx qui construisent writer{} à la main (corpus_test.go) doivent initialiser spids, sinon panic dans writer.shape. — _ag2, t53_
+
+### pptx/pptx.go
+- **m217** (à_revérifier) Un graphique chartex est empaqueté dans un mc:AlternateContent (xlsx : ancre de dessin, pptx : spTree, docx : w:r) dont le Choice contient le graphicFrame ; il faut passer par chart.FindRef(graphicData) et par pptx chartChoice() pour retrouver le cadre, sinon le graphique est ignoré. — _ag1, t55_
+
 ### pptx/transition_test.go
 - **m122** (à_revérifier) `-run Edits` de pptx (CI, run.sh) n'écrit que 2 fichiers édités ; TestTransitions et TestComments écrivent aussi avec LOFFICE_EDITED (saveCorpus) mais sous des noms (comments/two.pptx) sans original : le validateur les ignore. Copier la sortie en <dossier>/poi/aptia.pptx pour la valider. — _ag4, t29_
+
+### pptx/write.go
+- **m212** pptx dropStaleTiming/pruneAnimation (suppression d'une forme animée) et animation.go `without` (suppression d'effets dans la liste) doivent rester équivalents : le test TestDeleteShapesAsDeleteEffects compare les deux sur tous les sous-ensembles de formes ; le transfert de nodeType ne doit se faire qu'au niveau groupe et étape, pas tmRoot/mainSeq. — _ag2, t53_
 
 ### tools/validate/Program.cs
 - **m75** Validation Open XML SDK hors CI : dotnet vit dans /nix/store/qybc3wpz3hz5daipbmnj7rgc73hn35j2-dotnet-sdk-wrapped-8.0.425/bin/dotnet (pas dans le PATH ; sinon `nix shell nixpkgs#dotnet-sdk_8 -c dotnet ...`). Écrire d'abord les classeurs avec LOFFICE_EDITED, LOFFICE_MOVED ou LOFFICE_COMMENTED (les tests de graphiques écrivent sous charts/), puis `DOTNET_CLI_HOME=/tmp/x LOFFICE_EDITED=1 dotnet run -c Release --project tools/validate -- corpus/files <dossier>` (~3 min), ou `dotnet build tools/validate -o /tmp/x` puis `dotnet /tmp/x/Validate.dll <originaux> <réécrits>` (la dll s'appelle Validate.dll). Les deux dossiers doivent porter les mêmes chemins relatifs. tools/validate/run.sh automatise l'ensemble (voir m121). — _ag5, t15_
@@ -157,6 +169,9 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 ### agent/state.go
 - **m51** (à_revérifier) Le paquet loffice/agent donne aux paragraphes des ids pN qui suivent leur marque, et aux tableaux des ids tN. Ces ids et les versions (jeton de session-n) ne valent que pour un même Agent : une autre session renumérote. Le Journal (Options.Journal) transmet de session en session le « au nom de » des révisions. — _ag5, t23_
 
+### chart/chartex.go
+- **m216** Les graphiques chartex (cx:chartSpace) sont lus en lecture seule : chart.Chart.Extended() est vrai, chart.Patch refuse CXNS, xlsx checkChart ne tolère qu'un JSON identique et internal/chartpart renvoie ErrReadOnly pour tout changement de contenu ; seul le cadre (déplacement/redimensionnement) est modifiable. — _ag1, t55_
+
 ### chart/edit.go
 - **m141** (à_revérifier) Dans chart.Patch et refresh, une série est identifiée par son index (c:idx), pas par sa position : un client qui ajoute une série doit lui donner un index que le tracé n'a pas, sinon elle reprend l'élément de cet index avec sa mise en forme. Dart : ChartEdits.setSeries. — _ag1, t18_
 
@@ -192,6 +207,9 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 ### opc/strict.go
 - **m36** loffice opc : dans un paquet OOXML Strict (Package.Strict()), Read rend chaque partie XML traduite en Transitional (espaces de noms, types de relations, pourcentages DrawingML « 75% » → 75000), et Set/Add retraduisent en Strict. Les lecteurs et writers des formats ne voient donc que du Transitional. Table et liste des attributs pourcentage : opc/strict.go. — _ag1, t7_
 - **m154** loffice opc/strict.go : la traduction Strict↔Transitional (Package.translate(contentType, data, toStrict bool)) passe par xmldom et ne touche que xmlns*, Type des Relationship, attributs uri et pourcentages DrawingML ; jamais le texte. Comparer e.Space avec l'URI du sens d'entrée (Strict à la lecture, Transitional à l'écriture), car Set sur xmlns ne met pas à jour Element.Space. — _ag6, t35_
+
+### pptx/animation.go
+- **m211** Slide pptx : attribut JSON `animations` = liste ordonnée d'Effect {target (id du nœud forme), para{from,to}, class entr|emph|exit|path, preset, subtype, trigger click|with|after, delay, dur, xml}. xml présent = effet opaque (XML de confiance, seul le déclencheur s'applique). Les cibles sont des ids de nœuds ; l'écriture les convertit en cNvPr via writer.spids ; Check refuse ErrAnimation ; Follow retire les effets des formes supprimées avec pptx.without. — _ag2, t53_
 
 ### pptx/pptx.go
 - **m38** (à_revérifier) loffice pptx : l'attribut « xml » d'une forme (XML brut hors texte) n'est pas mis à jour par OpSet avant la sauvegarde. Après une édition, l'arbre en mémoire diffère donc de sa relecture. Pour tester une réécriture, comparer la relecture à celle d'un fichier de référence qui a reçu les mêmes éditions. — _ag1, t7_
