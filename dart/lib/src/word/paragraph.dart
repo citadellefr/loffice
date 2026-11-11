@@ -184,7 +184,7 @@ class FloatingPicture {
 /// Part of a paragraph laid out by one painter: most paragraphs are one; a
 /// hanging indent without a number puts the first line in its own.
 class _Piece {
-  _Piece(this.painter, this.x, this.y, this.from, this.lead, this.slots);
+  _Piece(this.painter, this.x, this.y, this.from, this.lead, this.slots, {this.limit = 0});
 
   final TextPainter painter;
 
@@ -196,9 +196,21 @@ class _Piece {
   final int from, lead;
   final List<_Slot> slots;
 
+  /// How many of its lines are the paragraph's, 0 for all.
+  final int limit;
+
   int painterOffset(int offset) => offset - from + lead;
 
   int flowOffset(int offset) => offset - lead + from;
+}
+
+/// A picture the text goes around, in the paragraph's coordinates, and the
+/// sides of it the text may take: "bothSides", "left", "right", "largest".
+class TextWrap {
+  const TextWrap(this.rect, this.sides);
+
+  final Rect rect;
+  final String sides;
 }
 
 /// A line of a paragraph, in the paragraph's coordinates.
@@ -227,7 +239,7 @@ class ParaLine {
 class ParaBox {
   ParaBox._(this.source, this.width, this._pieces, this.lines, this.floats, this._label, this._labelX);
 
-  factory ParaBox.layout(ParaSource source, WordContext ctx, double width, {FieldValues fields = FieldValues.none}) {
+  factory ParaBox.layout(ParaSource source, WordContext ctx, double width, {FieldValues fields = FieldValues.none, List<TextWrap> around = const []}) {
     final para = source.para;
     final rule = para['sp.rule'] ?? 'auto';
     final line = double.tryParse(para['sp.line'] ?? '');
@@ -276,7 +288,9 @@ class ParaBox {
     final contentWidth = math.max(width - right, 1.0);
 
     List<_Piece> pieces;
-    if (textStart >= left - 0.01) {
+    if (around.isNotEmpty) {
+      pieces = _flowAround(ops, textStart, left, contentWidth, strut, source.para, ctx, stops, around);
+    } else if (textStart >= left - 0.01) {
       final lead = textStart - left;
       final slots = [if (lead > 0.01) _Slot(_SlotKind.lead, width: lead)];
       final piece = _layoutPiece(ops, slots, left, contentWidth - left, strut, 0, 0, source.para, ctx, stops, first: true);
@@ -302,7 +316,9 @@ class ParaBox {
       final painter = piece.painter;
       final text = painter.plainText;
       var top = 0.0;
+      var count = 0;
       for (final m in painter.computeLineMetrics()) {
+        if (piece.limit > 0 && ++count > piece.limit) break;
         final range = painter.getLineBoundary(painter.getPositionForOffset(Offset(-1e6, top + m.height / 2)));
         final start = piece.flowOffset(math.max(range.start, piece.lead));
         var end = piece.flowOffset(math.min(range.end, text.length));
@@ -430,7 +446,7 @@ class ParaBox {
   int offsetAt(Offset p) {
     var line = lines.first;
     for (final l in lines) {
-      if (p.dy >= l.top) line = l;
+      if (p.dy >= l.top && (l.top > line.top || p.dx >= l._piece.x)) line = l;
     }
     final piece = line._piece;
     final pos = piece.painter.getPositionForOffset(Offset(p.dx - piece.x, line._painterTop + line.height / 2));
@@ -483,6 +499,113 @@ class ParaBox {
     }
     return out;
   }
+}
+
+/// The narrowest stretch of a line text is put in beside a picture.
+const _narrowest = 24.0;
+
+/// The stretches of the line between [y] and [y] + [h], from [left] to
+/// [right], that the pictures leave to the text.
+List<(double, double)> _room(double y, double h, double left, double right, List<TextWrap> wraps) {
+  var room = [(left, right)];
+  for (final w in wraps) {
+    final r = w.rect;
+    if (r.top >= y + h || r.bottom <= y) continue;
+    final next = <(double, double)>[];
+    for (final (a, b) in room) {
+      if (r.left >= b || r.right <= a) {
+        next.add((a, b));
+        continue;
+      }
+      final l = (a, math.min(b, r.left)), r2 = (math.max(a, r.right), b);
+      final lw = l.$2 - l.$1, rw = r2.$2 - r2.$1;
+      if (w.sides == 'left' || w.sides == 'largest' && lw >= rw) {
+        next.add(l);
+      } else if (w.sides == 'right' || w.sides == 'largest') {
+        next.add(r2);
+      } else {
+        next.addAll([l, r2]);
+      }
+    }
+    room = [
+      for (final s in next)
+        if (s.$2 - s.$1 >= _narrowest) s,
+    ];
+  }
+  return room;
+}
+
+/// Lays a paragraph out line by line, the text going around the pictures:
+/// a line a picture splits goes on after it, one with no room goes under.
+List<_Piece> _flowAround(List<_Op> ops, double textStart, double left, double right, StrutStyle? strut, Props para, WordContext ctx, List<_TabStop> stops, List<TextWrap> wraps) {
+  final pieces = <_Piece>[];
+  final end = wraps.fold(0.0, (b, w) => math.max(b, w.rect.bottom));
+  var rest = ops;
+  var from = 0, y = 0.0, first = true;
+
+  _Piece lay(List<_Op> ops, double x, double width, int limit) => _layoutPiece(ops, const [], x, width, strut, from, y, para, ctx, stops, first: first, limit: limit);
+
+  // takes [n] lines of the rest, laid out from [x] in [width]; the height
+  // they take
+  double take(double x, double width, int n, _Piece? laid) {
+    var piece = laid ?? lay(rest, x, width, 0);
+    final metrics = piece.painter.computeLineMetrics();
+    final cut = metrics.length > n ? _cutAfter(piece.painter, metrics, n - 1) : 0;
+    var height = 0.0;
+    for (final m in metrics.take(n)) {
+      height += m.height;
+    }
+    if (cut > 0) {
+      piece = lay(_slice(rest, 0, cut), x, width, n);
+      rest = _slice(rest, cut, null);
+      from += cut;
+    } else {
+      rest = const [];
+    }
+    pieces.add(piece);
+    return height;
+  }
+
+  while (rest.isNotEmpty) {
+    final x = first ? textStart : left;
+    final full = lay(rest, x, right - x, 0);
+    if (y >= end) {
+      pieces.add(full);
+      break;
+    }
+    final lines = full.painter.computeLineMetrics();
+    final room = _room(y, lines.first.height, x, right, wraps);
+    if (room.isEmpty) {
+      y = wraps.where((w) => w.rect.top < y + lines.first.height && w.rect.bottom > y).fold(y, (b, w) => math.max(b, w.rect.bottom));
+    } else if (room.length == 1 && room.first == (x, right)) {
+      final next = wraps.where((w) => w.rect.bottom > y).fold(double.infinity, (t, w) => math.min(t, w.rect.top));
+      var n = 0;
+      for (var bottom = y; n < lines.length && bottom + lines[n].height <= next; n++) {
+        bottom += lines[n].height;
+      }
+      y += take(x, right - x, math.max(n, 1), full);
+    } else {
+      var height = 0.0;
+      for (final (a, b) in room) {
+        if (rest.isEmpty) break;
+        height = math.max(height, take(a, b - a, 1, null));
+      }
+      y += height;
+    }
+    first = false;
+  }
+  return pieces;
+}
+
+/// The end in the painter's text of line [n], past the break that ends it.
+int _cutAfter(TextPainter painter, List<ui.LineMetrics> metrics, int n) {
+  var top = 0.0;
+  for (var i = 0; i < n; i++) {
+    top += metrics[i].height;
+  }
+  final text = painter.plainText;
+  final end = painter.getLineBoundary(painter.getPositionForOffset(Offset(-1e6, top + metrics[n].height / 2))).end;
+  return math.max(end < text.length && text.codeUnitAt(end) == 0x0A ? end + 1 : end, 1);
 }
 
 /// The ops [from]…[to] of a list whose inserts are text, in UTF-16 units.
@@ -739,7 +862,7 @@ _TabStop _stopAfter(double x, List<_TabStop> stops, double left, double first, d
 
 /// Lays out spans with a painter, their tabs set one after another where
 /// their stops put the text after them.
-_Piece _layoutPiece(List<_Op> ops, List<_Slot> lead, double x, double width, StrutStyle? strut, int from, double y, Props para, WordContext ctx, List<_TabStop> stops, {required bool first}) {
+_Piece _layoutPiece(List<_Op> ops, List<_Slot> lead, double x, double width, StrutStyle? strut, int from, double y, Props para, WordContext ctx, List<_TabStop> stops, {required bool first, int limit = 0}) {
   final slots = <_Slot>[...lead, for (final o in ops) ?o.slot];
   final align = switch (para['jc']) {
     'center' => TextAlign.center,
@@ -799,7 +922,7 @@ _Piece _layoutPiece(List<_Op> ops, List<_Slot> lead, double x, double width, Str
     if (!changed) break;
     painter = paint();
   }
-  return _Piece(painter, x, y, from, lead.length, slots);
+  return _Piece(painter, x, y, from, lead.length, slots, limit: limit);
 }
 
 /// The right end of the text of the line between [top] and [bottom].

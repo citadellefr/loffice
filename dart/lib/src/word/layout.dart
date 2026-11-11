@@ -210,6 +210,9 @@ class _Paginator {
   /// it goes around.
   final _bands = <(double, double)>[];
 
+  /// The pictures of the page the text goes around.
+  final _wraps = <TextWrap>[];
+
   /// The footnotes of the page, and the room they take at its bottom; the
   /// endnotes referred to so far; the notes laid out, by node and width.
   final _pageNotes = <List<LaidBlock>>[];
@@ -315,6 +318,7 @@ class _Paginator {
       ..footer = footer;
     pages.add(page);
     _bands.clear();
+    _wraps.clear();
     _column = 0;
     _natural = natural;
     _setColumn();
@@ -368,15 +372,17 @@ class _Paginator {
     return _atTop ? p.spaceBefore : gap(_prev, p);
   }
 
-  void _para(LaidPara lp, List<(LaidBlock, int)> items, int index) {
-    final p = lp.box;
-    final lines = p.lines;
-    if (p.breakBefore && !_atTop) _newPage(natural: false);
+  void _para(LaidPara plain, List<(LaidBlock, int)> items, int index) {
+    final p0 = plain.box;
+    if (p0.breakBefore && !_atTop) _newPage(natural: false);
     if (!_atTop) {
       final need = _keepHeight(items, index);
       if (_y + need > _limit + 0.01 && need <= _bottom - _top) _nextColumn(natural: true);
     }
-    var space = _spacing(p);
+    var space = _spacing(p0);
+    final lp = _around(plain, _y + space);
+    final p = lp.box;
+    final lines = p.lines;
     var i = 0;
     while (i < lines.length) {
       var n = 0;
@@ -548,49 +554,81 @@ class _Paginator {
     }
   }
 
+  /// The paragraph laid out again around the pictures of the page, and
+  /// those it anchors, when it is placed with its top at [top] and they
+  /// cross it.
+  LaidPara _around(LaidPara lp, double top) {
+    final p = lp.box;
+    final wraps = [..._wraps, for (final f in p.floats) ?_wrapAround(f.picture, _floatRect(f.picture, top, top))];
+    final near = [
+      for (final w in wraps)
+        if (w.rect.top < top + p.height && w.rect.bottom > top) TextWrap(w.rect.shift(Offset(-_colLeft, -top)), w.sides),
+    ];
+    if (near.isEmpty) return lp;
+    return LaidPara(ParaBox.layout(p.source, ctx, p.width, around: near), lp.flow, lp.start, lp.section);
+  }
+
+  /// How the text goes around a floating picture at [rect], null when it
+  /// does not: it is behind the text, goes above and below it, or takes
+  /// most of the column.
+  TextWrap? _wrapAround(Map<String, Object?> pic, Rect rect) {
+    final fl = pic['float'] as Map<String, Object?>? ?? const {};
+    final wrap = fl['wrap'];
+    if (fl['behind'] == true || wrap != 'square' && wrap != 'tight' && wrap != 'through' || rect.width >= _colWidth * 0.6) return null;
+    return TextWrap(rect, fl['wrapText'] as String? ?? 'bothSides');
+  }
+
+  /// Where a floating picture is on the page, anchored in a paragraph
+  /// whose top is at [paraTop], and whose line is at [lineTop].
+  Rect _floatRect(Map<String, Object?> pic, double paraTop, double lineTop) {
+    final fl = pic['float'] as Map<String, Object?>? ?? const {};
+    final w = ((pic['w'] as num?) ?? 0) / 12700, h = ((pic['h'] as num?) ?? 0) / 12700;
+    final page = _page;
+    Rect refX() => switch (fl['relX']) {
+      'page' => Rect.fromLTWH(0, 0, page.size.width, 0),
+      'margin' || 'leftMargin' || 'rightMargin' || 'insideMargin' || 'outsideMargin' => Rect.fromLTRB(page.body.left, 0, page.body.right, 0),
+      _ => Rect.fromLTWH(_colLeft, 0, _colWidth, 0),
+    };
+    Rect refY() => switch (fl['relY']) {
+      'page' => Rect.fromLTWH(0, 0, 0, page.size.height),
+      'margin' || 'topMargin' || 'bottomMargin' => Rect.fromLTRB(0, page.body.top, 0, page.body.bottom),
+      'line' => Rect.fromLTWH(0, lineTop, 0, 0),
+      _ => Rect.fromLTWH(0, paraTop, 0, 0),
+    };
+    final rx = refX(), ry = refY();
+    final x = switch (fl['alignX']) {
+      'center' => rx.left + (rx.width - w) / 2,
+      'right' || 'outside' => rx.right - w,
+      'left' || 'inside' => rx.left,
+      _ => rx.left + ((fl['x'] as num?) ?? 0) / 12700,
+    };
+    final y = switch (fl['alignY']) {
+      'center' => ry.top + (ry.height - h) / 2,
+      'bottom' || 'outside' => ry.bottom - h,
+      'top' || 'inside' => ry.top,
+      _ => ry.top + ((fl['y'] as num?) ?? 0) / 12700,
+    };
+    return Rect.fromLTWH(x, y, w, h);
+  }
+
   void _floats(LaidPara lp, PlacedLines placed) {
     for (final f in lp.box.floats) {
       final pic = f.picture;
+      final rect = _floatRect(pic, placed.paraTop, placed.origin.dy);
       final fl = pic['float'] as Map<String, Object?>? ?? const {};
-      final w = ((pic['w'] as num?) ?? 0) / 12700, h = ((pic['h'] as num?) ?? 0) / 12700;
       final page = _page;
-      Rect refX() => switch (fl['relX']) {
-        'page' => Rect.fromLTWH(0, 0, page.size.width, 0),
-        'margin' || 'leftMargin' || 'rightMargin' || 'insideMargin' || 'outsideMargin' => Rect.fromLTRB(page.body.left, 0, page.body.right, 0),
-        _ => Rect.fromLTWH(_colLeft, 0, _colWidth, 0),
-      };
-      Rect refY() => switch (fl['relY']) {
-        'page' => Rect.fromLTWH(0, 0, 0, page.size.height),
-        'margin' || 'topMargin' || 'bottomMargin' => Rect.fromLTRB(0, page.body.top, 0, page.body.bottom),
-        'line' => Rect.fromLTWH(0, placed.origin.dy, 0, 0),
-        _ => Rect.fromLTWH(0, placed.paraTop, 0, 0),
-      };
-      final rx = refX(), ry = refY();
-      final x = switch (fl['alignX']) {
-        'center' => rx.left + (rx.width - w) / 2,
-        'right' || 'outside' => rx.right - w,
-        'left' || 'inside' => rx.left,
-        _ => rx.left + ((fl['x'] as num?) ?? 0) / 12700,
-      };
-      final y = switch (fl['alignY']) {
-        'center' => ry.top + (ry.height - h) / 2,
-        'bottom' || 'outside' => ry.bottom - h,
-        'top' || 'inside' => ry.top,
-        _ => ry.top + ((fl['y'] as num?) ?? 0) / 12700,
-      };
-      final rect = Rect.fromLTWH(x, y, w, h);
       page.pictures.add(PlacedPicture(pic, rect, fl['behind'] == true));
       final wrap = fl['wrap'];
-      final wide = w >= _colWidth * 0.6;
-      if (fl['behind'] != true && (wrap == 'topAndBottom' || wide && (wrap == 'square' || wrap == 'tight' || wrap == 'through'))) {
+      if (fl['behind'] != true && (wrap == 'topAndBottom' || rect.width >= _colWidth * 0.6 && (wrap == 'square' || wrap == 'tight' || wrap == 'through'))) {
         _bands.add((rect.top, rect.bottom));
       }
+      if (_wrapAround(pic, rect) case final around?) _wraps.add(around);
       final text = Delta.fromJson(pic['text']);
       if (text != null && text.length > 0) {
         final box = Node(id: 'drawing:${lp.flow}:${lp.start + f.offset}', type: 'text', key: 'V', text: text);
-        final width = math.max(w - 14.4, 1.0);
+        final width = math.max(rect.width - 14.4, 1.0);
         final blocks = [for (final (source, _) in builder.sources(box)) LaidPara(cache.get(source, ctx, width, FieldValues.none), box.id, source.start, null)];
-        _placeBlocks(page, blocks, Offset(x + 7.2, y + 3.6), PageArea.drawing);
+        _placeBlocks(page, blocks, Offset(rect.left + 7.2, rect.top + 3.6), PageArea.drawing);
       }
     }
   }

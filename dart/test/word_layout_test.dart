@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:ui';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:loffice/src/word/blocks.dart';
 import 'package:loffice/src/word/document.dart';
@@ -241,5 +244,71 @@ void main() {
     final b = WordLayout(changed, WordContext(changed), cache);
     expect(identical(a.pages.single.lines.first.box, b.pages.single.lines.first.box), isTrue);
     expect(identical(a.pages.single.lines.last.box, b.pages.single.lines.last.box), isFalse);
+  });
+
+  group('a small picture floating with its text wrapped', () {
+    // a picture of 100 × 60 pt, 150 pt from the left of the column and level with the paragraph
+    Delta flow(String sides) {
+      final img = jsonEncode({
+        'w': 1270000,
+        'h': 762000,
+        'media': 'm',
+        'float': {'relX': 'column', 'x': 1905000, 'relY': 'paragraph', 'y': 0, 'wrap': 'square', 'wrapText': sides},
+      });
+      return Delta()
+        ..insert('￼', {'img': img})
+        ..insert('mot ' * 200)
+        ..insert('\n');
+    }
+
+    final image = const Rect.fromLTWH(150, 0, 100, 60);
+
+    (List<ParaLine> beside, ParaBox box) around(String sides) {
+      final layout = lay(document([text('t', 'V', flow(sides))]));
+      final box = layout.pages.first.lines.first.box;
+      return (
+        [
+          for (final l in box.lines)
+            if (l.top < image.bottom) l,
+        ],
+        box,
+      );
+    }
+
+    List<Rect> boxes(ParaBox box, ParaLine l) => box.selection(l.start, l.end - 1);
+
+    test('goes on both sides of it', () {
+      final (beside, box) = around('bothSides');
+      expect(beside.length, greaterThan(4));
+      final tops = beside.map((l) => l.top).toSet();
+      expect(tops.length, lessThan(beside.length), reason: 'a line goes on after the picture');
+      for (final l in beside) {
+        for (final b in boxes(box, l)) {
+          expect(b.right <= image.left + 0.5 || b.left >= image.right - 0.5, isTrue, reason: '$b overlaps the picture');
+        }
+      }
+      expect(beside.any((l) => box.caretAt(l.start).left >= image.right - 0.5), isTrue);
+      expect(beside.any((l) => box.caretAt(l.start).left < image.left), isTrue);
+      expect(box.lines.last.top, greaterThanOrEqualTo(image.bottom - 20));
+    });
+
+    test('goes on one side of it', () {
+      for (final (sides, left) in [('left', true), ('right', false), ('largest', false)]) {
+        final (beside, box) = around(sides);
+        expect(beside, isNotEmpty);
+        expect(beside.map((l) => l.top).toSet(), hasLength(beside.length));
+        for (final l in beside) {
+          for (final b in boxes(box, l)) {
+            expect(left ? b.right <= image.left + 0.5 : b.left >= image.right - 0.5, isTrue, reason: '$sides: $b');
+          }
+        }
+      }
+    });
+
+    test('does not move text that is not beside it', () {
+      final layout = lay(document([text('t', 'V', plain('mot ' * 200))]));
+      final box = layout.pages.first.lines.first.box;
+      expect(box.lines.every((l) => box.caretAt(l.start).left == 0), isTrue);
+    });
   });
 }
