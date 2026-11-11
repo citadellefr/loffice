@@ -21,6 +21,38 @@ const aiColor = Color(0xFF7B3FE4);
 /// The name of the AI as its cursor labels it.
 String aiLabel(String name) => '✦ $name';
 
+/// The mark of the AI among the people here.
+class AiAvatar extends StatelessWidget {
+  const AiAvatar({super.key});
+
+  @override
+  Widget build(BuildContext context) => const CircleAvatar(
+    radius: 12,
+    backgroundColor: aiColor,
+    child: Icon(Icons.auto_awesome, size: 14, color: Colors.white),
+  );
+}
+
+/// The labels [paintTag] draws, when a test wants to read them.
+@visibleForTesting
+List<String>? debugTags;
+
+/// A name on [color] standing on [at], or ending there when [end], drawn on
+/// a canvas scaled by [scale]; [style] gives the font.
+void paintTag(Canvas canvas, String text, Color color, Offset at, {double scale = 1, TextStyle style = const TextStyle(), bool end = false}) {
+  debugTags?.add(text);
+  final label = TextPainter(
+    text: TextSpan(
+      text: text,
+      style: style.copyWith(fontSize: 10 / scale, color: Colors.white),
+    ),
+    textDirection: TextDirection.ltr,
+  )..layout();
+  final tag = Rect.fromLTWH(end ? at.dx - label.width - 6 / scale : at.dx, at.dy - label.height - 2 / scale, label.width + 6 / scale, label.height + 2 / scale);
+  canvas.drawRect(tag, Paint()..color = color);
+  label.paint(canvas, tag.topLeft + Offset(3, 1) / scale);
+}
+
 /// The color of a peer's cursor: the AI's own, or [person]'s.
 Color peerColor(AiParticipant? ai, DocPeer peer, Color person) => ai != null && ai.isPeer(peer) ? aiColor : person;
 

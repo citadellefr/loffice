@@ -949,7 +949,8 @@ class _WordEditorState extends State<WordEditor> {
 
   String _authorLabel(String author) => author == widget.ai?.name ? aiLabel(author) : author;
 
-  void _settleChosen(bool accept, String choice) => choice.startsWith('by:') ? _settleBy(choice.substring(3), accept) : _settle(accept: accept, all: choice == 'all' || choice == 'stop', next: choice == 'next', stop: choice == 'stop');
+  void _settleChosen(bool accept, String choice) =>
+      choice.startsWith('by:') ? _settleBy(choice.substring(3), accept) : _settle(accept: accept, all: choice == 'all' || choice == 'stop', next: choice == 'next', stop: choice == 'stop');
 
   void _openFind({bool replace = false}) {
     setState(() {
@@ -1315,7 +1316,7 @@ class _WordEditorState extends State<WordEditor> {
               child: Tooltip(
                 message: peerLabel(widget.ai, p),
                 child: widget.ai?.isPeer(p) ?? false
-                    ? const CircleAvatar(radius: 12, backgroundColor: aiColor, foregroundColor: Colors.white, child: Icon(Icons.auto_awesome, size: 14))
+                    ? const AiAvatar()
                     : CircleAvatar(radius: 12, child: Text(p.name.isEmpty ? '?' : p.name.characters.first.toUpperCase(), style: const TextStyle(fontSize: 11))),
               ),
             ),

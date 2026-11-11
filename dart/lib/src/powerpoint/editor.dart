@@ -99,7 +99,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
   late final MediaCache _media = MediaCache(widget.media)..addListener(_repaint);
   final _selection = SlideSelection();
   final _canvasFocus = FocusNode();
-  late final AiMarks? _marks = widget.ai == null ? null : (AiMarks(_session, widget.ai!)..addListener(_repaint));
+  AiMarks? _marks;
   StreamSubscription<String>? _rejections;
   StreamSubscription<Edit>? _changes;
   String? _slideId;
@@ -126,11 +126,23 @@ class _PresentationEditorState extends State<PresentationEditor> {
     if (!OfficeFonts.settled) OfficeFonts.load().whenComplete(_repaint);
     _session.addListener(_repaint);
     _selection.addListener(_repaint);
+    _watchAi();
     _changes = _session.changes.listen(_changed);
     _rejections = _session.rejections.listen((reason) {
       if (!mounted) return;
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text(_s.refused(reason))));
     });
+  }
+
+  void _watchAi() {
+    _marks?.dispose();
+    _marks = widget.ai == null ? null : (AiMarks(_session, widget.ai!)..addListener(_repaint));
+  }
+
+  @override
+  void didUpdateWidget(PresentationEditor old) {
+    super.didUpdateWidget(old);
+    if (old.ai != widget.ai) _watchAi();
   }
 
   @override
@@ -1046,7 +1058,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
               child: Tooltip(
                 message: peerLabel(widget.ai, p),
                 child: widget.ai?.isPeer(p) ?? false
-                    ? const _AiAvatar()
+                    ? const AiAvatar()
                     : CircleAvatar(radius: 12, child: Text(p.name.isEmpty ? '?' : p.name.characters.first.toUpperCase(), style: const TextStyle(fontSize: 11))),
               ),
             ),
@@ -1817,7 +1829,7 @@ class _Backstage extends StatelessWidget {
                 if (session.readOnly) Text(s.readOnly),
                 const SizedBox(height: 16),
                 for (final p in session.peers)
-                  ListTile(leading: editor.widget.ai?.isPeer(p) ?? false ? const _AiAvatar() : const Icon(Icons.person_outline), title: Text(peerLabel(editor.widget.ai, p))),
+                  ListTile(leading: editor.widget.ai?.isPeer(p) ?? false ? const AiAvatar() : const Icon(Icons.person_outline), title: Text(peerLabel(editor.widget.ai, p))),
               ],
             ),
           ),
@@ -1825,18 +1837,6 @@ class _Backstage extends StatelessWidget {
       ),
     );
   }
-}
-
-/// The mark of the AI among the people here.
-class _AiAvatar extends StatelessWidget {
-  const _AiAvatar();
-
-  @override
-  Widget build(BuildContext context) => const CircleAvatar(
-    radius: 12,
-    backgroundColor: aiColor,
-    child: Icon(Icons.auto_awesome, size: 14, color: Colors.white),
-  );
 }
 
 /// The columns and rows PowerPoint asks a cell to be split into.

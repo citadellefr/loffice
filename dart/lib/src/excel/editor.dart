@@ -134,12 +134,23 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
       ..presence.addListener(_repaint);
     _selection.addListener(_selected);
     _changes = _session.changes.listen(_changed);
-    _marks = widget.ai == null ? null : (AiMarks(_session, widget.ai!)..addListener(_repaint));
+    _watchAi();
     _unwatchPaste = watchPaste(_pasted);
     _rejections = _session.rejections.listen((reason) {
       if (!mounted) return;
       ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text(_s.refused(reason))));
     });
+  }
+
+  void _watchAi() {
+    _marks?.dispose();
+    _marks = widget.ai == null ? null : (AiMarks(_session, widget.ai!)..addListener(_repaint));
+  }
+
+  @override
+  void didUpdateWidget(SpreadsheetEditor old) {
+    super.didUpdateWidget(old);
+    if (old.ai != widget.ai) _watchAi();
   }
 
   @override

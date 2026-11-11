@@ -71,7 +71,10 @@ void main() {
     await tester.pump();
   }
 
+  final named = ValueNotifier<AiParticipant?>(null);
+
   Future<void> open(WidgetTester tester, {AiParticipant? ai}) async {
+    named.value = ai;
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -81,7 +84,10 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: WordEditor(session: session, media: (_) async => Uint8List(0), title: 'doc.docx', ai: ai),
+          body: ValueListenableBuilder(
+            valueListenable: named,
+            builder: (_, ai, _) => WordEditor(session: session, media: (_) async => Uint8List(0), title: 'doc.docx', ai: ai),
+          ),
         ),
       ),
     );
@@ -138,11 +144,7 @@ void main() {
         ..insert('\n'),
     );
     final accepted = settle([(flow, 0, 3)], accept: false, owns: (a, _) => a == 'Héraut');
-    expect(
-      accepted.changes.single.text,
-      Delta()
-        ..retain(2, {'del': '', 'deld': ''}),
-    );
+    expect(accepted.changes.single.text, Delta()..retain(2, {'del': '', 'deld': ''}));
   });
 
   test('groups the changes of the AI by batch with their comments, the others one by one', () {
@@ -217,6 +219,25 @@ void main() {
     await sync(tester);
     await tester.pump(const Duration(milliseconds: 200));
     expect(paintsColor(aiColor), isTrue);
+    await finish(tester);
+  });
+
+  testWidgets('follows an AI the host names after the editor is open', (tester) async {
+    await open(tester);
+    final other = DocSession(hub.connect, clientId: 'ai')..start();
+    addTearDown(other.dispose);
+    await sync(tester);
+    other.select(DocSelection(flowsOf(hub.doc).first.id, 12, 20));
+    await tester.pump(const Duration(milliseconds: 100));
+    await sync(tester);
+    expect(paintsColor(aiColor), isFalse);
+
+    debugTags = [];
+    addTearDown(() => debugTags = null);
+    named.value = _ai;
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(paintsColor(aiColor), isTrue);
+    expect(debugTags, contains('✦ Héraut'));
     await finish(tester);
   });
 }

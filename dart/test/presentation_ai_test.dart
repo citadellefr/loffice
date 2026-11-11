@@ -12,6 +12,7 @@ void main() {
   const shape = 's256-5';
   const ai = AiParticipant(id: 'ai', name: 'Héraut');
   late FakeHub hub;
+  final named = ValueNotifier<AiParticipant?>(null);
 
   Future<void> settle(WidgetTester tester) async {
     await tester.runAsync(hub.settle);
@@ -19,6 +20,7 @@ void main() {
   }
 
   Future<void> open(WidgetTester tester, {AiParticipant? ai}) async {
+    named.value = ai;
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -28,7 +30,10 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: PresentationEditor(session: session, media: (_) async => Uint8List(0), ai: ai),
+          body: ValueListenableBuilder(
+            valueListenable: named,
+            builder: (_, ai, _) => PresentationEditor(session: session, media: (_) async => Uint8List(0), ai: ai),
+          ),
         ),
       ),
     );
@@ -79,6 +84,8 @@ void main() {
   });
 
   testWidgets('lights what the AI edited, then lets it go', (tester) async {
+    debugTags = [];
+    addTearDown(() => debugTags = null);
     await open(tester, ai: ai);
     final bot = await join(tester, 'ai');
     expect(canvas, isNot(drawn(fill)));
@@ -90,6 +97,7 @@ void main() {
     });
     await publish(tester);
     expect(canvas, allOf(drawn(fill), drawn(aiColor)));
+    expect(debugTags, contains('✦ Héraut'));
 
     await tester.pump(const Duration(seconds: 5));
     expect(canvas, isNot(drawn(fill)));
@@ -111,5 +119,32 @@ void main() {
     expect(canvas, isNot(drawn(fill)));
     expect(find.byIcon(Icons.auto_awesome), findsNothing);
     expect(find.byType(CircleAvatar), findsOneWidget);
+  });
+
+  testWidgets('follows an AI the host names after the editor is open', (tester) async {
+    await open(tester);
+    final bot = await join(tester, 'ai');
+    bot
+      ..select(select)
+      ..share({
+        'recent': [
+          {'n': shape, 'at': 1},
+        ],
+      });
+    await publish(tester);
+    expect(canvas, isNot(drawn(aiColor)));
+
+    debugTags = [];
+    addTearDown(() => debugTags = null);
+    named.value = ai;
+    await tester.pump();
+    bot.share({
+      'recent': [
+        {'n': shape, 'at': 2},
+      ],
+    });
+    await publish(tester);
+    expect(canvas, allOf(drawn(fill), drawn(aiColor)));
+    expect(debugTags, contains('✦ Héraut'));
   });
 }
