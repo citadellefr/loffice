@@ -4,7 +4,9 @@
 
 - The Dart package depends on `trame` 0.5.1: a `DocSession` no longer keeps a
   presence timer nor saves a draft after `dispose`.
-
+- The Dart editors tell, in French, what a PDF export left aside: the missing
+  characters and the kinds of drawing it ignored (color and image filters,
+  blend modes, blurs, fills, other graphics).
 - `agent` and `mcp` edit presentations and workbooks, directly and in view of
   everyone: fourteen tools (`slide_list`, `slide_read`, `shape_text_set`,
   `shape_add`, `slide_add`, `slide_delete`, `notes_set`, `sheet_list`,
