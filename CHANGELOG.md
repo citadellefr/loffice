@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- The Dart Word, PowerPoint and Excel editors take an `AiParticipant? ai`: the
+  AI's cursor is labelled with its name, and what it edited lately is lit a
+  few seconds in PowerPoint and Excel; a host that provides or changes `ai`
+  after the editor is open is followed. Word's revisions pane groups the
+  changes of one AI batch with its comment.
+
 ## 0.13.0 — 2026-11-11
 
 - Deleting an animated shape from a slide drops only the effects that aimed at

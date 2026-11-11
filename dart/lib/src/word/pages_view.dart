@@ -1088,16 +1088,7 @@ class _PagePainter extends CustomPainter {
       if (caret != null && caret.$1 == index) {
         canvas.drawRect(Rect.fromLTWH(caret.$2.left - 0.5, caret.$2.top, 1.5, caret.$2.height), Paint()..color = color);
         if (state.widget.ai?.isPeer(peer) ?? false) {
-          final label = TextPainter(
-            text: TextSpan(
-              text: peerLabel(state.widget.ai, peer),
-              style: TextStyle(fontSize: 10 / state._scale, color: Colors.white),
-            ),
-            textDirection: TextDirection.ltr,
-          )..layout();
-          final tag = Rect.fromLTWH(caret.$2.left, caret.$2.top - label.height - 2 / state._scale, label.width + 6 / state._scale, label.height + 2 / state._scale);
-          canvas.drawRect(tag, Paint()..color = color);
-          label.paint(canvas, tag.topLeft + Offset(3, 1) / state._scale);
+          paintTag(canvas, peerLabel(state.widget.ai, peer), color, caret.$2.topLeft, scale: state._scale);
         }
       }
     }

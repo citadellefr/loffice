@@ -915,12 +915,14 @@ class _SheetPainter extends CustomPainter {
     }
   }
 
-  void _tag(Canvas canvas, Rect r, String label, Color color) {
-    final tag = texts.get(label, TextStyle(fontFamily: substituteFont(book.minorFont), package: fonts, fontSize: 10, color: Colors.white), 0, false);
-    final box = Rect.fromLTWH(r.right - tag.width - 6, r.top - tag.height - 2, tag.width + 6, tag.height + 2);
-    canvas.drawRect(box, Paint()..color = color);
-    tag.paint(canvas, box.topLeft + const Offset(3, 1));
-  }
+  void _tag(Canvas canvas, Rect r, String label, Color color) => paintTag(
+    canvas,
+    label,
+    color,
+    r.topRight,
+    style: TextStyle(fontFamily: substituteFont(book.minorFont), package: fonts),
+    end: true,
+  );
 
   void _selection(Canvas canvas) {
     final sel = view.areaRect(selection);
