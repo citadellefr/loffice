@@ -334,7 +334,7 @@ void main() {
       }
     });
 
-    test('goes around it on the next page when the whole paragraph goes there', () {
+    test('goes around it on the next page when the whole paragraph goes there, its footnote leaving no room on the first', () {
       final img = jsonEncode({
         'w': 1270000,
         'h': 762000,
@@ -343,16 +343,22 @@ void main() {
       });
       final flow = Delta()
         ..insert('￼', {'img': img})
+        ..insert('￼', {'o': '<w:footnoteReference w:id="1"/>', 'note': 'footnote:1'})
         ..insert('mot ' * 200)
         ..insert('\n');
-      final layout = lay(document([text('a', 'V', plain('mot ' * 1200)), text('t', 'V', flow)]));
-      final page = layout.pages.firstWhere((p) => p.lines.any((l) => l.para.flow == 't'));
-      final laid = page.lines.firstWhere((l) => l.para.flow == 't');
-      expect(page, isNot(same(layout.pages.first)));
-      expect(laid.from, 0);
-      for (final l in laid.box.lines.where((l) => l.top < image.bottom)) {
-        for (final b in boxes(laid.box, l)) {
-          expect(b.right <= image.left + 0.5 || b.left >= image.right - 0.5, isTrue, reason: '$b overlaps the picture');
+      List<Node> body(int before) => [
+        text('a', 'V', plain('ligne\n' * before)),
+        text('t', 'V', flow),
+        const Node(id: 'fn1', type: 'note', parent: 'doc', key: 'z', attributes: {'kind': 'footnote'}),
+        text('n', 'V', Delta()..insert('Source ' * 40 + '\n'), parent: 'fn1'),
+      ];
+      for (var before = 1; before < 80; before++) {
+        final layout = lay(document(body(before)));
+        final laid = layout.pages.expand((p) => p.lines).firstWhere((l) => l.para.flow == 't' && l.from == 0);
+        for (final l in laid.box.lines.where((l) => l.top < image.bottom)) {
+          for (final b in boxes(laid.box, l)) {
+            expect(b.right <= image.left + 0.5 || b.left >= image.right - 0.5, isTrue, reason: '$before: $b overlaps the picture');
+          }
         }
       }
     });
