@@ -77,13 +77,13 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m150** (à_revérifier) pptx : les enfants d'un nœud master ne sont pas que ses layouts, les formes du masque (sp, pic…) y sont aussi (pptx/pptx.go) ; pour lister les dispositions (agent/slides.go), filtrer Type=="layout". Les fixtures testdata/pptx ont des masques sans forme et ne révèlent pas le cas : tester sur corpus/files/python-pptx (ex. mst-placeholders.pptx). — _ag2, t26_
 
 ### chart/testdata/
-- **m224** Open XML SDK (tools/validate) sur le chartex : les valeurs de cx:binning (binSize, binCount, underflow, overflow) sont le texte de l'élément (`<cx:binSize>3</cx:binSize>`), pas un attribut val ; le préfixe cx1 de mc:Requires doit être déclaré (xmlns:cx1="http://schemas.microsoft.com/office/drawing/2015/9/8/chartex") ; les id de cNvPr de l'AlternateContent doivent être uniques. Pour valider des fixtures sans original, passer en 1er argument un dossier de fichiers de même nom (testdata/*/blank|transitional) et LOFFICE_EDITED=1. — _ag1, t55_
+- **m224** (à_revérifier) Open XML SDK (tools/validate) sur le chartex : les valeurs de cx:binning (binSize, binCount, underflow, overflow) sont le texte de l'élément (`<cx:binSize>3</cx:binSize>`), pas un attribut val ; le préfixe cx1 de mc:Requires doit être déclaré (xmlns:cx1="http://schemas.microsoft.com/office/drawing/2015/9/8/chartex") ; les id de cNvPr de l'AlternateContent doivent être uniques. Pour valider des fixtures sans original, passer en 1er argument un dossier de fichiers de même nom (testdata/*/blank|transitional) et LOFFICE_EDITED=1. — _ag1, t55_
 
 ### corpus/
 - **m223** corpus/files est ignoré par git et absent d'un worktree neuf : un test qui lit le corpus y est sauté (t.Skip) au lieu d'échouer. Une régression sur un fichier du corpus n'apparaît qu'aux merge_checks, pas dans le worktree : vérifier que le corpus y existe (ls corpus/files) avant de croire un test vert. — _ag1, t55_
 
 ### dart/
-- **m2** dart/ Flutter et Dart ne sont pas dans le PATH de cette machine. Soit `nix shell nixpkgs#flutter -c flutter test` depuis loffice/dart (suite complète ≈ 1 min 40), soit ajouter au PATH /nix/store/x8cc2489gk0lhbgm5q3y7pxfb7v9r706-flutter-wrapped-3.47.4-sdk-links/bin (Flutter 3.47.4, Dart 3.13.3) avant flutter test / dart analyze. — _orchestra_
+- **m2** (à_revérifier) dart/ Flutter et Dart ne sont pas dans le PATH de cette machine. Soit `nix shell nixpkgs#flutter -c flutter test` depuis loffice/dart (suite complète ≈ 1 min 40), soit ajouter au PATH /nix/store/x8cc2489gk0lhbgm5q3y7pxfb7v9r706-flutter-wrapped-3.47.4-sdk-links/bin (Flutter 3.47.4, Dart 3.13.3) avant flutter test / dart analyze. — _orchestra_
 
 ### dart/analysis_options.yaml
 - **m6** dart format ne lit formatter.page_width de analysis_options.yaml qu'après `flutter pub get` (il lui faut .dart_tool/package_config.json) ; sans cela le réglage est ignoré silencieusement et la largeur reste 80. — _ag1, t1_
@@ -126,16 +126,16 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m132** Un test d'annulation xlsx doit vérifier toute la grille, pas une cellule : après une annulation fausse, B1 peut valoir la bonne valeur par hasard alors que lignes et colonnes sont restées décalées. — _ag2, t26_
 
 ### pptx/corpus_test.go
-- **m213** Les tests pptx qui construisent writer{} à la main (corpus_test.go) doivent initialiser spids, sinon panic dans writer.shape. — _ag2, t53_
+- **m213** (à_revérifier) Les tests pptx qui construisent writer{} à la main (corpus_test.go) doivent initialiser spids, sinon panic dans writer.shape. — _ag2, t53_
 
 ### pptx/pptx.go
-- **m217** Un graphique chartex est empaqueté dans un mc:AlternateContent (xlsx : ancre de dessin, pptx : spTree, docx : w:r) dont le Choice contient le graphicFrame ; il faut passer par chart.FindRef(graphicData) et par pptx chartChoice() pour retrouver le cadre, sinon le graphique est ignoré. — _ag1, t55_
+- **m217** (à_revérifier) Un graphique chartex est empaqueté dans un mc:AlternateContent (xlsx : ancre de dessin, pptx : spTree, docx : w:r) dont le Choice contient le graphicFrame ; il faut passer par chart.FindRef(graphicData) et par pptx chartChoice() pour retrouver le cadre, sinon le graphique est ignoré. — _ag1, t55_
 
 ### pptx/transition_test.go
 - **m122** (à_revérifier) `-run Edits` de pptx (CI, run.sh) n'écrit que 2 fichiers édités ; TestTransitions et TestComments écrivent aussi avec LOFFICE_EDITED (saveCorpus) mais sous des noms (comments/two.pptx) sans original : le validateur les ignore. Copier la sortie en <dossier>/poi/aptia.pptx pour la valider. — _ag4, t29_
 
 ### pptx/write.go
-- **m212** pptx dropStaleTiming/pruneAnimation (suppression d'une forme animée) et animation.go `without` (suppression d'effets dans la liste) doivent rester équivalents : le test TestDeleteShapesAsDeleteEffects compare les deux sur tous les sous-ensembles de formes ; le transfert de nodeType ne doit se faire qu'au niveau groupe et étape, pas tmRoot/mainSeq. — _ag2, t53_
+- **m212** (à_revérifier) pptx dropStaleTiming/pruneAnimation (suppression d'une forme animée) et animation.go `without` (suppression d'effets dans la liste) doivent rester équivalents : le test TestDeleteShapesAsDeleteEffects compare les deux sur tous les sous-ensembles de formes ; le transfert de nodeType ne doit se faire qu'au niveau groupe et étape, pas tmRoot/mainSeq. — _ag2, t53_
 
 ### tools/validate/Program.cs
 - **m75** Validation Open XML SDK hors CI : dotnet vit dans /nix/store/qybc3wpz3hz5daipbmnj7rgc73hn35j2-dotnet-sdk-wrapped-8.0.425/bin/dotnet (pas dans le PATH ; sinon `nix shell nixpkgs#dotnet-sdk_8 -c dotnet ...`). Écrire d'abord les classeurs avec LOFFICE_EDITED, LOFFICE_MOVED ou LOFFICE_COMMENTED (les tests de graphiques écrivent sous charts/), puis `DOTNET_CLI_HOME=/tmp/x LOFFICE_EDITED=1 dotnet run -c Release --project tools/validate -- corpus/files <dossier>` (~3 min), ou `dotnet build tools/validate -o /tmp/x` puis `dotnet /tmp/x/Validate.dll <originaux> <réécrits>` (la dll s'appelle Validate.dll). Les deux dossiers doivent porter les mêmes chemins relatifs. tools/validate/run.sh automatise l'ensemble (voir m121). — _ag5, t15_
