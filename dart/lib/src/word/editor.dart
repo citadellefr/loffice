@@ -54,6 +54,7 @@ class WordEditor extends StatefulWidget {
     this.onOpenLink,
     this.linkCard,
     this.ai,
+    this.now = DateTime.now,
   });
 
   final DocSession session;
@@ -74,6 +75,9 @@ class WordEditor extends StatefulWidget {
   /// presence and revisions are then told from people's. Without it nothing
   /// of an AI shows.
   final AiParticipant? ai;
+
+  /// The clock the date and time inserted are read from.
+  final DateTime Function() now;
 
   /// Fetches the pictures of the document by their name.
   final MediaFetcher media;
@@ -454,7 +458,7 @@ class _WordEditorState extends State<WordEditor> {
   void _insertDate(String format) {
     final flow = _flow;
     if (flow == null) return;
-    _view.currentState?.replaceWith(flow, _selection.start, _selection.end, formatDate(DateTime.now(), format, _s), {'field': 'DATE \\@ "$format"'});
+    _view.currentState?.replaceWith(flow, _selection.start, _selection.end, formatDate(widget.now(), format, _s), {'field': 'DATE \\@ "$format"'});
     _focus.requestFocus();
   }
 
@@ -1551,7 +1555,7 @@ class _WordEditorState extends State<WordEditor> {
               label: _s.dateTime,
               large: true,
               enabled: editable,
-              items: [for (final f in dateFormats) PopupMenuItem(value: f, child: Text(formatDate(DateTime.now(), f, _s)))],
+              items: [for (final f in dateFormats) PopupMenuItem(value: f, child: Text(formatDate(widget.now(), f, _s)))],
               onSelected: _insertDate,
             ),
           ]),

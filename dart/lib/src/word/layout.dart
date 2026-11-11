@@ -445,7 +445,7 @@ class _Paginator {
         _y = below;
         continue;
       }
-      if (i < lines.length) {
+      if (i > 0 && i < lines.length) {
         lp = _around(plain, top, lines[i].top);
         lines = lp.box.lines;
       }
@@ -455,7 +455,11 @@ class _Paginator {
         _nextColumn(natural: false);
       } else if (i < lines.length) {
         _nextColumn(natural: true);
-        if (i == 0) space = _spacing(lp.box);
+        if (i == 0) {
+          space = _spacing(lp.box);
+          lp = _around(plain, _y + space);
+          lines = lp.box.lines;
+        }
       }
     }
     _prev = lp.box;

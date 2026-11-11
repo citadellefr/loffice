@@ -5,6 +5,7 @@ import 'package:loffice/src/word/document.dart';
 import 'package:loffice/src/word/fields.dart';
 import 'package:loffice/src/word/layout.dart';
 import 'package:loffice/src/word/paragraph.dart';
+import 'package:loffice/src/word/revisions.dart';
 
 import 'word_layout_test.dart' show document, text;
 
@@ -118,6 +119,19 @@ void main() {
     expect(shown(doc, 'a'), '03/03/2026\n');
     expect(shown(doc, 'b'), '3 mars 2026\n');
     expect(shown(doc, 'c'), 'mardi 3 mars 2026 09:05\n');
+  });
+
+  test('tracks the rewrite of a field result as a deletion and an insertion signed by the author', () {
+    final now = DateTime(2026, 3, 3);
+    var doc = build([text('a', 'a', field(r'DATE \@ "yyyy"', 'x')..insert('\n'))]);
+    final direct = update(doc, now: now);
+    final tracked = trackEdit(doc.tree, direct, 'Alice', revisionDate(now));
+    expect(tracked.changes, isNot(direct.changes));
+    doc = applied(doc, tracked);
+    final ops = doc.tree['a']!.text!.ops;
+    expect(ops.where((op) => op.attributes?['del'] == 'Alice').map((op) => op.insert).join(), 'x');
+    expect(ops.where((op) => op.attributes?['ins'] == 'Alice').map((op) => op.insert).join(), '2026');
+    expect(shown(doc, 'a'), '2026\n');
   });
 
   test('keeps the result of a field it does not know', () {

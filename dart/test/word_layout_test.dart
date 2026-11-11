@@ -334,6 +334,29 @@ void main() {
       }
     });
 
+    test('goes around it on the next page when the whole paragraph goes there', () {
+      final img = jsonEncode({
+        'w': 1270000,
+        'h': 762000,
+        'media': 'm',
+        'float': {'relX': 'column', 'x': 1905000, 'relY': 'paragraph', 'y': 0, 'wrap': 'square', 'wrapText': 'bothSides'},
+      });
+      final flow = Delta()
+        ..insert('￼', {'img': img})
+        ..insert('mot ' * 200)
+        ..insert('\n');
+      final layout = lay(document([text('a', 'V', plain('mot ' * 1200)), text('t', 'V', flow)]));
+      final page = layout.pages.firstWhere((p) => p.lines.any((l) => l.para.flow == 't'));
+      final laid = page.lines.firstWhere((l) => l.para.flow == 't');
+      expect(page, isNot(same(layout.pages.first)));
+      expect(laid.from, 0);
+      for (final l in laid.box.lines.where((l) => l.top < image.bottom)) {
+        for (final b in boxes(laid.box, l)) {
+          expect(b.right <= image.left + 0.5 || b.left >= image.right - 0.5, isTrue, reason: '$b overlaps the picture');
+        }
+      }
+    });
+
     test('does not move text that is not beside it', () {
       final layout = lay(document([text('t', 'V', plain('mot ' * 200))]));
       final box = layout.pages.first.lines.first.box;

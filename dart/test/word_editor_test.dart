@@ -21,7 +21,15 @@ void main() {
     await tester.pump();
   }
 
-  Future<void> open(WidgetTester tester, String fixture, {Size size = const Size(1400, 900), List<Command> commands = const [], void Function(Uri uri)? onOpenLink, LinkCard? linkCard}) async {
+  Future<void> open(
+    WidgetTester tester,
+    String fixture, {
+    Size size = const Size(1400, 900),
+    List<Command> commands = const [],
+    void Function(Uri uri)? onOpenLink,
+    LinkCard? linkCard,
+    DateTime Function()? now,
+  }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -31,7 +39,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: WordEditor(session: session, media: (_) async => Uint8List(0), title: '$fixture.docx', commands: commands, onOpenLink: onOpenLink, linkCard: linkCard),
+          body: WordEditor(session: session, media: (_) async => Uint8List(0), title: '$fixture.docx', commands: commands, onOpenLink: onOpenLink, linkCard: linkCard, now: now ?? DateTime.now),
         ),
       ),
     );
@@ -359,6 +367,24 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.f9);
     await settle(tester);
     expect(body().text!.text, before);
+    await finish(tester);
+  });
+
+  testWidgets('inserts the date from the ribbon as a field, and leaves the caret after it', (tester) async {
+    await open(tester, 'par-known-styles', now: () => DateTime(2026, 3, 3, 9, 5));
+    await clickText(tester);
+    await ctrl(tester, LogicalKeyboardKey.home);
+    await tester.tap(find.text('Insertion'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Date et heure'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('3 mars 2026'));
+    await settle(tester);
+    final date = fieldsOf(body()).where((f) => f.name == 'DATE').single;
+    expect(date.instructions.trim(), r'DATE \@ "d MMMM yyyy"');
+    expect(date.start, 0);
+    expect(body().text!.text.substring(date.resultStart, date.resultEnd), '3 mars 2026');
+    expect(TextEditingValue.fromJSON(tester.testTextInput.editingState!).selection.extentOffset, date.end);
     await finish(tester);
   });
 
