@@ -33,7 +33,7 @@ func (d *Document) Save(tree *ot.Tree) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	w := &writer{d: d, pkg: pkg, tree: tree, headerRef: func(string) string { return "" }}
+	w := &writer{d: d, pkg: pkg, tree: tree, bookmarks: map[string]string{}, headerRef: func(string) string { return "" }}
 	if err := w.save(); err != nil {
 		return nil, err
 	}
@@ -54,6 +54,10 @@ type writer struct {
 	// its drawings.
 	rels     *partrel.Writer
 	drawings int
+	// bookmarks are the w:id of the bookmarks clients made, by name,
+	// lastBookmark the last id given.
+	bookmarks    map[string]string
+	lastBookmark int
 	// styles are the builtin styles paragraphs took, lists the builtin
 	// lists they started by the numbers given them, in numbering.
 	styles    []string
@@ -380,6 +384,7 @@ func (w *writer) document() error {
 	}
 	read := revisionIDs(doc.Root)
 	w.drawings = lastDrawing(doc.Root)
+	w.lastBookmark = lastBookmark(doc.Root)
 	body := child(doc.Root, "body")
 	rw := partrel.NewWriter(w.d.main, w.d.mainRels, w.d.names.Lookup)
 	w.headerRef = func(id string) string {
@@ -644,14 +649,20 @@ func wrapsOf(a ot.Attrs) []string {
 }
 
 // fields are the fields a client may put in a document.
-var fields = map[string]bool{"PAGE": true, "NUMPAGES": true, "SECTIONPAGES": true, "DATE": true, "TIME": true, "FILENAME": true, "AUTHOR": true, "TITLE": true}
+var fields = map[string]bool{
+	"PAGE": true, "NUMPAGES": true, "SECTIONPAGES": true, "DATE": true, "TIME": true, "FILENAME": true, "AUTHOR": true, "TITLE": true,
+	"TOC": true, "SEQ": true, "REF": true, "PAGEREF": true,
+}
+
+// fieldChars are the characters of a field a client may put in a run.
+var fieldChars = map[string]bool{"begin": true, "separate": true, "end": true}
 
 // fieldInstr are the instructions of a field a client asks for, "" unless
 // they are one of fields with switches only.
 func fieldInstr(s string) string {
 	s = strings.TrimSpace(s)
 	name, _, _ := strings.Cut(s, " ")
-	if !fields[strings.ToUpper(name)] || len(s) > 200 || strings.ContainsAny(s, "<>&\"\x00\n") {
+	if !fields[strings.ToUpper(name)] || len(s) > 200 || strings.ContainsAny(s, "<>&\x00\n") {
 		return ""
 	}
 	return " " + s + " "
@@ -690,8 +701,8 @@ func (w *writer) shell(wrap string, in *xmldom.Element) *xmldom.Element {
 // do not tell runs apart.
 var described = map[string]bool{
 	"o": true, "po": true, "wrap": true, "link": true, "ins": true, "del": true, "insd": true, "deld": true, "field": true,
-	"img": true, "fld": true, "instr": true, "br": true, "sym": true, "note": true, "comment": true,
-	"bm": true, "math": true, "cs": true, "ce": true,
+	"img": true, "br": true, "sym": true, "note": true, "comment": true,
+	"bm": true, "bme": true, "math": true, "cs": true, "ce": true,
 }
 
 // runKey tells runs apart: two items with the same key belong to the same
@@ -761,7 +772,7 @@ func (w *writer) inline(parent *xmldom.Element, items []item, depth int, deleted
 // paragraphLevel tells the items that are elements of the paragraph
 // rather than of a run.
 func paragraphLevel(a ot.Attrs) bool {
-	return a["po"] != "" || a["cs"] != "" || a["ce"] != ""
+	return a["po"] != "" || a["cs"] != "" || a["ce"] != "" || a["o"] == "" && (a["bm"] != "" || a["bme"] != "")
 }
 
 func (w *writer) paragraphObject(a ot.Attrs, in *xmldom.Element) *xmldom.Element {
@@ -770,8 +781,28 @@ func (w *writer) paragraphObject(a ot.Attrs, in *xmldom.Element) *xmldom.Element
 		return w.commentAnchor(a["cs"], "commentRangeStart", a["po"], in)
 	case a["ce"] != "":
 		return w.commentAnchor(a["ce"], "commentRangeEnd", a["po"], in)
+	case a["po"] == "":
+		return w.bookmark(a, in)
 	}
 	return w.d.fragment(a["po"])
+}
+
+// bookmark is the start or the end of a bookmark a client made, none for
+// a name that is not one, or an end without its start.
+func (w *writer) bookmark(a ot.Attrs, in *xmldom.Element) *xmldom.Element {
+	if n := a["bm"]; n != "" {
+		if !name(n) || w.bookmarks[n] != "" {
+			return nil
+		}
+		w.lastBookmark++
+		id := strconv.Itoa(w.lastBookmark)
+		w.bookmarks[n] = id
+		return newW(in, "bookmarkStart", "id", id, "name", n)
+	}
+	if id := w.bookmarks[a["bme"]]; id != "" {
+		return newW(in, "bookmarkEnd", "id", id)
+	}
+	return nil
 }
 
 // commentAnchor is the element of a comment's range or reference: the one
@@ -854,6 +885,23 @@ func (w *writer) run(items []item, in *xmldom.Element, deleted bool) *xmldom.Ele
 				if e := w.drawing(img); e != nil {
 					r.Append(e)
 				}
+			}
+			continue
+		}
+		if f := it.attrs["fld"]; fieldChars[f] {
+			flush()
+			for range utf8.RuneCountInString(it.text) {
+				r.Append(newW(r, "fldChar", "fldCharType", f))
+			}
+			continue
+		}
+		if instr := fieldInstr(it.attrs["instr"]); instr != "" {
+			flush()
+			for range utf8.RuneCountInString(it.text) {
+				e := newW(r, "instrText")
+				e.Set("xml:space", "preserve")
+				e.Append(xmldom.EscapeText(instr))
+				r.Append(e)
 			}
 			continue
 		}

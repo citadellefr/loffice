@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:loffice/loffice.dart';
 import 'package:loffice/src/word/document.dart';
 import 'package:loffice/src/word/edits.dart';
+import 'package:loffice/src/word/fields.dart';
 import 'package:trame/testing.dart';
 
 void main() {
@@ -335,6 +336,29 @@ void main() {
     await settle(tester);
     expect(findIn(flowsOf(hub.doc), 'bar'), isEmpty);
     expect(findIn(flowsOf(hub.doc), 'baz'), isNotEmpty);
+    await finish(tester);
+  });
+
+  testWidgets('inserts a table of contents from the ribbon, tracked, and updates the fields on F9', (tester) async {
+    await open(tester, 'par-known-styles');
+    await clickText(tester);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await ctrl(tester, LogicalKeyboardKey.keyE);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await ctrl(tester, LogicalKeyboardKey.home);
+
+    await tester.tap(find.text('Références'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Table des matières').first);
+    await settle(tester);
+    final toc = fieldsOf(body()).where((f) => f.name == 'TOC').single;
+    expect(toc.instructions.trim(), r'TOC \o "1-3" \h');
+    expect(wordEditing(body()).attributesAt(toc.start)?['ins'], 'Peer 1');
+
+    final before = body().text!.text;
+    await tester.sendKeyEvent(LogicalKeyboardKey.f9);
+    await settle(tester);
+    expect(body().text!.text, before);
     await finish(tester);
   });
 

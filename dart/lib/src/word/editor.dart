@@ -28,6 +28,7 @@ import 'comments.dart';
 import 'document.dart';
 import 'edits.dart';
 import 'export.dart';
+import 'fields.dart';
 import 'layout.dart';
 import 'page_painter.dart';
 import 'pages_view.dart';
@@ -441,6 +442,40 @@ class _WordEditorState extends State<WordEditor> {
     _focus.requestFocus();
   }
 
+  /// Inserts a table of contents at the caret.
+  void _insertToc() {
+    final flow = _flow;
+    if (flow == null || _selection.area != PageArea.body) return;
+    _edit(_trackedEdit(insertToc(_document, _current, _s, flow, _selection.start)));
+    _focus.requestFocus();
+  }
+
+  /// Inserts a field that shows the date or the time as [format] writes it.
+  void _insertDate(String format) {
+    final flow = _flow;
+    if (flow == null) return;
+    _view.currentState?.replaceWith(flow, _selection.start, _selection.end, formatDate(DateTime.now(), format, _s), {'field': 'DATE \\@ "$format"'});
+    _focus.requestFocus();
+  }
+
+  /// Brings the fields up to date: the one the caret is in, those the
+  /// selection covers, or all of them; the pages a table of contents lists
+  /// follow the lines it adds, so that it is made again once.
+  void _updateFields() {
+    final flow = _flow;
+    final at = flow == null || !_selection.collapsed ? null : fieldAt(flow, _selection.extent);
+    final ranges = _ranges;
+    bool Function(WordField)? where;
+    if (!_selection.collapsed) {
+      where = (f) => ranges.any((r) => r.$1.id == f.flow && f.start < r.$3 && f.end > r.$2);
+    } else if (at != null) {
+      where = (f) => f.flow == at.flow && f.start == at.start;
+    }
+    for (var pass = 0; pass < 2; pass++) {
+      if (!_edit(_trackedEdit(updateFields(_document, _current, _s, where: where)))) break;
+    }
+  }
+
   void _pageBreak() {
     final flow = _flow;
     if (flow == null) return;
@@ -590,6 +625,8 @@ class _WordEditorState extends State<WordEditor> {
     final cell = _cell;
     final editable = !_session.readOnly;
     final revision = _revision;
+    final flow = _flow;
+    final inField = flow != null && fieldAt(flow, _selection.extent) != null;
     final choice = await showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(at.dx, at.dy, at.dx, at.dy),
@@ -599,6 +636,7 @@ class _WordEditorState extends State<WordEditor> {
         PopupMenuItem(value: 'paste', enabled: editable, child: Text(_s.paste)),
         const PopupMenuDivider(),
         PopupMenuItem(value: 'comment', enabled: editable, child: Text(_s.newComment)),
+        if (inField && editable) PopupMenuItem(value: 'fields', child: Text(_s.updateFields)),
         if (revision != null && editable) ...[
           const PopupMenuDivider(),
           PopupMenuItem(value: 'accept', child: Text(_s.settleRevision(true, revision.deleted))),
@@ -630,6 +668,8 @@ class _WordEditorState extends State<WordEditor> {
     switch (choice) {
       case 'comment':
         _newComment();
+      case 'fields':
+        _updateFields();
       case 'accept' || 'reject':
         _settle(accept: choice == 'accept');
       case 'rowAbove':
@@ -1082,6 +1122,11 @@ class _WordEditorState extends State<WordEditor> {
     if (e is KeyUpEvent) return false;
     final ctrl = HardwareKeyboard.instance.isControlPressed || HardwareKeyboard.instance.isMetaPressed;
     final shift = HardwareKeyboard.instance.isShiftPressed;
+    if (e.logicalKey == LogicalKeyboardKey.f9 && !ctrl) {
+      if (_session.readOnly) return false;
+      _updateFields();
+      return true;
+    }
     if (!ctrl) return false;
     final key = e.logicalKey;
     switch (key) {
@@ -1500,6 +1545,16 @@ class _WordEditorState extends State<WordEditor> {
             ),
           ]),
           RibbonGroup(_s.comments, [RibbonButton(icon: const Icon(Icons.add_comment_outlined), label: _s.newComment, large: true, shortcut: 'Ctrl+Alt+M', onPressed: editable ? _newComment : null)]),
+          RibbonGroup(_s.textGroup, [
+            RibbonMenu<String>(
+              icon: const Icon(Icons.schedule),
+              label: _s.dateTime,
+              large: true,
+              enabled: editable,
+              items: [for (final f in dateFormats) PopupMenuItem(value: f, child: Text(formatDate(DateTime.now(), f, _s)))],
+              onSelected: _insertDate,
+            ),
+          ]),
           RibbonGroup(_s.headerFooter, [
             RibbonButton(icon: const Icon(Icons.vertical_align_top), label: _s.header, large: true, onPressed: editable ? () => _headerFooter(footer: false) : null),
             RibbonButton(icon: const Icon(Icons.vertical_align_bottom), label: _s.footer, large: true, onPressed: editable ? () => _headerFooter(footer: true) : null),
@@ -1551,6 +1606,12 @@ class _WordEditorState extends State<WordEditor> {
               onSelected: _columns,
             ),
             RibbonButton(icon: const Icon(Icons.insert_page_break_outlined), label: _s.breaks, large: true, onPressed: editable ? _pageBreak : null),
+          ]),
+        ]),
+        RibbonTab(_s.references, [
+          RibbonGroup(_s.tableOfContents, [
+            RibbonButton(icon: const Icon(Icons.toc), label: _s.tableOfContents, large: true, onPressed: editable ? _insertToc : null),
+            RibbonButton(icon: const Icon(Icons.refresh), label: _s.updateFields, large: true, shortcut: 'F9', onPressed: editable ? _updateFields : null),
           ]),
         ]),
         RibbonTab(_s.review, [
