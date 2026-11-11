@@ -244,6 +244,22 @@ var (
 	bookName  = regexp.MustCompile(`/embeddings/[^/]*\.xlsx$`)
 )
 
+// refuseData checks that the data and the cached values of a chart are read-only.
+func refuseData(t *testing.T, name string, f file, tree *ot.Tree, id string) {
+	t.Helper()
+	old := chartOf(t, tree, id)
+	if err := setTable(f, tree, id, &xlsx.ChartTable{Series: []xlsx.ChartColumn{{Values: []any{1.0}}}}); !errors.Is(err, chartpart.ErrReadOnly) {
+		t.Fatalf("%s: data refused with %v", name, err)
+	}
+	if s := firstSeries(old); s != nil && s.Val != nil && len(s.Val.Num) > 0 {
+		v := 42.5
+		s.Val.Num[0] = &v
+		if err := edit(f, tree, id, ot.Values{chartpart.ChartKey: old.JSON()}); !errors.Is(err, chartpart.ErrReadOnly) {
+			t.Fatalf("%s: cached values refused with %v", name, err)
+		}
+	}
+}
+
 // editCharts edits the first chart of a file: its look, then its data,
 // or checks they are read-only. It returns the file saved and whether its
 // data were edited; ok is false for a file without a chart.
@@ -259,6 +275,17 @@ func editCharts(t *testing.T, name string, data []byte) (saved []byte, withData,
 	}
 	id := ids[0]
 	c := chartOf(t, tree, id)
+	if c.Extended() {
+		look(c)
+		if err := edit(f, tree, id, ot.Values{chartpart.ChartKey: c.JSON()}); !errors.Is(err, chartpart.ErrReadOnly) {
+			t.Fatalf("%s: look refused with %v", name, err)
+		}
+		refuseData(t, name, f, tree, id)
+		if saved, err = f.Save(tree); err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		return saved, false, true
+	}
 	look(c)
 	if err := edit(f, tree, id, ot.Values{chartpart.ChartKey: c.JSON()}); err != nil {
 		t.Fatalf("%s: %v", name, err)
@@ -275,17 +302,7 @@ func editCharts(t *testing.T, name string, data []byte) (saved []byte, withData,
 
 	table := tableOf(t, tree, id)
 	if table == nil {
-		old := chartOf(t, tree, id)
-		if err := setTable(f, tree, id, &xlsx.ChartTable{Series: []xlsx.ChartColumn{{Values: []any{1.0}}}}); !errors.Is(err, chartpart.ErrReadOnly) {
-			t.Fatalf("%s: data refused with %v", name, err)
-		}
-		if s := firstSeries(old); s != nil && s.Val != nil && len(s.Val.Num) > 0 {
-			v := 42.5
-			s.Val.Num[0] = &v
-			if err := edit(f, tree, id, ot.Values{chartpart.ChartKey: old.JSON()}); !errors.Is(err, chartpart.ErrReadOnly) {
-				t.Fatalf("%s: cached values refused with %v", name, err)
-			}
-		}
+		refuseData(t, name, f, tree, id)
 		return saved, false, true
 	}
 	want := grown(table)
