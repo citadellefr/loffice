@@ -11,11 +11,12 @@ import '../chrome/ai.dart';
 import '../chrome/commands.dart';
 import '../chrome/comments.dart';
 import '../chrome/comments_pane.dart';
+import '../chrome/export_notice.dart';
 import '../chrome/link_card.dart';
 import '../chrome/ribbon.dart';
 import '../chrome/strings.dart';
 import '../fonts.dart';
-import '../pdf/canvas.dart' show Ignored;
+import '../pdf/canvas.dart' show PdfExport;
 import '../pdf/document.dart' show pdfName;
 import '../powerpoint/slide_painter.dart' show MediaCache, MediaFetcher;
 import '../text/text_frame.dart' show Fonts, Props;
@@ -488,10 +489,10 @@ class _WordEditorState extends State<WordEditor> {
         recorder.endRecording().dispose();
       }
       await _media.settled;
-      var missing = <String>{}, ignored = <Ignored>{};
-      final pdf = await wordPdf(layout, painter, title: widget.title, missing: (m) => missing = m, ignored: (i) => ignored = i);
+      final pdfExport = PdfExport();
+      final pdf = await wordPdf(layout, painter, title: widget.title, export: pdfExport);
       await export(pdf, pdfName(widget.title));
-      if (_s.exportNotice(missing, ignored) case final notice?) messenger?.showSnackBar(SnackBar(content: Text(notice)));
+      showExportNotice(messenger, _s, pdfExport);
     } on Object catch (error) {
       messenger?.showSnackBar(SnackBar(content: Text(_s.exportFailed('$error'))));
     } finally {
