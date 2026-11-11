@@ -9,7 +9,10 @@ import '../excel/number_format.dart';
 import '../pdf/canvas.dart';
 import '../text/text_frame.dart';
 import 'chart.dart';
+import 'extended.dart';
 import 'scale.dart';
+
+part 'chart_extended.dart';
 
 /// Values the host reads afresh where a series points, instead of those
 /// Office cached: the cells of the workbook a chart sits in.
@@ -49,7 +52,9 @@ class ChartPainter {
       canvas.restore();
       return;
     }
-    if (plots.every((p) => p.round)) {
+    if (plots.first.extended) {
+      _extended(canvas, plots.first, _manual(chart.layout, box) ?? inner);
+    } else if (plots.every((p) => p.round)) {
       final area = _manual(chart.layout, box) ?? inner;
       _box(canvas, area, chart.area);
       for (final p in plots) {
@@ -69,7 +74,7 @@ class ChartPainter {
 
   DataSpec? _resolve(DataSpec? d) {
     if (d == null) return null;
-    return _data[d] ??= (d.ref.isNotEmpty ? live?.call(d) : null) ?? d;
+    return _data[d] ??= (d.ref.isNotEmpty && d.levels.isEmpty ? live?.call(d) : null) ?? d;
   }
 
   DataSpec? _val(SeriesSpec s) => _resolve(s.val);
@@ -305,6 +310,7 @@ class ChartPainter {
   /// What the legend lists: the series, or the points of a plot whose
   /// points each have their color.
   List<_Entry> get _entries {
+    if (_extendedEntries case final entries?) return entries;
     final plots = chart.plots.where((p) => p.series.isNotEmpty).toList();
     if (plots.length == 1 && (plots.first.round || plots.first.vary && plots.first.series.length == 1)) {
       final p = plots.first;

@@ -15,6 +15,7 @@ import (
 const (
 	typeDrawing = "application/vnd.openxmlformats-officedocument.drawing+xml"
 	relChart    = relBase + "chart"
+	relChartEx  = "http://schemas.microsoft.com/office/2014/relationships/chartEx"
 )
 
 // chartParts are the relationships of a chart to parts only it uses,
@@ -94,8 +95,8 @@ func (w *writer) sheetCharts(s sheet, had, want []Placed, now, then *chartCells)
 	rw := &sheetRels{list: rels}
 
 	anchors := map[string][]*xmldom.Element{}
-	for _, a := range drawing.Root.Elements() {
-		if c := find(a, chartNS, "chart"); a.Space == drawingNS && c != nil {
+	for _, a := range drawingAnchors(drawing.Root, false) {
+		if c := chart.FindRef(a); c != nil {
 			part := relPart(rels, name, relID(c, drawing.Root))
 			anchors[part] = append(anchors[part], a)
 		}
@@ -116,6 +117,8 @@ func (w *writer) sheetCharts(s sheet, had, want []Placed, now, then *chartCells)
 		for _, a := range list {
 			if parent, frame := chartFrame(a); parent != nil && parent != a {
 				parent.Remove(frame)
+			} else if alt := alternateOf(drawing.Root, a); alt != nil {
+				drawing.Root.Remove(alt)
 			} else {
 				drawing.Root.Remove(a)
 			}
@@ -143,6 +146,13 @@ func (w *writer) sheetCharts(s sheet, had, want []Placed, now, then *chartCells)
 			continue
 		}
 		changed = place(list[0], p) || changed
+		if alt := alternateOf(drawing.Root, list[0]); alt != nil {
+			if fallback := alt.Child(mcNS, "Fallback"); fallback != nil {
+				for _, a := range fallback.Elements() {
+					changed = place(a, p) || changed
+				}
+			}
+		}
 		if err := w.patchChart(p.ID, p.Chart); err != nil {
 			return err
 		}
@@ -159,7 +169,7 @@ func (w *writer) sheetCharts(s sheet, had, want []Placed, now, then *chartCells)
 // holds it: e itself, or a group of shapes.
 func chartFrame(e *xmldom.Element) (parent, frame *xmldom.Element) {
 	for _, c := range e.Elements() {
-		if c.Space == drawingNS && c.Local == "graphicFrame" && find(c, chartNS, "chart") != nil {
+		if c.Space == drawingNS && c.Local == "graphicFrame" && chart.FindRef(c) != nil {
 			return e, c
 		}
 		if p, f := chartFrame(c); f != nil {
@@ -215,6 +225,7 @@ func (w *writer) dropChart(rw *sheetRels, drawing, name string) error {
 		}
 	}
 	w.dropPart(rw, drawing, name, relChart)
+	w.dropPart(rw, drawing, name, relChartEx)
 	if rels := opc.RelsName(name); w.pkg.Has(rels) {
 		return w.pkg.Remove(rels)
 	}

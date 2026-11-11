@@ -92,14 +92,14 @@ Report? Check(string path)
 // text without positions, paths or lines, as many after as before. An edit
 // copies what it splits, errors and all: in an edited document an error
 // that was there before may come back more often, or inside a revision
-// the edit tracks. A chart whose type changes keeps the errors of its plot,
-// which takes another element.
+// the edit tracks. In an edited document a chart whose type changes keeps the errors of
+// its plot, which takes another element: its name is left out of the path.
 static IEnumerable<string> Added(HashSet<Error> before, IEnumerable<Error> after, bool edited)
 {
-    var count = before.GroupBy(e => Unplaced(e.Text)).ToDictionary(g => g.Key, g => edited ? int.MaxValue : g.Count());
+    var count = before.GroupBy(e => Unplaced(e.Text, edited)).ToDictionary(g => g.Key, g => edited ? int.MaxValue : g.Count());
     foreach (var e in after.OrderBy(e => e.Text))
     {
-        var key = Unplaced(e.Text);
+        var key = Unplaced(e.Text, edited);
         if (count.TryGetValue(key, out var n) && n > 0)
             count[key] = n - 1;
         else
@@ -107,7 +107,7 @@ static IEnumerable<string> Added(HashSet<Error> before, IEnumerable<Error> after
     }
 }
 
-static string Unplaced(string text) => System.Text.RegularExpressions.Regex.Replace(text, @"\[\d+\]|Line \d+, position \d+|/w:(ins|del)(?=\[)|(?<=/c:)\w+Chart(?=\[)", "");
+static string Unplaced(string text, bool edited) => System.Text.RegularExpressions.Regex.Replace(text, edited ? @"\[\d+\]|Line \d+, position \d+|/w:(ins|del)(?=\[)|(?<=/c:)\w+Chart(?=\[)" : @"\[\d+\]|Line \d+, position \d+|/w:(ins|del)(?=\[)", "");
 
 // Hidden are the parts of a package stored under a name with backslashes,
 // as they read once normalized.

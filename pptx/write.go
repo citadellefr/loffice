@@ -372,13 +372,31 @@ func (w *writer) element(n *ot.Node) *xmldom.Element {
 			base = newTableFrame()
 		}
 		if base != nil {
-			if x := base.Child(pNS, "xfrm"); x != nil && changed(ot.Values{"xfrm": mustJSON(drawingml.ReadXfrm(x))}, n.Attrs, "xfrm") {
-				var xfrm drawingml.Xfrm
-				if json.Unmarshal(n.Attrs["xfrm"], &xfrm) == nil {
-					drawingml.SetXfrm(x, &xfrm)
+			frame := base
+			var fallback []*xmldom.Element
+			if base.Space == mcNS {
+				frame = chartChoice(base)
+				if f := base.Child(mcNS, "Fallback"); f != nil {
+					fallback = f.Elements()
 				}
 			}
-			w.setNames(base, nvAttrs(base), n.Attrs)
+			if frame == nil {
+				return base
+			}
+			old := nvAttrs(frame)
+			var moved *drawingml.Xfrm
+			if x := frame.Child(pNS, "xfrm"); x != nil && changed(ot.Values{"xfrm": mustJSON(drawingml.ReadXfrm(x))}, n.Attrs, "xfrm") {
+				var xfrm drawingml.Xfrm
+				if json.Unmarshal(n.Attrs["xfrm"], &xfrm) == nil {
+					moved = &xfrm
+				}
+			}
+			for _, e := range append([]*xmldom.Element{frame}, fallback...) {
+				if x := xfrmOf(e); x != nil && moved != nil {
+					drawingml.SetXfrm(x, moved)
+				}
+				w.setNames(e, old, n.Attrs)
+			}
 			w.table(base, n)
 		}
 		return base
@@ -412,6 +430,17 @@ func (w *writer) element(n *ot.Node) *xmldom.Element {
 		w.setText(base, n)
 	}
 	return base
+}
+
+// xfrmOf is the xfrm of a graphic frame or of the properties of a shape.
+func xfrmOf(e *xmldom.Element) *xmldom.Element {
+	if x := e.Child(pNS, "xfrm"); x != nil {
+		return x
+	}
+	if pr := e.Child(pNS, "spPr"); pr != nil {
+		return pr.Child(aNS, "xfrm")
+	}
+	return nil
 }
 
 func mustJSON(x any) json.RawMessage {

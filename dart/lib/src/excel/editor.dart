@@ -1979,6 +1979,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
   /// The tabs of the chart selected.
   List<RibbonTab> _chartTabs(SheetChart chart, bool editable) {
     final spec = chart.spec;
+    final look = editable && !spec.extended;
     final plot = spec.plots.firstOrNull;
     final rect = chart.rect(_wb.layout(_sheet!));
     const pixelsPerCm = 96 / 2.54;
@@ -1989,25 +1990,23 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
             icon: const Icon(Icons.bar_chart),
             label: _s.changeChartType,
             large: true,
-            enabled: editable && plot != null,
+            enabled: look && plot != null,
             items: chartTypeItems(_s, plot == null ? null : ChartType.of(plot)),
             onSelected: (type) => _changeChart((edits, i) => edits.retype(i, type)),
           ),
         ]),
-        RibbonGroup(_s.chartData, [
-          RibbonButton(icon: const Icon(Icons.table_chart_outlined), label: _s.selectData, large: true, onPressed: editable && plot != null ? () => _chartData(chart) : null),
-        ]),
+        RibbonGroup(_s.chartData, [RibbonButton(icon: const Icon(Icons.table_chart_outlined), label: _s.selectData, large: true, onPressed: look && plot != null ? () => _chartData(chart) : null)]),
         RibbonGroup(_s.chartLayouts, [
-          RibbonButton(icon: const Icon(Icons.title), label: _s.chartTitle, large: true, selected: spec.title != null, onPressed: editable ? () => _chartTitle(chart) : null),
+          RibbonButton(icon: const Icon(Icons.title), label: _s.chartTitle, large: true, selected: spec.title != null, onPressed: look ? () => _chartTitle(chart) : null),
           RibbonMenu<String>(
             icon: const Icon(Icons.format_list_bulleted),
             label: _s.legend,
             large: true,
-            enabled: editable,
+            enabled: look,
             items: [for (final (key, label) in _s.legendPositions) CheckedPopupMenuItem(value: key, checked: key == (spec.legend?.position ?? 'none'), child: Text(label))],
             onSelected: (pos) => _changeChart((edits, i) => edits.setLegend(i, pos == 'none' ? null : pos)),
           ),
-          RibbonButton(icon: const Icon(Icons.timeline), label: _s.axisTitles, large: true, onPressed: editable && plot != null && !plot.round ? () => _axisTitles(chart) : null),
+          RibbonButton(icon: const Icon(Icons.timeline), label: _s.axisTitles, large: true, onPressed: look && plot != null && !plot.round ? () => _axisTitles(chart) : null),
         ]),
       ]),
       RibbonTab(_s.chartFormat, [

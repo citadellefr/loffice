@@ -24,6 +24,7 @@ List<RibbonTab> chartTabs(
 }) {
   final spec = ChartSpec.fromJson(node.attributes['chart']);
   if (spec == null) return const [];
+  editable &= !spec.extended;
   final plot = spec.plots.firstOrNull;
   Future<void> title() async {
     final picked = await showDialog<(bool, String)>(
@@ -45,7 +46,7 @@ List<RibbonTab> chartTabs(
           onSelected: (type) => onChange((chart) => ChartChanges.retype(chart, type)),
         ),
       ]),
-      RibbonGroup(s.chartData, [RibbonButton(icon: const Icon(Icons.table_chart_outlined), label: s.selectData, large: true, onPressed: onData)]),
+      RibbonGroup(s.chartData, [RibbonButton(icon: const Icon(Icons.table_chart_outlined), label: s.selectData, large: true, onPressed: editable ? onData : null)]),
     ]),
     RibbonTab(s.chartFormat, [
       RibbonGroup(s.chartLayouts, [

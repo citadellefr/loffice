@@ -188,7 +188,7 @@ func (p *Part) check(attrs, change ot.Values) error {
 	if json.Unmarshal(raw, &c) != nil || json.Unmarshal(attrs[ChartKey], &old) != nil {
 		return ErrInvalid
 	}
-	if !reflect.DeepEqual(seriesData(&c), seriesData(&old)) && p.book == nil {
+	if old.Extended() && !reflect.DeepEqual(c, old) || !reflect.DeepEqual(seriesData(&c), seriesData(&old)) && p.book == nil {
 		return ErrReadOnly
 	}
 	if !reflect.DeepEqual(seriesData(&c), seriesData(&old)) || !xlsx.CheckChart(&c, &old) {
