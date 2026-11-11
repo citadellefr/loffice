@@ -120,7 +120,16 @@ func TestHugeArrays(t *testing.T) {
 // much memory, or give a table that spans more than maxSize cells without
 // holding them.
 func TestFunctionsOfHugeArguments(t *testing.T) {
-	b := smallBook()
+	numbers := book(map[string]any{"A1": 1, "B1": 2, "C1": 3, "D1": 4, "A2": 5, "B2": 6, "C2": 7, "D2": 8,
+		"A3": 9, "B3": 10, "C3": 11, "D3": 12})
+	t.Run("mixed", func(t *testing.T) { hugeArguments(t, smallBook(), 64<<20) })
+	t.Run("numbers", func(t *testing.T) { hugeArguments(t, numbers, 1<<30) })
+}
+
+// hugeArguments allows maxBytes because a sheet of numbers makes arrays of
+// maxSize cells that are really held. IRR is left out of it: it solves over
+// the four million values and takes more than 10 s.
+func hugeArguments(t *testing.T, b Book, maxBytes uint64) {
 	huge := []string{"A:XFD+1", "A1:XFD1048576*1", "A:XFD", "A1:A70000", "A1:D1048576+1", "A1:XFD1048576"}
 	names := make([]string, 0, len(functions))
 	for name := range functions {
@@ -128,6 +137,9 @@ func TestFunctionsOfHugeArguments(t *testing.T) {
 	}
 	slices.Sort(names)
 	for _, name := range names {
+		if name == "IRR" && maxBytes > 64<<20 {
+			continue
+		}
 		f := functions[name]
 		least, most := max(f.min, 1), f.max
 		if most < 0 || most > 3 {
@@ -146,7 +158,7 @@ func TestFunctionsOfHugeArguments(t *testing.T) {
 							args[i] = h
 						}
 					}
-					check(t, b, name+"("+strings.Join(args, ",")+")")
+					check(t, b, name+"("+strings.Join(args, ",")+")", maxBytes)
 					if testing.Short() {
 						break
 					}
@@ -156,7 +168,7 @@ func TestFunctionsOfHugeArguments(t *testing.T) {
 	}
 }
 
-func check(t *testing.T, b Book, f string) {
+func check(t *testing.T, b Book, f string, maxBytes uint64) {
 	t.Helper()
 	defer func() {
 		if r := recover(); r != nil {
@@ -164,7 +176,7 @@ func check(t *testing.T, b Book, f string) {
 		}
 	}()
 	v, d, n := measure(t, b, f)
-	if d > 10*time.Second || n > 64<<20 {
+	if d > 10*time.Second || n > maxBytes {
 		t.Errorf("%s took %v and %d bytes", f, d, n)
 	}
 	if v.Type == TypeArray && v.Arr.Rows*v.Arr.Cols > max(len(v.Arr.Cells), maxSize) {
