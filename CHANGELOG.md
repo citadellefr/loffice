@@ -2,6 +2,13 @@
 
 ## 0.13.0 — 2026-11-11
 
+- `chart` reads the charts Excel 2016 added (`cx:chartSpace`: waterfall,
+  histogram, pareto, box and whisker, funnel, treemap, sunburst, map) into the
+  JSON of classic charts, with the options of their series (`options`:
+  subtotals, bins, quartiles, parents). `xlsx`, `pptx` and `docx` expose them
+  like classic charts, read only: their frame moves and resizes, their parts
+  and relationships are saved as they were. The Dart painter draws all but
+  the map, which gets a substitute.
 - The Dart package depends on `trame` 0.5.1: a `DocSession` no longer keeps a
   presence timer nor saves a draft after `dispose`.
 - The Dart editors tell, in French, what a PDF export left aside: the missing
