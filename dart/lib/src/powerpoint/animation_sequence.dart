@@ -53,9 +53,8 @@ class ShowEffect {
       ('entr', 53) => ShapeLook(opacity: p, scale: p),
       ('entr', 22) => ShapeLook(reveal: _wipe(from, p)),
       ('exit', 22) => ShapeLook(reveal: _wipe(-from, 1 - p)),
-      ('emph', 26) => ShapeLook(scale: 1 + 0.15 * math.sin(math.pi * p)),
       ('emph', 8) => ShapeLook(angle: 2 * math.pi * p),
-      ('emph', _) || ('path', _) => ShapeLook(opacity: 1 - 0.6 * math.sin(math.pi * p)),
+      ('emph', _) || ('path', _) => ShapeLook(scale: 1 + 0.15 * math.sin(math.pi * p)),
       _ => ShapeLook(opacity: fade),
     };
   }
