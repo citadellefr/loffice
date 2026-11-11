@@ -10,6 +10,8 @@
   its value. `#NUM!` stays for arrays made from a size (MUNIT, SEQUENCE), for
   a function that needs every cell of such a range as an array (TRANSPOSE,
   SORT), and for arrays of more than 4194304 cells (`A1:XFD1048576*1`).
+- `formula`: SUMIFS, AVERAGEIFS, MINIFS and MAXIFS over whole columns or rows
+  of two sheets of different sizes no longer crash.
 - `agent` and `mcp` edit presentations and workbooks, directly and in view of
   everyone: fourteen tools (`slide_list`, `slide_read`, `shape_text_set`,
   `shape_add`, `slide_add`, `slide_delete`, `notes_set`, `sheet_list`,
