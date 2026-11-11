@@ -623,30 +623,111 @@ func (w *writer) uniqueIDs(spTree *xmldom.Element) {
 	}
 }
 
-// dropStaleTiming removes the animations of a slide when one of them names
-// a shape that is no longer there, which Office would repair.
+// dropStaleTiming removes from the animations of a slide the effects aimed
+// at shapes that are no longer there, as Office does, and the timing itself
+// when no effect is left.
 func dropStaleTiming(root, spTree *xmldom.Element) {
 	timing := root.Child(pNS, "timing")
 	if timing == nil {
 		return
 	}
-	ids := map[string]bool{}
+	live := map[string]bool{}
 	walkElements(spTree, func(e *xmldom.Element) bool {
 		if e.Space == pNS && e.Local == "cNvPr" {
-			ids[e.Get("id")] = true
+			live[e.Get("id")] = true
 		}
 		return true
 	})
+	if !hasStaleTarget(timing, live, false) {
+		return
+	}
+	if tnLst := timing.Child(pNS, "tnLst"); tnLst != nil {
+		for _, n := range tnLst.Elements() {
+			if !pruneAnimation(n, live) {
+				tnLst.Remove(n)
+			}
+		}
+	}
+	if bldLst := timing.Child(pNS, "bldLst"); bldLst != nil {
+		for _, b := range bldLst.Elements() {
+			if hasStaleTarget(b, live, false) {
+				bldLst.Remove(b)
+			}
+		}
+		if len(bldLst.Elements()) == 0 {
+			timing.Remove(bldLst)
+		}
+	}
+	if len(effectNodes(timing)) == 0 {
+		root.Remove(timing)
+	}
+}
+
+// pruneAnimation removes from a time node the effects aimed at missing
+// shapes and the containers they leave empty. It reports whether the node
+// stays. The first surviving effect of a container takes the trigger of the
+// first effect removed from it, so that a click or a chain still starts.
+func pruneAnimation(n *xmldom.Element, live map[string]bool) bool {
+	ctn := n.Child(pNS, "cTn")
+	if ctn == nil {
+		return true
+	}
+	if isEffect(ctn) {
+		return !hasStaleTarget(n, live, false)
+	}
+	if hasStaleTarget(n, live, true) {
+		return false
+	}
+	list := ctn.Child(pNS, "childTnLst")
+	if list == nil {
+		return true
+	}
+	before := effectNodes(n)
+	had := len(list.Elements()) > 0
+	for _, c := range list.Elements() {
+		if !pruneAnimation(c, live) {
+			list.Remove(c)
+		}
+	}
+	if after := effectNodes(n); len(before) > 0 && len(after) > 0 && after[0] != before[0] {
+		after[0].Set("nodeType", before[0].Get("nodeType"))
+	}
+	if had && len(list.Elements()) == 0 {
+		return ctn.Get("nodeType") == "mainSeq"
+	}
+	return true
+}
+
+func isEffect(ctn *xmldom.Element) bool {
+	return strings.HasSuffix(ctn.Get("nodeType"), "Effect")
+}
+
+// effectNodes lists the time nodes of the effects under e, in order.
+func effectNodes(e *xmldom.Element) []*xmldom.Element {
+	var out []*xmldom.Element
+	walkElements(e, func(c *xmldom.Element) bool {
+		if c.Space == pNS && c.Local == "cTn" && isEffect(c) {
+			out = append(out, c)
+		}
+		return true
+	})
+	return out
+}
+
+// hasStaleTarget reports whether e names a shape that is not live. With
+// own set, the nodes under childTnLst are left to their own pruning.
+func hasStaleTarget(e *xmldom.Element, live map[string]bool, own bool) bool {
 	stale := false
-	walkElements(timing, func(e *xmldom.Element) bool {
-		if v, ok := e.Attr("spid"); ok && !ids[v] {
+	walkElements(e, func(c *xmldom.Element) bool {
+		if own && c.Space == pNS && c.Local == "childTnLst" {
+			return false
+		}
+		if v, ok := c.Attr("spid"); ok && !live[v] {
 			stale = true
 		}
 		return !stale
 	})
-	if stale {
-		root.Remove(timing)
-	}
+	return stale
 }
 
 func (w *writer) notes(id, name string) error {

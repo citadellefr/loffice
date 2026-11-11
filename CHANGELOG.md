@@ -2,6 +2,9 @@
 
 ## 0.13.0 — 2026-11-11
 
+- Deleting an animated shape from a slide drops only the effects that aimed at
+  it, with their builds and the click or group they leave empty; the other
+  animations of the slide stay as they were.
 - The Dart package depends on `trame` 0.5.1: a `DocSession` no longer keeps a
   presence timer nor saves a draft after `dispose`.
 - The Dart editors tell, in French, what a PDF export left aside: the missing
