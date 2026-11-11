@@ -80,10 +80,10 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m224** (à_revérifier) Open XML SDK (tools/validate) sur le chartex : les valeurs de cx:binning (binSize, binCount, underflow, overflow) sont le texte de l'élément (`<cx:binSize>3</cx:binSize>`), pas un attribut val ; le préfixe cx1 de mc:Requires doit être déclaré (xmlns:cx1="http://schemas.microsoft.com/office/drawing/2015/9/8/chartex") ; les id de cNvPr de l'AlternateContent doivent être uniques. Pour valider des fixtures sans original, passer en 1er argument un dossier de fichiers de même nom (testdata/*/blank|transitional) et LOFFICE_EDITED=1. — _ag1, t55_
 
 ### corpus/
-- **m223** corpus/files est ignoré par git et absent d'un worktree neuf : un test qui lit le corpus y est sauté (t.Skip) au lieu d'échouer. Une régression sur un fichier du corpus n'apparaît qu'aux merge_checks, pas dans le worktree : vérifier que le corpus y existe (ls corpus/files) avant de croire un test vert. — _ag1, t55_
+- **m223** (à_revérifier) corpus/files est ignoré par git et absent d'un worktree neuf : un test qui lit le corpus y est sauté (t.Skip) au lieu d'échouer. Une régression sur un fichier du corpus n'apparaît qu'aux merge_checks, pas dans le worktree : vérifier que le corpus y existe (ls corpus/files) avant de croire un test vert. — _ag1, t55_
 
 ### dart/
-- **m2** (à_revérifier) dart/ Flutter et Dart ne sont pas dans le PATH de cette machine. Soit `nix shell nixpkgs#flutter -c flutter test` depuis loffice/dart (suite complète ≈ 1 min 40), soit ajouter au PATH /nix/store/x8cc2489gk0lhbgm5q3y7pxfb7v9r706-flutter-wrapped-3.47.4-sdk-links/bin (Flutter 3.47.4, Dart 3.13.3) avant flutter test / dart analyze. — _orchestra_
+- **m2** dart/ Flutter et Dart ne sont pas dans le PATH de cette machine. Soit `nix shell nixpkgs#flutter -c flutter test` depuis loffice/dart (suite complète ≈ 1 min 40), soit ajouter au PATH /nix/store/x8cc2489gk0lhbgm5q3y7pxfb7v9r706-flutter-wrapped-3.47.4-sdk-links/bin (Flutter 3.47.4, Dart 3.13.3) avant flutter test / dart analyze. — _orchestra_
 
 ### dart/analysis_options.yaml
 - **m6** dart format ne lit formatter.page_width de analysis_options.yaml qu'après `flutter pub get` (il lui faut .dart_tool/package_config.json) ; sans cela le réglage est ignoré silencieusement et la largeur reste 80. — _ag1, t1_
