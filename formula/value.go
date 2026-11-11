@@ -37,7 +37,10 @@ type Value struct {
 	fn   *lambda
 }
 
-// Table is an array of values, row by row.
+// Table is an array of values, row by row. Cells may hold only its first
+// rows, the rows past them repeating the last one held: so a range keeps
+// the blank rows below the cells of its sheet, and an array calculated
+// from it its shape, without the memory they would take.
 type Table struct {
 	Rows, Cols int
 	Cells      []Value
@@ -45,7 +48,36 @@ type Table struct {
 
 // At is the value at row i and column j, counted from 0.
 func (t *Table) At(i, j int) Value {
-	return t.Cells[i*t.Cols+j]
+	return t.Cells[min(i, t.held()-1)*t.Cols+j]
+}
+
+// held is the number of rows Cells holds.
+func (t *Table) held() int {
+	return len(t.Cells) / t.Cols
+}
+
+// cut is a table of its first n rows, n no more than it has.
+func (t *Table) cut(n int) *Table {
+	out := &Table{Rows: n, Cols: t.Cols, Cells: make([]Value, n*t.Cols)}
+	for i := range n {
+		for j := range t.Cols {
+			out.Cells[i*t.Cols+j] = t.At(i, j)
+		}
+	}
+	return out
+}
+
+// blankTail tells whether the rows past those held are blank.
+func (t *Table) blankTail() bool {
+	if t.held() == t.Rows {
+		return true
+	}
+	for _, x := range t.Cells[len(t.Cells)-t.Cols:] {
+		if x.Type != TypeBlank {
+			return false
+		}
+	}
+	return true
 }
 
 // Area3 is an area of a sheet, the sheet given by the engine's handle.

@@ -266,23 +266,63 @@ func (c *Context) trim(a Area3) Area3 {
 	return a
 }
 
-// table is the values of an area, bounded by the cells its sheet holds.
+// table is the values of an area, whole rows and columns bounded by the
+// cells its sheet holds. Past maxCells cells, it holds only the rows of the
+// cells its sheet holds and a blank one repeated below them, unless the
+// area is crowded.
 func (c *Context) table(a Area3) *Table {
 	a = c.trim(a)
-	t := &Table{Rows: a.R2 - a.R1 + 1, Cols: a.C2 - a.C1 + 1}
-	if t.Rows*t.Cols > maxCells {
+	rows, cols := a.R2-a.R1+1, a.C2-a.C1+1
+	held := rows
+	if rows*cols > maxCells {
+		filled, _ := c.Book.Size(a.Sheet)
+		held = min(rows, max(filled-a.R1+2, 1))
+		if h := (Area3{a.Sheet, Area{R1: a.R1, R2: a.R1 + held - 1, C1: a.C1, C2: a.C2}}); held*cols > maxCells && !c.crowded(h) {
+			return &Table{Rows: 1, Cols: 1, Cells: []Value{ErrNum}}
+		}
+	}
+	t := newTable(rows, cols, held)
+	if t == nil {
 		return &Table{Rows: 1, Cols: 1, Cells: []Value{ErrNum}}
 	}
-	t.Cells = make([]Value, t.Rows*t.Cols)
+	a.R2 = a.R1 + held - 1
 	c.Book.Cells(a, func(row, col int, v Value) bool {
-		t.Cells[(row-a.R1)*t.Cols+col-a.C1] = v
+		t.Cells[(row-a.R1)*cols+col-a.C1] = v
 		return true
 	})
 	return t
 }
 
-// maxCells bounds the arrays a formula makes, against memory exhaustion.
+// crowded tells whether at least half the cells of an area hold a value:
+// its table then takes memory in proportion to the book.
+func (c *Context) crowded(a Area3) bool {
+	want, n := (a.R2-a.R1+1)*(a.C2-a.C1+1)/2, 0
+	c.Book.Cells(a, func(_, _ int, _ Value) bool {
+		n++
+		return n < want
+	})
+	return n >= want
+}
+
+// maxCells bounds the cells of an array made from a size rather than from
+// cells a book holds, against memory exhaustion: a size given to a
+// function, a sheet whose few cells are far apart.
 const maxCells = 1 << 20
+
+// maxSize bounds the cells a table of a book's values spans, held or
+// repeated, since whatever reads it cell by cell reads them all: four
+// whole columns, read in a few hundredths of a second.
+const maxSize = 1 << 22
+
+// newTable is a table of rows by columns whose Cells hold the first held
+// rows, or nil past maxSize cells. It alone makes tables that span more
+// cells than they hold.
+func newTable(rows, cols, held int) *Table {
+	if rows*cols > maxSize {
+		return nil
+	}
+	return &Table{Rows: rows, Cols: cols, Cells: make([]Value, held*cols)}
+}
 
 // scalar is the single value a formula takes where it expects one: a
 // range crossed with the formula's row or column, the first value of an
@@ -391,8 +431,30 @@ func (c *Context) boolean(v Value) (bool, *Value) {
 	return false, &err
 }
 
-// array is a value as a table: a range's values, a single value alone.
+// array is a value as a table that holds all its cells: a range's values,
+// a single value alone. A table that holds fewer spans more than maxCells,
+// and is #NUM!.
 func (c *Context) array(v Value) *Table {
+	t := c.grid(v)
+	if len(t.Cells) < t.Rows*t.Cols {
+		return &Table{Rows: 1, Cols: 1, Cells: []Value{ErrNum}}
+	}
+	return t
+}
+
+// pair is two values read cell by cell, leaving out the pairs of blanks
+// past the rows held when they have the same shape.
+func (c *Context) pair(x, y Value) (*Table, *Table) {
+	a, b := c.grid(x), c.grid(y)
+	if a.Rows != b.Rows || a.Cols != b.Cols || !a.blankTail() || !b.blankTail() {
+		return c.array(x), c.array(y)
+	}
+	n := max(a.held(), b.held())
+	return a.cut(n), b.cut(n)
+}
+
+// grid is a value as a table, which may hold only its first rows.
+func (c *Context) grid(v Value) *Table {
 	switch v.Type {
 	case TypeArray:
 		return v.Arr
@@ -413,8 +475,11 @@ func (c *Context) mapValues(v Value, f func(Value) Value) Value {
 	if v.Type == TypeRange && len(v.Refs) == 1 && v.Refs[0].R1 == v.Refs[0].R2 && v.Refs[0].C1 == v.Refs[0].C2 {
 		return f(c.deref(v))
 	}
-	t := c.array(v)
-	out := &Table{Rows: t.Rows, Cols: t.Cols, Cells: make([]Value, len(t.Cells))}
+	t := c.grid(v)
+	out := newTable(t.Rows, t.Cols, t.held())
+	if out == nil {
+		return ErrNum
+	}
 	for i, x := range t.Cells {
 		out.Cells[i] = f(x)
 	}
@@ -431,18 +496,34 @@ func (c *Context) zip(x, y Value, f func(a, b Value) Value) Value {
 	if single(x) && single(y) {
 		return f(c.deref(x), c.deref(y))
 	}
-	a, b := c.array(x), c.array(y)
+	a, b := c.grid(x), c.grid(y)
 	rows, cols := max(a.Rows, b.Rows), max(a.Cols, b.Cols)
-	if rows*cols > maxCells {
+	held := min(rows, max(changing(a, rows), changing(b, rows)))
+	if held*cols > max(maxCells, len(a.Cells)+len(b.Cells)) {
 		return ErrNum
 	}
-	out := &Table{Rows: rows, Cols: cols, Cells: make([]Value, rows*cols)}
-	for i := range rows {
+	out := newTable(rows, cols, held)
+	if out == nil {
+		return ErrNum
+	}
+	for i := range held {
 		for j := range cols {
 			out.Cells[i*cols+j] = f(stretched(a, i, j), stretched(b, i, j))
 		}
 	}
 	return Value{Type: TypeArray, Arr: out}
+}
+
+// changing is the number of first rows of a table stretched to rows past
+// which its rows are all alike.
+func changing(t *Table, rows int) int {
+	switch {
+	case t.Rows == 1:
+		return 1
+	case t.Rows < rows:
+		return t.Rows + 1
+	}
+	return t.held()
 }
 
 // stretched is the value at row i and column j of a table stretched to a

@@ -220,7 +220,7 @@ func byteFunction(name string, min, max int) *function {
 // out those whose number is missing in one.
 func sumOfPairs(f func(x, y float64) float64) *function {
 	return fn(2, 2, func(c *Context, v []Value) Value {
-		x, y := c.array(v[0]), c.array(v[1])
+		x, y := c.pair(v[0], v[1])
 		if x.Rows != y.Rows || x.Cols != y.Cols {
 			return ErrNA
 		}

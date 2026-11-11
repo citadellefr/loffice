@@ -373,13 +373,17 @@ func (c *Context) ifOne(args []Expr, f func(Value)) (int, *Value) {
 		t := s.Refs[0]
 		target = Area3{t.Sheet, Area{R1: t.R1, C1: t.C1, R2: t.R1 + area.R2 - area.R1, C2: t.C1 + area.C2 - area.C1}}
 	}
-	tables := c.tables([]Area3{area, target})
-	for i, v := range tables[0].Cells {
-		if cr.match(v) {
-			f(tables[1].Cells[i])
+	tables, err := c.tables([]Area3{area, target})
+	if err != nil {
+		return 0, err
+	}
+	t := tables[0]
+	for i := range t.Rows * t.Cols {
+		if cr.match(t.At(i/t.Cols, i%t.Cols)) {
+			f(tables[1].At(i/t.Cols, i%t.Cols))
 		}
 	}
-	return blanksPast(area, tables[0], cr.match(Value{})), nil
+	return blanksPast(area, t, cr.match(Value{})), nil
 }
 
 // blanksPast counts the cells of an area past those of its table, all
@@ -388,7 +392,7 @@ func blanksPast(a Area3, t *Table, count bool) int {
 	if !count {
 		return 0
 	}
-	return (a.R2-a.R1+1)*(a.C2-a.C1+1) - len(t.Cells)
+	return (a.R2-a.R1+1)*(a.C2-a.C1+1) - t.Rows*t.Cols
 }
 
 // ifs is COUNTIFS and SUMIFS, whose arguments are a range f is given the
@@ -423,20 +427,25 @@ func (c *Context) ifs(args []Expr, sum bool, f func(Value)) (int, *Value) {
 			return 0, &ErrValue
 		}
 	}
-	tables := c.tables(areas)
+	tables, err := c.tables(areas)
+	if err != nil {
+		return 0, err
+	}
 	first := 0
 	if sum {
 		first = 1
 	}
 	blank := true
+	t := tables[0]
 cells:
-	for i := range tables[0].Cells {
+	for i := range t.Rows * t.Cols {
+		r, k := i/t.Cols, i%t.Cols
 		for j, cr := range crits {
-			if !cr.match(tables[first+j].Cells[i]) {
+			if !cr.match(tables[first+j].At(r, k)) {
 				continue cells
 			}
 		}
-		f(tables[0].Cells[i])
+		f(t.At(r, k))
 	}
 	for _, cr := range crits {
 		blank = blank && cr.match(Value{})
@@ -445,8 +454,8 @@ cells:
 }
 
 // tables are the values of areas of the same shape, bounded alike by the
-// cells their sheets hold.
-func (c *Context) tables(areas []Area3) []*Table {
+// cells their sheets hold, to be read by At.
+func (c *Context) tables(areas []Area3) ([]*Table, *Value) {
 	rows, cols := 0, 0
 	for _, a := range areas {
 		r, k := c.Book.Size(a.Sheet)
@@ -457,9 +466,13 @@ func (c *Context) tables(areas []Area3) []*Table {
 	out := make([]*Table, len(areas))
 	for i, a := range areas {
 		a.R2, a.C2 = a.R1+rows-1, a.C1+cols-1
+		a.Rows, a.Cols = false, false
 		out[i] = c.table(a)
+		if out[i].Rows != rows || out[i].Cols != cols {
+			return nil, &ErrNum
+		}
 	}
-	return out
+	return out, nil
 }
 
 func mode() *function {
@@ -658,7 +671,7 @@ func percentileExc(xs []float64, k float64) Value {
 // pairs is a function of two ranges of numbers, taken where both hold one.
 func pairs(f func(ys, xs []float64) Value) *function {
 	return fn(2, 2, func(c *Context, v []Value) Value {
-		a, b := c.array(v[0]), c.array(v[1])
+		a, b := c.pair(v[0], v[1])
 		if len(a.Cells) != len(b.Cells) {
 			return ErrNA
 		}

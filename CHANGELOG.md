@@ -21,6 +21,16 @@
   few seconds in PowerPoint and Excel; a host that provides or changes `ai`
   after the editor is open is followed. Word's revisions pane groups the
   changes of one AI batch with its comment.
+- `formula` no longer refuses explicit ranges larger than its memory bound
+  when their sheet holds few cells: `SUM(A1:D1048576)`, `A1:D1048576+1`,
+  SUMPRODUCT, SUMIFS, COUNTIFS, AGGREGATE and the functions of two ranges
+  (CORREL, SUMXMY2…) read only the rows the sheet fills. An area at least half
+  filled is read whatever its size, so VLOOKUP on `A:D` of 300000 rows finds
+  its value. `#NUM!` stays for arrays made from a size (MUNIT, SEQUENCE), for
+  a function that needs every cell of such a range as an array (TRANSPOSE,
+  SORT), and for arrays of more than 4194304 cells (`A1:XFD1048576*1`).
+- `formula`: SUMIFS, AVERAGEIFS, MINIFS and MAXIFS over whole columns or rows
+  of two sheets of different sizes no longer crash.
 
 ## 0.13.0 — 2026-11-11
 
