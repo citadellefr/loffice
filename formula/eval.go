@@ -266,19 +266,28 @@ func (c *Context) trim(a Area3) Area3 {
 	return a
 }
 
-// table is the values of an area, bounded by the cells its sheet holds.
+// table is the values of an area, whole rows and columns bounded by the
+// cells its sheet holds. Past maxCells cells, it holds only the rows of the
+// cells its sheet holds and a blank one repeated below them, unless the
+// area is crowded.
 func (c *Context) table(a Area3) *Table {
 	a = c.trim(a)
-	rows, _ := c.Book.Size(a.Sheet)
-	t := &Table{Rows: a.R2 - a.R1 + 1, Cols: a.C2 - a.C1 + 1}
-	held := min(t.Rows, max(rows-a.R1+2, 1))
-	a.R2 = a.R1 + held - 1
-	if held*t.Cols > maxCells && !c.crowded(a) {
+	rows, cols := a.R2-a.R1+1, a.C2-a.C1+1
+	held := rows
+	if rows*cols > maxCells {
+		filled, _ := c.Book.Size(a.Sheet)
+		held = min(rows, max(filled-a.R1+2, 1))
+		if h := (Area3{a.Sheet, Area{R1: a.R1, R2: a.R1 + held - 1, C1: a.C1, C2: a.C2}}); held*cols > maxCells && !c.crowded(h) {
+			return &Table{Rows: 1, Cols: 1, Cells: []Value{ErrNum}}
+		}
+	}
+	t := newTable(rows, cols, held)
+	if t == nil {
 		return &Table{Rows: 1, Cols: 1, Cells: []Value{ErrNum}}
 	}
-	t.Cells = make([]Value, held*t.Cols)
+	a.R2 = a.R1 + held - 1
 	c.Book.Cells(a, func(row, col int, v Value) bool {
-		t.Cells[(row-a.R1)*t.Cols+col-a.C1] = v
+		t.Cells[(row-a.R1)*cols+col-a.C1] = v
 		return true
 	})
 	return t
@@ -300,9 +309,20 @@ func (c *Context) crowded(a Area3) bool {
 // function, a sheet whose few cells are far apart.
 const maxCells = 1 << 20
 
-// maxRepeat bounds the cells an array spends on rows that only repeat the
-// last one held.
-const maxRepeat = 1 << 16
+// maxSize bounds the cells a table of a book's values spans, held or
+// repeated, since whatever reads it cell by cell reads them all: four
+// whole columns, read in a few hundredths of a second.
+const maxSize = 1 << 22
+
+// newTable is a table of rows by columns whose Cells hold the first held
+// rows, or nil past maxSize cells. It alone makes tables that span more
+// cells than they hold.
+func newTable(rows, cols, held int) *Table {
+	if rows*cols > maxSize {
+		return nil
+	}
+	return &Table{Rows: rows, Cols: cols, Cells: make([]Value, held*cols)}
+}
 
 // scalar is the single value a formula takes where it expects one: a
 // range crossed with the formula's row or column, the first value of an
@@ -411,24 +431,15 @@ func (c *Context) boolean(v Value) (bool, *Value) {
 	return false, &err
 }
 
-// array is a value as a table that holds all its rows: a range's values,
-// a single value alone. Past maxRepeat cells, the rows that repeat are left
-// out, as past the cells of a sheet.
+// array is a value as a table that holds all its cells: a range's values,
+// a single value alone. A table that holds fewer spans more than maxCells,
+// and is #NUM!.
 func (c *Context) array(v Value) *Table {
 	t := c.grid(v)
-	if len(t.Cells) == t.Rows*t.Cols {
-		return t
+	if len(t.Cells) < t.Rows*t.Cols {
+		return &Table{Rows: 1, Cols: 1, Cells: []Value{ErrNum}}
 	}
-	if t.Rows*t.Cols > max(maxRepeat, 2*len(t.Cells)) {
-		n := max(t.held()-1, 1)
-		return &Table{Rows: n, Cols: t.Cols, Cells: t.Cells[:n*t.Cols]}
-	}
-	out := &Table{Rows: t.Rows, Cols: t.Cols, Cells: make([]Value, t.Rows*t.Cols)}
-	n := copy(out.Cells, t.Cells)
-	for i := n; i < len(out.Cells); i += t.Cols {
-		copy(out.Cells[i:], t.Cells[n-t.Cols:])
-	}
-	return out
+	return t
 }
 
 // pair is two values read cell by cell, leaving out the pairs of blanks
@@ -465,7 +476,10 @@ func (c *Context) mapValues(v Value, f func(Value) Value) Value {
 		return f(c.deref(v))
 	}
 	t := c.grid(v)
-	out := &Table{Rows: t.Rows, Cols: t.Cols, Cells: make([]Value, len(t.Cells))}
+	out := newTable(t.Rows, t.Cols, t.held())
+	if out == nil {
+		return ErrNum
+	}
 	for i, x := range t.Cells {
 		out.Cells[i] = f(x)
 	}
@@ -488,7 +502,10 @@ func (c *Context) zip(x, y Value, f func(a, b Value) Value) Value {
 	if held*cols > max(maxCells, len(a.Cells)+len(b.Cells)) {
 		return ErrNum
 	}
-	out := &Table{Rows: rows, Cols: cols, Cells: make([]Value, held*cols)}
+	out := newTable(rows, cols, held)
+	if out == nil {
+		return ErrNum
+	}
 	for i := range held {
 		for j := range cols {
 			out.Cells[i*cols+j] = f(stretched(a, i, j), stretched(b, i, j))

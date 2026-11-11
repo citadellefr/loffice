@@ -60,7 +60,9 @@ func (t *Table) held() int {
 func (t *Table) cut(n int) *Table {
 	out := &Table{Rows: n, Cols: t.Cols, Cells: make([]Value, n*t.Cols)}
 	for i := range n {
-		copy(out.Cells[i*t.Cols:], row(t, i))
+		for j := range t.Cols {
+			out.Cells[i*t.Cols+j] = t.At(i, j)
+		}
 	}
 	return out
 }
@@ -70,7 +72,7 @@ func (t *Table) blankTail() bool {
 	if t.held() == t.Rows {
 		return true
 	}
-	for _, x := range row(t, t.held()-1) {
+	for _, x := range t.Cells[len(t.Cells)-t.Cols:] {
 		if x.Type != TypeBlank {
 			return false
 		}

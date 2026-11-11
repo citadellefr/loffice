@@ -16,42 +16,31 @@ func init() {
 			if x.Type == TypeError {
 				return x
 			}
-			t := c.grid(v[1])
-			var keys []Value
-			var result func(i int) Value
-			n := max(t.Rows, t.Cols)
+			t := c.array(v[1])
+			var keys, results []Value
 			switch {
 			case len(v) > 2:
-				keys = vector(t)
-				r := c.grid(v[2])
-				result = func(i int) Value {
-					if i >= max(r.Rows, r.Cols) {
-						return ErrNA
-					}
-					if r.Rows == 1 {
-						return r.At(0, i)
-					}
-					return r.At(i, 0)
-				}
+				keys, results = vector(t), vector(c.array(v[2]))
 			case t.Cols > t.Rows:
-				keys = row(t, 0)
-				result = func(i int) Value { return t.At(t.Rows-1, i) }
+				keys, results = row(t, 0), row(t, t.Rows-1)
 			default:
-				keys = column(t, 0)
-				result = func(i int) Value { return t.At(i, t.Cols-1) }
+				keys, results = column(t, 0), column(t, t.Cols-1)
 			}
 			i := approximate(keys, x, 1)
 			if i < 0 {
 				return ErrNA
 			}
-			return result(last(i, keys, n))
+			if i >= len(results) {
+				return ErrNA
+			}
+			return results[i]
 		}),
 		"MATCH": fn(2, 3, func(c *Context, v []Value) Value {
 			x := c.scalar(v[0])
 			if x.Type == TypeError {
 				return x
 			}
-			t := c.grid(v[1])
+			t := c.array(v[1])
 			if t.Rows > 1 && t.Cols > 1 {
 				return ErrNA
 			}
@@ -68,9 +57,9 @@ func init() {
 			case kind == 0:
 				i = exact(keys, x, true, false)
 			case kind > 0:
-				i = last(approximate(keys, x, 1), keys, t.Rows*t.Cols)
+				i = approximate(keys, x, 1)
 			default:
-				i = last(approximate(keys, x, -1), keys, t.Rows*t.Cols)
+				i = approximate(keys, x, -1)
 			}
 			if i < 0 {
 				return ErrNA
@@ -78,7 +67,7 @@ func init() {
 			return Num(float64(i + 1))
 		}),
 		"XMATCH": fn(2, 4, func(c *Context, v []Value) Value {
-			t := c.grid(v[1])
+			t := c.array(v[1])
 			if t.Rows > 1 && t.Cols > 1 {
 				return ErrValue
 			}
@@ -90,7 +79,7 @@ func init() {
 				if x.Type == TypeError {
 					return x
 				}
-				i := xfind(vector(t), x, mode, search, t.Rows*t.Cols)
+				i := xfind(vector(t), x, mode, search)
 				if i < 0 {
 					return ErrNA
 				}
@@ -104,7 +93,7 @@ func init() {
 					v[i] = c.Eval(a)
 				}
 			}
-			keys := c.grid(v[1])
+			keys := c.array(v[1])
 			if keys.Rows > 1 && keys.Cols > 1 {
 				return ErrValue
 			}
@@ -117,7 +106,7 @@ func init() {
 				if x.Type == TypeError {
 					return x
 				}
-				i := xfind(vector(keys), x, mode, search, keys.Rows*keys.Cols)
+				i := xfind(vector(keys), x, mode, search)
 				if i < 0 {
 					if len(args) > 3 {
 						if _, missing := args[3].(missingExpr); !missing {
@@ -133,7 +122,7 @@ func init() {
 					}
 					return Value{Type: TypeRange, Refs: []Area3{{a.Sheet, Area{R1: a.R1, R2: a.R2, C1: a.C1 + i, C2: a.C1 + i}}}}
 				}
-				t := c.grid(v[2])
+				t := c.array(v[2])
 				if byRow {
 					if i >= t.Rows {
 						return ErrValue
@@ -187,7 +176,7 @@ func init() {
 				out.Rows, out.Cols, out.Cell = false, false, false
 				return Value{Type: TypeRange, Refs: []Area3{out}}
 			}
-			t := c.grid(v[0])
+			t := c.array(v[0])
 			if len(v) == 2 && t.Rows == 1 {
 				r, k = 1, r
 			}
@@ -228,13 +217,13 @@ func init() {
 			if v[0].Type == TypeRange {
 				return Num(float64(v[0].Refs[0].R2 - v[0].Refs[0].R1 + 1))
 			}
-			return Num(float64(c.grid(v[0]).Rows))
+			return Num(float64(c.array(v[0]).Rows))
 		}),
 		"COLUMNS": fn(1, 1, func(c *Context, v []Value) Value {
 			if v[0].Type == TypeRange {
 				return Num(float64(v[0].Refs[0].C2 - v[0].Refs[0].C1 + 1))
 			}
-			return Num(float64(c.grid(v[0]).Cols))
+			return Num(float64(c.array(v[0]).Cols))
 		}),
 		"OFFSET": {min: 3, max: 5, volatile: true, call: func(c *Context, args []Expr) Value {
 			v := c.Eval(args[0])
@@ -365,42 +354,30 @@ func table(cells []Value, rows, cols int) Value {
 }
 
 func row(t *Table, i int) []Value {
-	i = min(i, t.held()-1)
 	return t.Cells[i*t.Cols : (i+1)*t.Cols]
 }
 
-// column is the values of a column in the rows the table holds.
 func column(t *Table, j int) []Value {
-	out := make([]Value, t.held())
-	for i := range out {
+	out := make([]Value, t.Rows)
+	for i := range t.Rows {
 		out[i] = t.At(i, j)
 	}
 	return out
 }
 
 // vector is the values of a single row or column, or of a table row by
-// row, in the rows the table holds.
+// row.
 func vector(t *Table) []Value {
 	return t.Cells
 }
 
-// last is the index of a key found among the keys of a vector of n, held
-// only up to the last that repeats: the last of the repeated ones when it
-// is that key, for a search that keeps the last match.
-func last(i int, keys []Value, n int) int {
-	if i >= 0 && i == len(keys)-1 {
-		return n - 1
-	}
-	return i
-}
-
-// tableLookup is VLOOKUP, or HLOOKUP when across. Of a range, it reads
-// only the keys and the cell found.
+// tableLookup is VLOOKUP, or HLOOKUP when across.
 func (c *Context) tableLookup(v []Value, across bool) Value {
 	x := c.scalar(v[0])
 	if x.Type == TypeError {
 		return x
 	}
+	t := c.array(v[1])
 	n, err := c.number(v[2])
 	if err != nil {
 		return *err
@@ -415,35 +392,17 @@ func (c *Context) tableLookup(v []Value, across bool) Value {
 	if k < 1 {
 		return ErrValue
 	}
-	var keys []Value
-	var size, length int
-	var at func(i, j int) Value
-	if r := v[1]; r.Type == TypeRange && len(r.Refs) == 1 {
-		a := r.Refs[0]
-		first := a
-		size = a.C2 - a.C1 + 1
-		if across {
-			first.R2, size = a.R1, a.R2-a.R1+1
-		} else {
-			first.C2 = a.C1
-		}
-		keys = vector(c.table(first))
-		length = len(keys)
-		at = func(i, j int) Value { return c.Book.Cell(a.Sheet, a.R1+i, a.C1+j) }
-	} else {
-		t := c.grid(r)
-		keys, size, length = column(t, 0), t.Cols, t.Rows
-		if across {
-			keys, size, length = row(t, 0), t.Rows, t.Cols
-		}
-		at = t.At
+	keys := column(t, 0)
+	size := t.Cols
+	if across {
+		keys, size = row(t, 0), t.Rows
 	}
 	if k > size {
 		return ErrRef
 	}
 	var i int
 	if sorted {
-		i = last(approximate(keys, x, 1), keys, length)
+		i = approximate(keys, x, 1)
 	} else {
 		i = exact(keys, x, true, false)
 	}
@@ -451,9 +410,9 @@ func (c *Context) tableLookup(v []Value, across bool) Value {
 		return ErrNA
 	}
 	if across {
-		return at(k-1, i)
+		return t.At(k-1, i)
 	}
-	return at(i, k-1)
+	return t.At(i, k-1)
 }
 
 // same tells whether a key equals the value looked up: text without
@@ -541,15 +500,7 @@ func (c *Context) modes(v []Value, i int) (int, int, *Value) {
 
 // xfind is the search of XMATCH and XLOOKUP: exact, or else the next
 // smaller (-1) or larger (1) key, or with wildcards (2).
-func xfind(keys []Value, x Value, mode, search, n int) int {
-	if search != 1 {
-		return last(xfindHeld(keys, x, mode, search), keys, n)
-	}
-	return xfindHeld(keys, x, mode, search)
-}
-
-// xfindHeld is xfind among the keys held.
-func xfindHeld(keys []Value, x Value, mode, search int) int {
+func xfind(keys []Value, x Value, mode, search int) int {
 	switch {
 	case search == 2 && mode != 2:
 		return approximate(keys, x, 1)

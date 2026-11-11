@@ -1012,7 +1012,7 @@ func (e *Engine) fill(cf *cellFormula, c *Context, v Value) {
 		return
 	}
 	a, p := cf.array, cf.pos
-	t := c.grid(v)
+	t := c.array(v)
 	for r := a.R1; r <= a.R2; r++ {
 		for k := a.C1; k <= a.C2; k++ {
 			i, j := r-a.R1, k-a.C1
@@ -1042,19 +1042,15 @@ func (e *Engine) spill(c *Context, cf *cellFormula, v Value) {
 	single := v.Type != TypeArray && (v.Type != TypeRange || len(v.Refs) == 1 && v.Refs[0].R1 == v.Refs[0].R2 && v.Refs[0].C1 == v.Refs[0].C2)
 	t := &Table{Rows: 1, Cols: 1, Cells: []Value{c.scalar(v)}}
 	if !single {
-		t = c.grid(v)
+		t = c.array(v)
 	}
 	cf.spilled = !single
 	want := spillArea(p, t.Rows, t.Cols)
 	cf.reach = spillArea(p, min(t.Rows, MaxRows-p.Row+1), min(t.Cols, MaxCols-p.Col+1))
 	area := want
-	switch {
-	case want != cf.reach || !e.free(cf, want):
+	if want != cf.reach || !e.free(cf, want) {
 		area = spillArea(p, 1, 1)
 		t = &Table{Rows: 1, Cols: 1, Cells: []Value{ErrSpill}}
-	case t.Rows*t.Cols > max(maxCells, len(t.Cells)):
-		area = spillArea(p, 1, 1)
-		t = &Table{Rows: 1, Cols: 1, Cells: []Value{ErrNum}}
 	}
 	old := *cf.array
 	for r := old.R1; r <= old.R2; r++ {
