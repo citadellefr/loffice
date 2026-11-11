@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:trame/trame.dart';
 
 import '../chart/chart.dart';
+import '../chrome/ai.dart';
 import '../chrome/comments.dart';
 import '../chrome/comments_pane.dart';
 import '../chrome/ribbon.dart';
@@ -39,7 +40,18 @@ import 'workbook.dart';
 /// An Excel editor on a session whose document is a workbook: the ribbon,
 /// the formula bar, the cells of a sheet, its tabs and the status bar.
 class SpreadsheetEditor extends StatefulWidget {
-  const SpreadsheetEditor({super.key, required this.session, this.title = '', this.onClose, this.onExport, this.onOpenLink, this.strings = const LofficeStrings(), this.fonts, this.hosted = false});
+  const SpreadsheetEditor({
+    super.key,
+    required this.session,
+    this.title = '',
+    this.onClose,
+    this.onExport,
+    this.onOpenLink,
+    this.strings = const LofficeStrings(),
+    this.fonts,
+    this.hosted = false,
+    this.ai,
+  });
 
   final DocSession session;
   final String title;
@@ -62,6 +74,10 @@ class SpreadsheetEditor extends StatefulWidget {
   /// own: the ribbon then leaves them out.
   final bool hosted;
 
+  /// The AI of the room, when the host says the server installed one;
+  /// without it nothing of an AI shows.
+  final AiParticipant? ai;
+
   @override
   State<SpreadsheetEditor> createState() => _SpreadsheetEditorState();
 }
@@ -77,6 +93,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
   StreamSubscription<String>? _rejections;
   StreamSubscription<Edit>? _changes;
   void Function()? _unwatchPaste;
+  AiMarks? _marks;
   Workbook? _book;
   String? _sheetId;
   var _editing = false;
@@ -109,9 +126,12 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     super.initState();
     if (!OfficeFonts.settled) OfficeFonts.load().whenComplete(_repaint);
     _nameBox.text = 'A1';
-    _session.addListener(_repaint);
+    _session
+      ..addListener(_repaint)
+      ..presence.addListener(_repaint);
     _selection.addListener(_selected);
     _changes = _session.changes.listen(_changed);
+    _marks = widget.ai == null ? null : (AiMarks(_session, widget.ai!)..addListener(_repaint));
     _unwatchPaste = watchPaste(_pasted);
     _rejections = _session.rejections.listen((reason) {
       if (!mounted) return;
@@ -121,9 +141,12 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
 
   @override
   void dispose() {
-    _session.removeListener(_repaint);
+    _session
+      ..removeListener(_repaint)
+      ..presence.removeListener(_repaint);
     _selection.removeListener(_selected);
     _unwatchPaste?.call();
+    _marks?.dispose();
     unawaited(_rejections?.cancel());
     unawaited(_changes?.cancel());
     _selection.dispose();
@@ -1355,9 +1378,22 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     var i = 0;
     return [
       for (final p in _session.peers)
-        if (p.selection?.cells case final cells? when p.selection!.node == sheet.id) PeerSelection(p.name, _peerColors[i++ % _peerColors.length], CellArea(cells[0], cells[1], cells[2], cells[3])),
+        if (p.selection?.cells case final cells? when p.selection!.node == sheet.id)
+          PeerSelection(peerLabel(widget.ai, p), peerColor(widget.ai, p, _peerColors[i++ % _peerColors.length]), CellArea(cells[0], cells[1], cells[2], cells[3])),
     ];
   }
+
+  List<AiHighlight> get _highlights {
+    final sheet = _sheet, marks = _marks;
+    if (sheet == null || marks == null) return const [];
+    return [
+      for (final m in marks.marks)
+        if (m.node == sheet.id)
+          if (m.cells case final c?) AiHighlight(aiLabel(marks.ai.name), CellArea(c[0], c[1], c[2], c[3]), marks.opacity(m)),
+    ];
+  }
+
+  bool _isAi(DocPeer peer) => widget.ai?.isPeer(peer) ?? false;
 
   // building
 
@@ -1425,6 +1461,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
               locale: _locale,
               zoom: _zoom,
               peers: _peers,
+              highlights: _highlights,
               fonts: widget.fonts,
               strings: _s,
               editing: _editing,
@@ -1616,7 +1653,13 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
               padding: const EdgeInsets.symmetric(horizontal: 2),
               child: Tooltip(
                 message: p.name,
-                child: CircleAvatar(radius: 12, child: Text(p.name.isEmpty ? '?' : p.name.characters.first.toUpperCase(), style: const TextStyle(fontSize: 11))),
+                child: _isAi(p)
+                    ? const CircleAvatar(
+                        radius: 12,
+                        backgroundColor: aiColor,
+                        child: Icon(Icons.auto_awesome, size: 14, color: Colors.white),
+                      )
+                    : CircleAvatar(radius: 12, child: Text(p.name.isEmpty ? '?' : p.name.characters.first.toUpperCase(), style: const TextStyle(fontSize: 11))),
               ),
             ),
         const SizedBox(width: 8),
@@ -2309,7 +2352,17 @@ class _Backstage extends StatelessWidget {
                 Text(session.saveError != null ? s.saveFailed(session.saveError!) : (session.saved ? s.saved : s.saving)),
                 if (session.readOnly) Text(s.readOnly),
                 const SizedBox(height: 16),
-                for (final p in session.peers) ListTile(leading: const Icon(Icons.person_outline), title: Text(p.name)),
+                for (final p in session.peers)
+                  ListTile(
+                    leading: editor._isAi(p)
+                        ? const CircleAvatar(
+                            radius: 12,
+                            backgroundColor: aiColor,
+                            child: Icon(Icons.auto_awesome, size: 14, color: Colors.white),
+                          )
+                        : const Icon(Icons.person_outline),
+                    title: Text(peerLabel(editor.widget.ai, p)),
+                  ),
               ],
             ),
           ),

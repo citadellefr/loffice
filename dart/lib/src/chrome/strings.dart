@@ -484,6 +484,13 @@ class LofficeStrings {
   String get rejectThis => 'Refuser la modification';
   String get rejectAll => 'Refuser toutes les modifications';
   String get rejectAllAndStop => 'Refuser toutes les modifications et arrêter le suivi';
+  String acceptAllBy(String author) => 'Accepter toutes les modifications de $author';
+  String rejectAllBy(String author) => 'Refuser toutes les modifications de $author';
+  String get revisionsPane => 'Volet des révisions';
+  String get noRevisions => 'Aucune modification suivie';
+  String get acceptBatch => 'Accepter le lot';
+  String get rejectBatch => 'Refuser le lot';
+  String batchOf(String name, DateTime? date) => 'Lot de $name${date == null ? '' : ', ${commentDate(date.toLocal())}'}';
   String get previousChange => 'Précédent';
   String get nextChange => 'Suivant';
   String settleRevision(bool accept, bool deleted) => '${accept ? 'Accepter' : 'Refuser'} ${deleted ? 'la suppression' : 'l’insertion'}';
