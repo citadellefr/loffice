@@ -224,3 +224,26 @@ func TestPictureOnPlainText(t *testing.T) {
 		}
 	}
 }
+
+func TestPictureResizeFollowedByVMLFallback(t *testing.T) {
+	const ns = `xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:v="urn:schemas-microsoft-com:vml"`
+	drawing := `<w:drawing><wp:anchor behindDoc="0"><wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="column"><wp:posOffset>127000</wp:posOffset></wp:positionH><wp:positionV relativeFrom="paragraph"><wp:posOffset>254000</wp:posOffset></wp:positionV>` +
+		`<wp:extent cx="914400" cy="457200"/><wp:wrapSquare wrapText="bothSides"/><wp:docPr id="1" name="Chart"/>` +
+		`<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">` +
+		`<pic:blipFill><a:blip r:embed="rId4"/></pic:blipFill><pic:spPr><a:xfrm><a:ext cx="914400" cy="457200"/></a:xfrm></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:anchor></w:drawing>`
+	pict := `<w:pict><v:shape id="s1" style="position:absolute;margin-left:10pt;margin-top:20pt;width:72pt;height:36pt;z-index:1" type="#t"><v:imagedata r:id="rId4"/></v:shape></w:pict>`
+	d, tree := open(t, `<w:p><w:r><mc:AlternateContent `+ns+`><mc:Choice Requires="am3d">`+drawing+`</mc:Choice><mc:Fallback>`+pict+`</mc:Fallback></mc:AlternateContent></w:r></w:p>`)
+	apply(t, d, tree, pictureEdit(t, tree, func(p *Picture) {
+		p.W, p.H = 1828800, 914400
+		p.Float.X, p.Float.Y = 254000, 381000
+	}))
+	saved, err := d.Save(tree)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc := partOf(t, saved, "word/document.xml")
+	const want = `style="position:absolute;margin-left:20pt;margin-top:30pt;width:144pt;height:72pt;z-index:1"`
+	if !strings.Contains(doc, want) {
+		t.Errorf("VML fallback not resized and moved:\n%s", doc)
+	}
+}

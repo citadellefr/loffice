@@ -46,6 +46,10 @@ func (d *Document) edited(o, img string) (*xmldom.Element, error) {
 	found := false
 	var walk func(c *xmldom.Element) error
 	walk = func(c *xmldom.Element) error {
+		if c.Space == NS && c.Local == "pict" {
+			restyle(c, &from, &to)
+			return nil
+		}
 		if c.Space == wpNS && (c.Local == "inline" || c.Local == "anchor") {
 			found = true
 			return place(c, &from, &to)
@@ -149,6 +153,57 @@ func place(c *xmldom.Element, from, to *Picture) error {
 		return ErrReadOnly
 	}
 	return float(c, from.Float, to.Float)
+}
+
+// restyle gives the VML shapes of a w:pict, the fallback of a drawing, the
+// size of the picture in points and, when they are absolute, its offsets.
+func restyle(pict *xmldom.Element, from, to *Picture) {
+	set := map[string]string{}
+	if from.W != to.W || from.H != to.H {
+		set["width"], set["height"] = points(to.W), points(to.H)
+	}
+	if from.Float != nil && to.Float != nil {
+		if from.Float.X != to.Float.X && to.Float.AlignX == "" {
+			set["left"], set["margin-left"] = points(to.Float.X), points(to.Float.X)
+		}
+		if from.Float.Y != to.Float.Y && to.Float.AlignY == "" {
+			set["top"], set["margin-top"] = points(to.Float.Y), points(to.Float.Y)
+		}
+	}
+	if len(set) == 0 {
+		return
+	}
+	var walk func(e *xmldom.Element)
+	walk = func(e *xmldom.Element) {
+		if style := e.Get("style"); e.Space == vmlNS && style != "" {
+			e.Set("style", styled(style, set))
+		}
+		for _, c := range e.Elements() {
+			walk(c)
+		}
+	}
+	walk(pict)
+}
+
+// styled is a CSS style of VML with the values of set in place of its own;
+// the offsets only where the style has them and is absolute.
+func styled(style string, set map[string]string) string {
+	decls := strings.Split(style, ";")
+	absolute := slices.ContainsFunc(decls, func(d string) bool { return strings.ReplaceAll(d, " ", "") == "position:absolute" })
+	for i, d := range decls {
+		key, _, ok := strings.Cut(d, ":")
+		key = strings.TrimSpace(key)
+		v, found := set[key]
+		if ok && found && (absolute || key == "width" || key == "height") {
+			decls[i] = key + ":" + v
+		}
+	}
+	return strings.Join(decls, ";")
+}
+
+// points is a length of EMU in points, as a VML style gives it.
+func points(emu int64) string {
+	return strconv.FormatFloat(float64(emu)/12700, 'f', -1, 64) + "pt"
 }
 
 // resize gives the shape a graphicData holds its size: the xfrm of its
