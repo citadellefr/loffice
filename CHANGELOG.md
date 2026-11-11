@@ -25,7 +25,7 @@
   when their sheet holds few cells: `SUM(A1:D1048576)`, `A1:D1048576+1`,
   SUMPRODUCT, SUMIFS, COUNTIFS, AGGREGATE and the functions of two ranges
   (CORREL, SUMXMY2…) read only the rows the sheet fills. An area at least half
-  filled is read whatever its size, so VLOOKUP on `A:D` of 300000 rows finds
+  filled is read up to 4194304 cells, so VLOOKUP on `A:D` of 300000 rows finds
   its value. `#NUM!` stays for arrays made from a size (MUNIT, SEQUENCE), for
   a function that needs every cell of such a range as an array (TRANSPOSE,
   SORT), and for arrays of more than 4194304 cells (`A1:XFD1048576*1`).

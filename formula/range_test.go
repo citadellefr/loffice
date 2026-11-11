@@ -120,8 +120,17 @@ func TestHugeArrays(t *testing.T) {
 // much memory, or give a table that spans more than maxSize cells without
 // holding them.
 func TestFunctionsOfHugeArguments(t *testing.T) {
-	b := smallBook()
-	huge := []string{"A:XFD+1", "A1:XFD1048576*1", "A:XFD", "A1:A70000", "A1:D1048576+1", "A1:XFD1048576"}
+	numbers := book(map[string]any{"A1": 1, "B1": 2, "C1": 3, "D1": 4, "A2": 5, "B2": 6, "C2": 7, "D2": 8,
+		"A3": 9, "B3": 10, "C3": 11, "D3": 12})
+	t.Run("mixed", func(t *testing.T) {
+		hugeArguments(t, smallBook(), []string{"A:XFD+1", "A1:XFD1048576*1", "A:XFD", "A1:A70000", "A1:D1048576+1", "A1:XFD1048576"})
+	})
+	t.Run("numbers", func(t *testing.T) {
+		hugeArguments(t, numbers, []string{"A1:D1048576", "A:XFD", "A1:A70000"})
+	})
+}
+
+func hugeArguments(t *testing.T, b Book, huge []string) {
 	names := make([]string, 0, len(functions))
 	for name := range functions {
 		names = append(names, name)

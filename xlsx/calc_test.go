@@ -551,3 +551,17 @@ func TestCalcFileName(t *testing.T) {
 		t.Fatalf("after rename: %s", got)
 	}
 }
+
+func TestCalcCellFollowsInsertion(t *testing.T) {
+	tree, c := calcTree(t)
+	edit(t, tree, c, ot.Edit{{Op: ot.OpCel, ID: "S1", Cells: []ot.Cell{
+		cell(8, 4, `{"f":"CELL(\"row\",A5)"}`), cell(8, 5, `{"f":"CELL(\"col\",C5)"}`)}}})
+	edit(t, tree, c, ot.Edit{{Op: ot.OpIns, ID: "S1", Dim: ot.DimRows, At: 2, N: 2}})
+	if got := fieldsAt(tree, "S1", 10, 4); got != `{"f":"CELL(\"row\",A7)","v":7}` {
+		t.Errorf("after rows: %s", got)
+	}
+	edit(t, tree, c, ot.Edit{{Op: ot.OpIns, ID: "S1", Dim: ot.DimCols, At: 2, N: 3}})
+	if got := fieldsAt(tree, "S1", 10, 8); got != `{"f":"CELL(\"col\",F7)","v":6}` {
+		t.Errorf("after columns: %s", got)
+	}
+}
