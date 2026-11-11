@@ -96,7 +96,7 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m65** (à_revérifier) formula/engine.go : Calc rend dynamique toute formule tapée par le client, même scalaire (xlsx/calc.go, SetDynamic), donc un parcours de tout e.spills par cellule, formule ou lecture de plage devient quadratique : les parcours doivent porter sur e.spread (formules dont la plage dépasse leur cellule). BenchmarkFollow ne charge que des formules lues du fichier ; pour mesurer les formules saisies (Calc.set typed=true), utiliser BenchmarkFollowTyped (xlsx/calc_test.go), un collage OpCel de milliers de formules. — _ag6, t6_
 
 ### formula/eval.go
-- **m172** formula : c.table rogne les colonnes d'une référence de lignes entières (drapeau Rows) à la largeur utilisée de sa propre feuille. Deux aires de même forme sur deux feuilles différentes peuvent donc donner des tables de largeurs différentes. Si un appelant fixe lui-même la forme (tables() pour COUNTIFS/SUMIF), il doit effacer Rows/Cols avant d'appeler c.table. — _ob, t33_
+- **m172** (à_revérifier) formula : c.table rogne les colonnes d'une référence de lignes entières (drapeau Rows) à la largeur utilisée de sa propre feuille. Deux aires de même forme sur deux feuilles différentes peuvent donc donner des tables de largeurs différentes. Si un appelant fixe lui-même la forme (tables() pour COUNTIFS/SUMIF), il doit effacer Rows/Cols avant d'appeler c.table. — _ob, t33_
 
 ### formula/fn_array.go
 - **m139** SORT décroissant met les vides en tête (TestArrays le fixe) : sur une colonne entière, la table compacte ne peut pas répéter sa dernière ligne, d'où sortedRows dans fn_array.go. — _ag4, t33_
@@ -110,6 +110,9 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 ### formula/fn_lambda_test.go
 - **m93** (à_revérifier) In formula tests, do not name a defined name FACT (or any other built-in Excel function): the builtin is called instead of the name, and the engine reads no dependencies. — _ag5, t11_
 
+### formula/fn_logic.go
+- **m231** formula : IF dont la condition est un tableau (et IFERROR/IFNA dont le 2e argument est un tableau) évalue les arguments de branche une fois par cellule via mapValues : coût quadratique, IF(A1:B3000+1,A1:B3000+1,A1:B3000+1) prend 10 s et 5 Go. Défaut présent sur main, non corrigé par t33. — _ag4, t33_
+
 ### formula/fn_math.go
 - **m173** formula : SUMPRODUCT sur des lignes entières de deux feuilles (Feuil1!1:1,Feuil2!1:1) rend #VALUE!. c.grid rogne chaque référence Rows à la largeur de sa propre feuille, puis fn_math.go compare les formes. Le défaut existe déjà sur main ; il n'est pas corrigé dans t33. — _ag4, t33_
 
@@ -118,6 +121,9 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 
 ### formula/fn_stats.go
 - **m169** formula : depuis les tables compactes, deux aires de même forme n'ont pas forcément la même longueur de Cells (c.table tient les lignes de la feuille + une vide répétée, selon R1). Pour lire plusieurs aires en parallèle (SUMIF, COUNTIFS), itérer sur Rows*Cols avec At(i/Cols, i%Cols), jamais indexer Cells[i] d'une table par l'indice d'une autre. — _ag4, t33_
+
+### formula/functions.go
+- **m179** formula : une table compacte a une taille logique (Rows×Cols) sans rapport avec ses cellules tenues ; maxCells ne borne que held*cols. Tout parcours par Rows×Cols, notamment eachOf, peut donc énumérer 1,7e10 cellules (A:XFD+1) et épuiser la mémoire. Tester les formules hostiles sur A:XFD, pas seulement sur MUNIT. — _oa, t33_
 
 ### internal/xmldom/xmldom_test.go
 - **m37** loffice : opc importe internal/xmldom (opc/strict.go). Un test d'internal/xmldom ou d'internal/xmltok (package interne) ne doit donc pas importer opc, sinon il y a un cycle d'import en test. Pour lire un zip dans ces tests, utiliser archive/zip. — _ag1, t7_
@@ -196,16 +202,13 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m147** (à_revérifier) formula.Engine.Known(circular) donne au nouvel engin les cercles de celui qu'il remplace et marque le scan fait : il sert à Calc.Follow quand l'édition ne fait que renommer des feuilles ou régler l'itération (mêmes positions, mêmes lectures), sinon Circular() refait un scan complet. — _ag3, t34_
 
 ### formula/eval.go
-- **m156** formula : c.array ne remplit les lignes répétées d'une table compacte que jusqu'à maxRepeat (1<<16) cellules ou au double des cellules tenues ; au-delà il rend les lignes tenues sans la ligne répétée (comme une plage rognée à sa feuille). Une fonction qui doit garder la forme Excel d'une colonne entière doit travailler sur c.grid et rendre une table compacte (cf. EXPAND, TAKE, FILTER). — _ag4, t33_
+- **m232** formula : newTable (eval.go) est la seule fabrique de tables dont la taille logique dépasse les cellules tenues, et rend nil au-delà de maxSize (1<<22) cellules. c.array rend un tableau dense ou #NUM!, sans jamais changer la forme d'une référence explicite ; c.pair lit deux tables appariées en ignorant les paires vides au-delà des lignes tenues. — _ag4, t33_
 
 ### formula/fn_lambda.go
 - **m95** (à_revérifier) A call to an unknown function in a formula is first resolved as a defined name that holds a LAMBDA (Context.named); without a name → ErrUnsupported. On the Dart side, unknown function names keep their case in both translation directions. — _ag5, t11_
 
 ### formula/rewrite.go
 - **m94** (à_revérifier) formula.Stored adds _xlpm. in front of LET/LAMBDA parameters and their uses in scope (rewrite.go params()), and _xlfn. in front of LET, LAMBDA, MAP, REDUCE, SCAN, BYROW, BYCOL, MAKEARRAY, ISOMITTED; the parser strips _xlpm. from names without a sheet. — _ag5, t11_
-
-### formula/value.go
-- **m137** formula.Table peut être compacte : Cells ne tient que held() lignes, les lignes suivantes répètent la dernière tenue. Lire par At(i,j) ; ne jamais indexer Cells au-delà de held() sur une table issue de c.grid. c.grid rend une table éventuellement compacte, c.array une table dense (bornée par maxCells, rognée si la queue est vide). Une nouvelle fonction de tableau sur de grandes plages doit passer par c.grid et calculer sur les lignes tenues. — _ag4, t33_
 
 ### internal/chartpart/chartpart.go
 - **m205** (à_revérifier) Graphiques docx/pptx (internal/chartpart) : le nœud porte « chart » (modèle chart.Chart, patché sur la seule partie) et « chartData » ({categories, series:[{index,name,values}]}, absent sans classeur incorporé ou pour une disposition non simple). Toute modification des données sans chartData est refusée par ErrReadOnly. En docx, le graphique est un nœud de type « chart » placé après le corps, que l'image désigne par img.chartNode. — _ag3, t45_
@@ -249,7 +252,7 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 
 ### formula/eval.go
 - **m138** La borne mémoire de formula : maxCells ne limite que les tableaux construits d'après une taille demandée ou une zone clairsemée ; une zone au moins à moitié remplie (crowded) est admise quelle que soit sa taille, sa mémoire étant proportionnelle au classeur. — _ag4, t33_
-- **m181** t33 (formula, grandes plages) : le travail bloqué après 4 refus de revue est repris, pas abandonné, depuis a4/loffice/ag4-t33-backup, avec des invariants et des preuves systématiques : une table compacte n'est jamais énumérée sans borne, la borne vit à un seul endroit, c.array ne change pas la forme d'une référence explicite, et tout ce que main calcule sans #NUM! garde son résultat. Pourquoi : la revue trouvait de nouveaux cas à chaque round, la correction cas par cas ne convergeait pas. — _orchestra_
+- **m181** (à_revérifier) t33 (formula, grandes plages) : le travail bloqué après 4 refus de revue est repris, pas abandonné, depuis a4/loffice/ag4-t33-backup, avec des invariants et des preuves systématiques : une table compacte n'est jamais énumérée sans borne, la borne vit à un seul endroit, c.array ne change pas la forme d'une référence explicite, et tout ce que main calcule sans #NUM! garde son résultat. Pourquoi : la revue trouvait de nouveaux cas à chaque round, la correction cas par cas ne convergeait pas. — _orchestra_
 
 ## préférence
 
