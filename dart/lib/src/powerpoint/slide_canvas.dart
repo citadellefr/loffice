@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:trame/trame.dart';
 
+import '../chrome/ai.dart';
 import '../chrome/commands.dart';
 import '../chrome/comments.dart';
 import '../chrome/comments_pane.dart' show authorColor;
@@ -81,6 +82,8 @@ class SlideCanvas extends StatefulWidget {
     this.commands = const [],
     this.onOpenLink,
     this.linkCard,
+    this.ai,
+    this.marks,
   });
 
   /// The keywords an `@` typed in a text starts.
@@ -93,6 +96,11 @@ class SlideCanvas extends StatefulWidget {
   /// The card of the host over a link pointed at, or tapped on a touch
   /// screen in a document only read: what it leads to. Null shows nothing.
   final LinkCard? linkCard;
+
+  /// The AI of the room, whose cursor is drawn apart, and what it edited
+  /// lately, drawn over it a few seconds.
+  final AiParticipant? ai;
+  final AiMarks? marks;
 
   final DocSession session;
   final Deck deck;
@@ -1204,7 +1212,7 @@ class _CanvasPainter extends CustomPainter {
     // the selections of others
     var i = 0;
     for (final peer in w.session.peers) {
-      final color = _peerColors[i++ % _peerColors.length];
+      final color = peerColor(w.ai, peer, _peerColors[i++ % _peerColors.length]);
       final s = peer.selection;
       final node = s == null ? null : w.session.document[s.node];
       final frame = node == null ? null : painter.textOf(node);
@@ -1216,16 +1224,28 @@ class _CanvasPainter extends CustomPainter {
       }
       final caret = frame.caretAt(s.extent);
       canvas.drawRect(_bar(caret, 1.5 / scale), Paint()..color = color);
-      final label = TextPainter(
-        text: TextSpan(
-          text: peer.name,
-          style: TextStyle(fontSize: 10 / scale, color: Colors.white),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      final tag = Rect.fromLTWH(caret.left, caret.top - label.height - 2 / scale, label.width + 6 / scale, label.height + 2 / scale);
-      canvas.drawRect(tag, Paint()..color = color);
-      label.paint(canvas, tag.topLeft + Offset(3 / scale, 1 / scale));
+      _tag(canvas, peerLabel(w.ai, peer), color, caret.topLeft);
+      canvas.restore();
+    }
+
+    // what the AI edited lately
+    final ai = w.ai;
+    for (final mark in w.marks?.marks ?? const <AiMark>[]) {
+      final node = w.session.document[mark.node];
+      final box = node == null ? null : (node.id == w.slide.id ? deck.size : painter.sizeOf(node));
+      if (node == null || box == null || node.id != w.slide.id && deck.pageOf(node)?.id != w.slide.id) continue;
+      final opacity = w.marks!.opacity(mark);
+      canvas.save();
+      if (node.id != w.slide.id) canvas.transform(painter.transformOf(node).storage);
+      canvas.drawRect(Offset.zero & box, Paint()..color = aiColor.withValues(alpha: 0.25 * opacity));
+      canvas.drawRect(
+        Offset.zero & box,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2 / scale
+          ..color = aiColor.withValues(alpha: opacity),
+      );
+      _tag(canvas, aiLabel(ai!.name), aiColor.withValues(alpha: opacity), Offset.zero);
       canvas.restore();
     }
 
@@ -1353,6 +1373,21 @@ class _CanvasPainter extends CustomPainter {
       label.paint(canvas, box.center - Offset(label.width / 2, label.height / 2));
     }
     canvas.restore();
+  }
+
+  /// A name on [color] standing on [at], in the coordinates of the canvas.
+  void _tag(Canvas canvas, String text, Color color, Offset at) {
+    final scale = state._scale;
+    final label = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(fontSize: 10 / scale, color: Colors.white),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final tag = Rect.fromLTWH(at.dx, at.dy - label.height - 2 / scale, label.width + 6 / scale, label.height + 2 / scale);
+    canvas.drawRect(tag, Paint()..color = color);
+    label.paint(canvas, tag.topLeft + Offset(3 / scale, 1 / scale));
   }
 
   /// A caret drawn [width] thick, across the line of the text: upright in

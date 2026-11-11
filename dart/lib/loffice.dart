@@ -29,6 +29,7 @@ export 'package:trame/trame.dart'
         randomId,
         webSocketConnector;
 
+export 'src/chrome/ai.dart' show AiParticipant;
 export 'src/chrome/commands.dart' show Answer, Answerer, Command, Mention, MentionSource;
 export 'src/chrome/link_card.dart' show LinkCard;
 export 'src/chrome/strings.dart' show LofficeStrings;

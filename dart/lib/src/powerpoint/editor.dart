@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:trame/trame.dart';
 
+import '../chrome/ai.dart';
 import '../chrome/commands.dart';
 import '../chrome/comments.dart';
 import '../chrome/comments_pane.dart';
@@ -46,6 +47,7 @@ class PresentationEditor extends StatefulWidget {
     this.commands = const [],
     this.onOpenLink,
     this.linkCard,
+    this.ai,
   });
 
   final DocSession session;
@@ -61,6 +63,10 @@ class PresentationEditor extends StatefulWidget {
   /// The card of the host over a link pointed at, or tapped on a touch
   /// screen in a document only read: what it leads to. Null shows nothing.
   final LinkCard? linkCard;
+
+  /// The AI the server installed in the room, which the host gives: without
+  /// it nothing of an AI shows.
+  final AiParticipant? ai;
 
   /// Fetches the pictures of the document by their name.
   final MediaFetcher media;
@@ -88,6 +94,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
   late final MediaCache _media = MediaCache(widget.media)..addListener(_repaint);
   final _selection = SlideSelection();
   final _canvasFocus = FocusNode();
+  late final AiMarks? _marks = widget.ai == null ? null : (AiMarks(_session, widget.ai!)..addListener(_repaint));
   StreamSubscription<String>? _rejections;
   StreamSubscription<Edit>? _changes;
   String? _slideId;
@@ -123,6 +130,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
 
   @override
   void dispose() {
+    _marks?.dispose();
     _session.removeListener(_repaint);
     _selection.removeListener(_repaint);
     unawaited(_rejections?.cancel());
@@ -850,6 +858,8 @@ class _PresentationEditorState extends State<PresentationEditor> {
                     commands: widget.commands,
                     onOpenLink: widget.onOpenLink,
                     linkCard: widget.linkCard,
+                    ai: widget.ai,
+                    marks: _marks,
                   ),
                 ),
                 if (_previews > 0)
@@ -998,8 +1008,10 @@ class _PresentationEditorState extends State<PresentationEditor> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 2),
               child: Tooltip(
-                message: p.name,
-                child: CircleAvatar(radius: 12, child: Text(p.name.isEmpty ? '?' : p.name.characters.first.toUpperCase(), style: const TextStyle(fontSize: 11))),
+                message: peerLabel(widget.ai, p),
+                child: widget.ai?.isPeer(p) ?? false
+                    ? const _AiAvatar()
+                    : CircleAvatar(radius: 12, child: Text(p.name.isEmpty ? '?' : p.name.characters.first.toUpperCase(), style: const TextStyle(fontSize: 11))),
               ),
             ),
         const SizedBox(width: 8),
@@ -1767,7 +1779,8 @@ class _Backstage extends StatelessWidget {
                 Text(session.saveError != null ? s.saveFailed(session.saveError!) : (session.saved ? s.saved : s.saving)),
                 if (session.readOnly) Text(s.readOnly),
                 const SizedBox(height: 16),
-                for (final p in session.peers) ListTile(leading: const Icon(Icons.person_outline), title: Text(p.name)),
+                for (final p in session.peers)
+                  ListTile(leading: editor.widget.ai?.isPeer(p) ?? false ? const _AiAvatar() : const Icon(Icons.person_outline), title: Text(peerLabel(editor.widget.ai, p))),
               ],
             ),
           ),
@@ -1775,6 +1788,18 @@ class _Backstage extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The mark of the AI among the people here.
+class _AiAvatar extends StatelessWidget {
+  const _AiAvatar();
+
+  @override
+  Widget build(BuildContext context) => const CircleAvatar(
+    radius: 12,
+    backgroundColor: aiColor,
+    child: Icon(Icons.auto_awesome, size: 14, color: Colors.white),
+  );
 }
 
 /// The columns and rows PowerPoint asks a cell to be split into.

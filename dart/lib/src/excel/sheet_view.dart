@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:trame/trame.dart';
 
+import '../chrome/ai.dart';
 import '../chrome/strings.dart';
 import 'cell_painter.dart';
 import 'charts.dart';
@@ -88,6 +89,16 @@ class PeerSelection {
   final CellArea area;
 }
 
+/// Cells the AI changed lately, drawn over them in its color, [opacity]
+/// fading to nothing.
+class AiHighlight {
+  const AiHighlight(this.label, this.area, this.opacity);
+
+  final String label;
+  final CellArea area;
+  final double opacity;
+}
+
 const _headerHeight = 22.0;
 const _headerColor = Color(0xFFF3F3F3);
 const _selectColor = Color(0xFF217346);
@@ -103,6 +114,7 @@ class SheetView extends StatefulWidget {
     required this.locale,
     this.zoom = 1,
     this.peers = const [],
+    this.highlights = const [],
     this.fonts,
     this.strings = const LofficeStrings(),
     this.editing = false,
@@ -130,6 +142,7 @@ class SheetView extends StatefulWidget {
   final NumberLocale locale;
   final double zoom;
   final List<PeerSelection> peers;
+  final List<AiHighlight> highlights;
   final String? fonts;
   final LofficeStrings strings;
 
@@ -641,6 +654,7 @@ class SheetViewState extends State<SheetView> {
                         selection: widget.selection.area,
                         active: widget.selection.active,
                         peers: widget.peers,
+                        highlights: widget.highlights,
                         locale: widget.locale,
                         fonts: widget.fonts,
                         texts: _texts,
@@ -797,6 +811,7 @@ class _SheetPainter extends CustomPainter {
     required this.selection,
     required this.active,
     required this.peers,
+    required this.highlights,
     required this.locale,
     required this.fonts,
     required this.texts,
@@ -815,6 +830,7 @@ class _SheetPainter extends CustomPainter {
   final CellArea selection;
   final (int, int) active;
   final List<PeerSelection> peers;
+  final List<AiHighlight> highlights;
   final NumberLocale locale;
   final String? fonts;
   final TextCache texts;
@@ -899,6 +915,13 @@ class _SheetPainter extends CustomPainter {
     }
   }
 
+  void _tag(Canvas canvas, Rect r, String label, Color color) {
+    final tag = texts.get(label, TextStyle(fontFamily: substituteFont(book.minorFont), package: fonts, fontSize: 10, color: Colors.white), 0, false);
+    final box = Rect.fromLTWH(r.right - tag.width - 6, r.top - tag.height - 2, tag.width + 6, tag.height + 2);
+    canvas.drawRect(box, Paint()..color = color);
+    tag.paint(canvas, box.topLeft + const Offset(3, 1));
+  }
+
   void _selection(Canvas canvas) {
     final sel = view.areaRect(selection);
     final one = selection.single || layout.mergeAt(selection.top, selection.left) == selection;
@@ -917,10 +940,20 @@ class _SheetPainter extends CustomPainter {
           ..strokeWidth = 2
           ..color = p.color,
       );
-      final tag = texts.get(p.name, TextStyle(fontFamily: substituteFont(book.minorFont), package: fonts, fontSize: 10, color: Colors.white), 0, false);
-      final box = Rect.fromLTWH(r.right - tag.width - 6, r.top - tag.height - 2, tag.width + 6, tag.height + 2);
-      canvas.drawRect(box, Paint()..color = p.color);
-      tag.paint(canvas, box.topLeft + const Offset(3, 1));
+      _tag(canvas, r, p.name, p.color);
+    }
+    for (final h in highlights) {
+      final r = view.areaRect(h.area);
+      final color = aiColor.withValues(alpha: h.opacity);
+      canvas.drawRect(r, Paint()..color = aiColor.withValues(alpha: 0.25 * h.opacity));
+      canvas.drawRect(
+        r.deflate(1),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2
+          ..color = color,
+      );
+      _tag(canvas, r, h.label, color);
     }
     final border = Paint()
       ..style = PaintingStyle.stroke

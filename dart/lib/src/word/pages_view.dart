@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:trame/trame.dart';
 
+import '../chrome/ai.dart';
 import '../chrome/commands.dart';
 import '../chrome/link_card.dart';
 import '../chrome/strings.dart';
@@ -34,6 +35,7 @@ class WordPagesView extends StatefulWidget {
     this.highlights = const [],
     this.changed = const [],
     this.trackAs,
+    this.ai,
     this.commands = const [],
     this.onOpenLink,
     this.linkCard,
@@ -66,6 +68,9 @@ class WordPagesView extends StatefulWidget {
 
   /// The author changes are tracked as, null when they are not tracked.
   final String? trackAs;
+
+  /// The AI of the room, whose cursor is told from people's.
+  final AiParticipant? ai;
 
   /// The keywords an `@` typed in the text starts.
   final List<Command> commands;
@@ -982,13 +987,25 @@ class _PagePainter extends CustomPainter {
     for (final peer in state._session.peers) {
       final sel = peer.selection;
       if (sel == null) continue;
-      final color = _peerColor(peer.sid);
+      final color = peerColor(state.widget.ai, peer, _peerColor(peer.sid));
       for (final (p, r) in layout.selection(sel.node, sel.start, sel.end)) {
         if (p == index) canvas.drawRect(r, Paint()..color = color.withValues(alpha: 0.25));
       }
       final caret = layout.caret(sel.node, sel.extent);
       if (caret != null && caret.$1 == index) {
         canvas.drawRect(Rect.fromLTWH(caret.$2.left - 0.5, caret.$2.top, 1.5, caret.$2.height), Paint()..color = color);
+        if (state.widget.ai?.isPeer(peer) ?? false) {
+          final label = TextPainter(
+            text: TextSpan(
+              text: peerLabel(state.widget.ai, peer),
+              style: TextStyle(fontSize: 10 / state._scale, color: Colors.white),
+            ),
+            textDirection: TextDirection.ltr,
+          )..layout();
+          final tag = Rect.fromLTWH(caret.$2.left, caret.$2.top - label.height - 2 / state._scale, label.width + 6 / state._scale, label.height + 2 / state._scale);
+          canvas.drawRect(tag, Paint()..color = color);
+          label.paint(canvas, tag.topLeft + Offset(3, 1) / state._scale);
+        }
       }
     }
     final flow = s.flow;

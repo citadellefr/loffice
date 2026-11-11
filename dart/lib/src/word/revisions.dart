@@ -155,8 +155,9 @@ List<WordRevision> revisionsOf(List<Node> flows) {
 /// insertion accepted or a deletion rejected stays, unmarked; an insertion
 /// rejected or a deletion accepted goes, and so does text both inserted
 /// and deleted. The last mark of a flow cannot go: it is only unmarked.
-Edit settle(List<(Node, int, int)> ranges, {required bool accept}) {
-  const unmarked = {'ins': '', 'insd': '', 'del': '', 'deld': ''};
+/// With [owns] only the changes it says yes to, given their author and
+/// date, are settled: the others stay as they are.
+Edit settle(List<(Node, int, int)> ranges, {required bool accept, bool Function(String author, String date)? owns}) {
   final changes = <Change>[];
   for (final (flow, start, end) in ranges) {
     final last = flow.text!.length - 1;
@@ -165,8 +166,13 @@ Edit settle(List<(Node, int, int)> ranges, {required bool accept}) {
     for (final op in slice(flow.text!, start, end).ops) {
       final a = op.attributes ?? const <String, String>{};
       final length = op.insert!.length;
-      final inserted = a['ins'] != null, deleted = a['del'] != null;
+      final inserted = a['ins'] != null && (owns?.call(a['ins']!, a['insd'] ?? '') ?? true);
+      final deleted = a['del'] != null && (owns?.call(a['del']!, a['deld'] ?? '') ?? true);
       final goes = deleted && (accept || inserted) || inserted && !accept;
+      final unmarked = {
+        if (inserted) ...{'ins': '', 'insd': ''},
+        if (deleted) ...{'del': '', 'deld': ''},
+      };
       if (!inserted && !deleted) {
         d.retain(length);
       } else if (!goes) {

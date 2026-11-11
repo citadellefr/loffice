@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:trame/trame.dart';
 
+import '../chrome/ai.dart';
 import '../chrome/commands.dart';
 import '../chrome/comments.dart';
 import '../chrome/comments_pane.dart';
@@ -27,6 +28,7 @@ import 'page_painter.dart';
 import 'pages_view.dart';
 import 'paragraph.dart';
 import 'revisions.dart';
+import 'revisions_pane.dart';
 
 /// A Word editor on a session whose document is a Word document: the
 /// ribbon, the pages, the status bar.
@@ -45,6 +47,7 @@ class WordEditor extends StatefulWidget {
     this.commands = const [],
     this.onOpenLink,
     this.linkCard,
+    this.ai,
   });
 
   final DocSession session;
@@ -60,6 +63,11 @@ class WordEditor extends StatefulWidget {
   /// The card of the host over a link pointed at, or tapped on a touch
   /// screen in a document only read: what it leads to. Null shows nothing.
   final LinkCard? linkCard;
+
+  /// The AI of the room, when the server has installed one: its cursor,
+  /// presence and revisions are then told from people's. Without it nothing
+  /// of an AI shows.
+  final AiParticipant? ai;
 
   /// Fetches the pictures of the document by their name.
   final MediaFetcher media;
@@ -110,6 +118,7 @@ class _WordEditorState extends State<WordEditor> {
   var _fitWidth = false;
   var _backstage = false;
   var _exporting = false;
+  var _revisionsShown = false;
 
   /// Whether the comments are shown, by default when the document has some;
   /// the thread whose card is open; the range of the comment being
@@ -134,7 +143,9 @@ class _WordEditorState extends State<WordEditor> {
   void initState() {
     super.initState();
     if (!OfficeFonts.settled) OfficeFonts.load().whenComplete(_repaint);
-    _session.addListener(_repaint);
+    _session
+      ..addListener(_repaint)
+      ..presence.addListener(_repaint);
     _selection.addListener(_repaint);
     _selection.addListener(_caretMoved);
     _rejections = _session.rejections.listen((reason) {
@@ -150,7 +161,9 @@ class _WordEditorState extends State<WordEditor> {
 
   @override
   void dispose() {
-    _session.removeListener(_repaint);
+    _session
+      ..removeListener(_repaint)
+      ..presence.removeListener(_repaint);
     _selection
       ..removeListener(_repaint)
       ..removeListener(_caretMoved);
@@ -766,6 +779,20 @@ class _WordEditorState extends State<WordEditor> {
     }),
   );
 
+  Widget _revisionsPane(BuildContext context) {
+    final tree = _session.document;
+    return RevisionsPane(
+      groups: groupRevisions(_revisions, ai: widget.ai, comments: [for (final t in _commentThreads) t.root]),
+      ai: widget.ai,
+      readOnly: _session.readOnly,
+      strings: _s,
+      textOf: (r) => slice(tree[r.flow]!.text!, r.start, r.end).ops.map((o) => o.insert).join(),
+      onSelect: _showRevision,
+      onSettle: _settleGroup,
+      onClose: () => setState(() => _revisionsShown = false),
+    );
+  }
+
   // searching
 
   /// What the search finds in the body, in reading order.
@@ -813,7 +840,7 @@ class _WordEditorState extends State<WordEditor> {
     final r = _revision;
     final flow = r == null ? null : tree[r.flow];
     final ranges = all
-        ? [for (final f in flows) (f, 0, f.text!.length)]
+        ? _everything
         : !_selection.collapsed
         ? _selection.ranges(tree, flows)
         : [if (flow != null) (flow, r!.start, r.end)];
@@ -825,6 +852,22 @@ class _WordEditorState extends State<WordEditor> {
     );
     if (next) _stepRevision(1);
     _focus.requestFocus();
+  }
+
+  List<(Node, int, int)> get _everything => [for (final f in flowsOf(_session.document)) (f, 0, f.text!.length)];
+
+  /// Accepts or rejects all the changes of [author].
+  void _settleBy(String author, bool accept) {
+    _edit(settle(_everything, accept: accept, owns: (a, _) => a == author));
+    _focus.requestFocus();
+  }
+
+  /// Accepts or rejects the change of a group of the pane, or all the
+  /// changes of its batch.
+  void _settleGroup(RevisionGroup group, bool accept) {
+    final tree = _session.document;
+    final ranges = group.batch ? _everything : [for (final r in group.revisions) (tree[r.flow]!, r.start, r.end)];
+    _edit(settle(ranges, accept: accept, owns: group.owns));
   }
 
   /// Selects the tracked change after the selection, or before it, going
@@ -840,7 +883,11 @@ class _WordEditorState extends State<WordEditor> {
     final found = by > 0
         ? revisions.where((r) => compare(r, r.start) >= 0 && !current(r)).firstOrNull ?? revisions.first
         : revisions.where((r) => compare(r, r.end) <= 0 && !current(r)).lastOrNull ?? revisions.last;
-    s.set(found.flow, found.start, found.end, null, PageArea.body);
+    _showRevision(found);
+  }
+
+  void _showRevision(WordRevision r) {
+    _selection.set(r.flow, r.start, r.end, null, PageArea.body);
     WidgetsBinding.instance.addPostFrameCallback((_) => _view.currentState?.reveal());
   }
 
@@ -849,9 +896,19 @@ class _WordEditorState extends State<WordEditor> {
     PopupMenuItem(value: 'this', enabled: !_selection.collapsed || _revision != null, child: Text(accept ? _s.acceptThis : _s.rejectThis)),
     PopupMenuItem(value: 'all', child: Text(accept ? _s.acceptAll : _s.rejectAll)),
     PopupMenuItem(value: 'stop', enabled: _tracking, child: Text(accept ? _s.acceptAllAndStop : _s.rejectAllAndStop)),
+    ..._authors.map((a) => PopupMenuItem(value: 'by:$a', child: Text(accept ? _s.acceptAllBy(_authorLabel(a)) : _s.rejectAllBy(_authorLabel(a))))),
   ];
 
-  void _settleChosen(bool accept, String choice) => _settle(accept: accept, all: choice == 'all' || choice == 'stop', next: choice == 'next', stop: choice == 'stop');
+  /// The authors of the tracked changes, when there is more than one to
+  /// choose from or one is the AI.
+  List<String> get _authors {
+    final authors = {for (final r in _revisions) r.author}.toList();
+    return authors.length > 1 || authors.any((a) => a == widget.ai?.name) ? authors : const [];
+  }
+
+  String _authorLabel(String author) => author == widget.ai?.name ? aiLabel(author) : author;
+
+  void _settleChosen(bool accept, String choice) => choice.startsWith('by:') ? _settleBy(choice.substring(3), accept) : _settle(accept: accept, all: choice == 'all' || choice == 'stop', next: choice == 'next', stop: choice == 'stop');
 
   void _openFind({bool replace = false}) {
     setState(() {
@@ -1099,6 +1156,7 @@ class _WordEditorState extends State<WordEditor> {
                           highlights: [for (final (n, a, b) in _matches) (n.id, a, b)],
                           changed: [for (final r in _revisions) (r.flow, r.start, r.end)],
                           trackAs: _trackAs,
+                          ai: widget.ai,
                           commands: widget.commands,
                           onOpenLink: widget.onOpenLink,
                           linkCard: widget.linkCard,
@@ -1107,6 +1165,7 @@ class _WordEditorState extends State<WordEditor> {
                       ),
                     ),
                   ),
+                  if (_revisionsShown && !phone) ...[const VerticalDivider(width: 1), SizedBox(width: 320, child: _revisionsPane(context))],
                   if (comments && !phone) ...[const VerticalDivider(width: 1), SizedBox(width: 320, child: _commentsPane(context))],
                 ],
               ),
@@ -1114,6 +1173,7 @@ class _WordEditorState extends State<WordEditor> {
             _statusBar(context),
           ],
         ),
+        if (_revisionsShown && phone) Positioned.fill(child: SafeArea(child: _revisionsPane(context))),
         if (comments && phone) Positioned.fill(child: SafeArea(child: _commentsPane(context))),
         if (_backstage) _Backstage(editor: this),
       ],
@@ -1208,8 +1268,10 @@ class _WordEditorState extends State<WordEditor> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 2),
               child: Tooltip(
-                message: p.name,
-                child: CircleAvatar(radius: 12, child: Text(p.name.isEmpty ? '?' : p.name.characters.first.toUpperCase(), style: const TextStyle(fontSize: 11))),
+                message: peerLabel(widget.ai, p),
+                child: widget.ai?.isPeer(p) ?? false
+                    ? const CircleAvatar(radius: 12, backgroundColor: aiColor, foregroundColor: Colors.white, child: Icon(Icons.auto_awesome, size: 14))
+                    : CircleAvatar(radius: 12, child: Text(p.name.isEmpty ? '?' : p.name.characters.first.toUpperCase(), style: const TextStyle(fontSize: 11))),
               ),
             ),
         const SizedBox(width: 8),
@@ -1468,6 +1530,13 @@ class _WordEditorState extends State<WordEditor> {
               selected: _tracking,
               onPressed: _session.readOnly ? null : _toggleTracking,
             ),
+            RibbonButton(
+              icon: const Icon(Icons.view_sidebar_outlined),
+              label: _s.revisionsPane,
+              large: true,
+              selected: _revisionsShown,
+              onPressed: () => setState(() => _revisionsShown = !_revisionsShown),
+            ),
           ]),
           RibbonGroup(_s.changes, [
             RibbonMenu<String>(
@@ -1546,8 +1615,8 @@ class _WordEditorState extends State<WordEditor> {
             if (revision != null) ...[
               Flexible(
                 child: Text(
-                  _s.revision(revision.deleted, revision.author, revision.date),
-                  style: style?.copyWith(color: revisionColor(revision.author)),
+                  _s.revision(revision.deleted, _authorLabel(revision.author), revision.date),
+                  style: style?.copyWith(color: revision.author == widget.ai?.name ? aiColor : revisionColor(revision.author)),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -1686,7 +1755,11 @@ class _Backstage extends StatelessWidget {
                 Text('${s.pageCount(editor._current.pages.length)} · ${s.words(editor._words)}'),
                 if (session.readOnly) Text(s.readOnly),
                 const SizedBox(height: 16),
-                for (final p in session.peers) ListTile(leading: const Icon(Icons.person_outline), title: Text(p.name)),
+                for (final p in session.peers)
+                  ListTile(
+                    leading: editor.widget.ai?.isPeer(p) ?? false ? const Icon(Icons.auto_awesome, color: aiColor) : const Icon(Icons.person_outline),
+                    title: Text(peerLabel(editor.widget.ai, p)),
+                  ),
               ],
             ),
           ),
