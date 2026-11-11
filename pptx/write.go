@@ -363,13 +363,20 @@ func (w *writer) element(n *ot.Node) *xmldom.Element {
 			base = newTableFrame()
 		}
 		if base != nil {
-			if x := base.Child(pNS, "xfrm"); x != nil && changed(ot.Values{"xfrm": mustJSON(drawingml.ReadXfrm(x))}, n.Attrs, "xfrm") {
+			frame := base
+			if base.Space == mcNS {
+				frame = chartChoice(base)
+			}
+			if frame == nil {
+				return base
+			}
+			if x := frame.Child(pNS, "xfrm"); x != nil && changed(ot.Values{"xfrm": mustJSON(drawingml.ReadXfrm(x))}, n.Attrs, "xfrm") {
 				var xfrm drawingml.Xfrm
 				if json.Unmarshal(n.Attrs["xfrm"], &xfrm) == nil {
 					drawingml.SetXfrm(x, &xfrm)
 				}
 			}
-			w.setNames(base, nvAttrs(base), n.Attrs)
+			w.setNames(frame, nvAttrs(frame), n.Attrs)
 			w.table(base, n)
 		}
 		return base

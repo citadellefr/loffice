@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/citadellefr/loffice/chart"
 	"github.com/citadellefr/loffice/formula"
 	"github.com/citadellefr/loffice/internal/xmldom"
 	"github.com/citadellefr/loffice/opc"
@@ -24,6 +25,7 @@ const (
 	relVML         = relBase + "vmlDrawing"
 	relPivotTable  = relBase + "pivotTable"
 	typeChart      = "application/vnd.openxmlformats-officedocument.drawingml.chart+xml"
+	typeChartEx    = "application/vnd.ms-office.chartex+xml"
 	typePivotCache = "application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheDefinition+xml"
 	drawingNS      = "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
 	chartNS        = "http://schemas.openxmlformats.org/drawingml/2006/chart"
@@ -274,7 +276,7 @@ func (w *writer) moveParts(sheets []sheet) error {
 	// charts and pivot caches may read any sheet
 	for _, name := range w.pkg.Names() {
 		switch w.pkg.ContentType(name) {
-		case typeChart:
+		case typeChart, typeChartEx:
 			if err := edit(name, func(root *xmldom.Element) bool { return m.formulas(root) }); err != nil {
 				return err
 			}
@@ -290,7 +292,7 @@ func (w *writer) moveParts(sheets []sheet) error {
 // anchors moves the cells the shapes of a drawing are anchored to.
 func (m *mover) anchors(root *xmldom.Element, own string) bool {
 	changed := false
-	for _, a := range root.Elements() {
+	for _, a := range drawingAnchors(root, true) {
 		for _, corner := range a.Elements() {
 			if corner.Space != drawingNS || corner.Local != "from" && corner.Local != "to" {
 				continue
@@ -337,7 +339,7 @@ func (m *mover) areas(e *xmldom.Element, own string) bool {
 func (m *mover) formulas(e *xmldom.Element) bool {
 	changed := false
 	for _, c := range e.Elements() {
-		if c.Space == chartNS && c.Local == "f" && len(c.Elements()) == 0 {
+		if (c.Space == chartNS || c.Space == chart.CXNS) && c.Local == "f" && len(c.Elements()) == 0 {
 			if t := c.Text(); t != "" {
 				if g := m.formula(t, ""); g != t {
 					c.Content = []xmldom.Node{xmldom.EscapeText(g)}

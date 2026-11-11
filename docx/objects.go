@@ -179,7 +179,7 @@ func (r *reader) drawing(e *xmldom.Element) *Picture {
 				}
 			}
 		}
-		if ref := find(c, chart.NS, "chart"); ref != nil {
+		if ref := chart.FindRef(c); ref != nil {
 			p.Chart, p.ChartNode = r.chart(ref)
 		}
 		if ref := find(c, dgmNS, "relIds"); ref != nil {

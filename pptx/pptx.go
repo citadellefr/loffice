@@ -546,6 +546,12 @@ func validNumber(s string) bool {
 }
 
 func (r *reader) shape(e *xmldom.Element, parent, prefix, key string, spaces map[string]string) {
+	root := e
+	if e.Space == mcNS {
+		if f := chartChoice(e); f != nil {
+			e = f
+		}
+	}
 	id := r.shapeID(prefix, e)
 	if e.Space == mcNS {
 		r.add(id, "alt", parent, key, ot.Values{"xml": r.d.raw(e)}, nil)
@@ -617,7 +623,7 @@ func (r *reader) shape(e *xmldom.Element, parent, prefix, key string, spaces map
 		}
 		tbl := tableOf(e)
 		if tbl == nil {
-			attrs["xml"] = r.d.raw(e)
+			attrs["xml"] = r.d.raw(root)
 			r.add(id, "frame", parent, key, attrs, nil)
 			return
 		}
@@ -712,11 +718,29 @@ func (r *reader) chart(frame *xmldom.Element) *chartpart.Part {
 	if gd == nil {
 		return nil
 	}
-	ref := gd.Child(chart.NS, "chart")
+	ref := chart.FindRef(gd)
 	if ref == nil {
 		return nil
 	}
 	return r.charts.Read(r.d.targetOf(ref))
+}
+
+// chartChoice is the graphic frame of an Excel 2016 chart an
+// AlternateContent offers, nil when it offers another content.
+func chartChoice(alt *xmldom.Element) *xmldom.Element {
+	for _, c := range alt.Elements() {
+		if c.Local != "Choice" {
+			continue
+		}
+		for _, f := range c.Elements() {
+			if f.Space == pNS && f.Local == "graphicFrame" {
+				if gd := graphicData(f); gd != nil && chart.FindRef(gd) != nil {
+					return f
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // diagram reads the drawing PowerPoint recorded of the SmartArt a graphic

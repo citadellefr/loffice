@@ -93,6 +93,8 @@ type Series struct {
 	Smooth    bool      `json:"smooth,omitempty"`
 	Explosion int       `json:"explosion,omitempty"`
 	Invert    bool      `json:"invert,omitempty"`
+	// Options are those of a series of a chart of Excel 2016.
+	Options *Options `json:"options,omitempty"`
 }
 
 // Data are the values of a series as Office cached them, and the cells
@@ -231,6 +233,9 @@ func Read(data []byte) (*Chart, error) {
 
 // ReadElement reads the chartSpace element of a chart part.
 func ReadElement(space *xmldom.Element) (*Chart, error) {
+	if space != nil && space.Space == CXNS && space.Local == "chartSpace" {
+		return readExtended(space)
+	}
 	if space == nil || space.Space != NS || space.Local != "chartSpace" {
 		return nil, ErrNotChart
 	}
@@ -466,10 +471,15 @@ func points(d *Data, e *xmldom.Element, numbers bool) {
 			d.Str[i] = text
 			continue
 		}
-		if v, err := strconv.ParseFloat(strings.TrimSpace(text), 64); err == nil && !math.IsInf(v, 0) && !math.IsNaN(v) {
-			d.Num[i] = &v
-		}
+		d.Num[i] = number(text)
 	}
+}
+
+func number(s string) *float64 {
+	if v, err := strconv.ParseFloat(strings.TrimSpace(s), 64); err == nil && !math.IsInf(v, 0) && !math.IsNaN(v) {
+		return &v
+	}
+	return nil
 }
 
 func readLabels(e *xmldom.Element) *Labels {
@@ -560,7 +570,7 @@ func gridlines(e *xmldom.Element) *ot.Values {
 
 func readTitle(e *xmldom.Element) *Title {
 	t := &Title{
-		Overlay: boolVal(child(e, "overlay")),
+		Overlay: boolVal(child(e, "overlay")) || truthy(e.Get("overlay"), false),
 		Layout:  layout(child(e, "layout")),
 		Shape:   shape(e),
 		Props:   textProps(child(e, "txPr")),
@@ -605,6 +615,10 @@ func readTitle(e *xmldom.Element) *Title {
 		}
 		return t
 	}
+	if data := child(tx, "txData"); data != nil {
+		t.Text = text(child(data, "v"))
+		return t
+	}
 	if d := readData(tx); d != nil && len(d.Str) > 0 {
 		t.Text = d.Str[0]
 	}
@@ -613,8 +627,8 @@ func readTitle(e *xmldom.Element) *Title {
 
 func readLegend(e *xmldom.Element) *Legend {
 	l := &Legend{
-		Pos:     val(child(e, "legendPos")),
-		Overlay: boolVal(child(e, "overlay")),
+		Pos:     either(val(child(e, "legendPos")), e.Get("pos")),
+		Overlay: boolVal(child(e, "overlay")) || truthy(e.Get("overlay"), false),
 		Text:    textProps(child(e, "txPr")),
 		Shape:   shape(e),
 		Layout:  layout(child(e, "layout")),
@@ -717,11 +731,16 @@ func merge(base, over drawingml.Props) drawingml.Props {
 
 const aNS = "http://schemas.openxmlformats.org/drawingml/2006/main"
 
+// child is the child of e with that name, in the namespace of charts or of
+// the charts of Excel 2016.
 func child(e *xmldom.Element, local string) *xmldom.Element {
 	if e == nil {
 		return nil
 	}
-	return e.Child(NS, local)
+	if c := e.Child(NS, local); c != nil {
+		return c
+	}
+	return e.Child(CXNS, local)
 }
 
 func text(e *xmldom.Element) string {
