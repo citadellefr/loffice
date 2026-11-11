@@ -275,7 +275,7 @@ class _Fields {
     final at = f.resultStart > 0 ? slice(flow.text!, f.resultStart - 1, f.resultStart).ops.firstOrNull?.attributes : null;
     return {
       for (final e in (at ?? const <String, String>{}).entries)
-        if (!wordObjectKeys.contains(e.key) && !revisionKeys.contains(e.key)) e.key: e.value,
+        if (e.key != 'field' && !wordObjectKeys.contains(e.key) && !revisionKeys.contains(e.key)) e.key: e.value,
     };
   }
 

@@ -72,7 +72,7 @@ void main() {
   }
 
   Future<void> start(WidgetTester tester, Edit edit, Widget Function(DocSession session) editor) async {
-    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.physicalSize = const Size(1800, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     hub = FakeHub.tree(edit);
