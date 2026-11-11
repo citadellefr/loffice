@@ -8,7 +8,8 @@ Office users. It is developed by [Citadelle](https://github.com/citadellefr),
 where it replaces a LibreOffice-based editor, and is released under the MIT
 license.
 
-> L'Office is in early development. Nothing here is ready for use yet.
+L'Office is at version 1.0.0, its first stable release, for `.docx`, `.xlsx`
+and `.pptx` files. See the [changelog](CHANGELOG.md).
 
 ## Principles
 
@@ -204,6 +205,9 @@ session of the Dart package. A document is a tree of nodes; what each format
 makes of its file is described by the package that reads it.
 
 ## Limits
+
+Not supported: `.doc`, `.ppt`, `.xlsb` and OpenDocument files. Excel 2016
+charts (chartex) are read-only.
 
 `loffice.NewHub(store, options, limits)` takes the `loffice.Limits` of the
 files it opens, and `loffice.Convert` those of the files it converts; the

@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## 1.0.0 — 2026-11-11
+
+First stable release. L'Office opens, edits and saves `.docx`, `.xlsx` and
+`.pptx` files (and their macro-enabled, template and slide show variants) and
+reads Excel 97 to 2003 workbooks. Not supported: `.doc`, `.ppt`, `.xlsb` and
+OpenDocument files; the Excel 2016 charts (chartex) are read-only.
 
 - Word fields can be updated and inserted: F9 (or "Mettre à jour les champs"
   in the References tab and the context menu) rewrites the tables of contents,
