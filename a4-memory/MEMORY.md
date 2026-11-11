@@ -36,7 +36,7 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m96** (à_revérifier) Values of type TypeLambda never leave the calculation: a cell, scalar() and the engine's cellValue turn them into #CALC!. — _ag5, t11_
 
 ### tools/validate/run.sh
-- **m121** (à_revérifier) tools/validate/run.sh [dossier [famille...]] lance toute la validation Open XML SDK (réécritures et éditions de opc, pptx, xlsx, legacy, docx) et prend dotnet de nix s'il manque dans le PATH ; il compile Validate.dll une fois dans <dossier>/validate. Les familles peuvent tourner en parallèle avec un même dossier ; opc (3641 fichiers) prend ~25 min, le total ~35 min. — _ag4, t29_
+- **m121** tools/validate/run.sh [dossier [famille...]] lance toute la validation Open XML SDK (réécritures et éditions de opc, pptx, xlsx, legacy, docx) et prend dotnet de nix s'il manque dans le PATH ; il compile Validate.dll une fois dans <dossier>/validate. Les familles peuvent tourner en parallèle avec un même dossier ; opc (3641 fichiers) prend ~25 min, le total ~35 min. — _ag4, t29_
 - **m167** (à_revérifier) Validation Open XML locale sans dotnet installé : `nix shell nixpkgs#dotnet-sdk_8 -c dotnet build tools/validate -c Release -o /tmp/v` puis `LOFFICE_EDITED=1 dotnet /tmp/v/Validate.dll corpus/files <dossier de docx réécrits>` ; corpus/files est un lien : find ne le suit pas, utiliser un glob Go. — _ag1, t36_
 
 ### xlsx/links.go
@@ -269,4 +269,4 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m114** (à_revérifier) Coédition IA (décision de l'humain, 04/11) : l'IA écrit en direct dans le document même quand d'autres personnes l'ont ouvert ; aucune attente ni verrou parce que des humains sont présents dans la salle. — _orchestra_
 
 ### chart/
-- **m186** (à_revérifier) Portée restante de la v1.0 de loffice, fixée par l'humain le 05/11 : fidélité seulement, soit les graphiques Excel 2016 (chartex), les objets éditables dans Word (images, champs) et les animations PowerPoint. Les formats .doc, .ppt, .xlsb et ODF sont repoussés après la 1.0. — _orchestra_
+- **m186** Portée restante de la v1.0 de loffice, fixée par l'humain le 05/11 : fidélité seulement, soit les graphiques Excel 2016 (chartex), les objets éditables dans Word (images, champs) et les animations PowerPoint. Les formats .doc, .ppt, .xlsb et ODF sont repoussés après la 1.0. — _orchestra_
