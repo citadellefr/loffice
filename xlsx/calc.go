@@ -189,6 +189,7 @@ func (c *Calc) Follow(e ot.Edit, since []ot.Edit) ot.Edit {
 			iterate = iterate || ch.ID == "book" && ch.Attrs["iterate"] != nil
 		}
 	}
+	f.books = books
 	if books && f.sheetsChanged() {
 		graph = true
 	}
@@ -267,6 +268,8 @@ type follow struct {
 	c     *Calc
 	out   ot.Edit
 	moved bool
+	// books tells whether sheets came, went, moved or were renamed.
+	books bool
 	// cells are the fields to set, by sheet and cell.
 	cells map[string]map[[2]int]map[string]json.RawMessage
 	// book are the attributes of the book to set.
@@ -874,6 +877,14 @@ func (f *follow) recalc(e ot.Edit, circles bool) {
 					}
 					return true
 				})
+			}
+		}
+	}
+	if f.books {
+		for _, p := range c.engine.Structural() {
+			if !seen[p] {
+				seen[p] = true
+				changed = append(changed, p)
 			}
 		}
 	}
