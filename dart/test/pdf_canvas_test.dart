@@ -324,15 +324,7 @@ void main() {
       canvas.drawRect(box, Paint()..colorFilter = const ColorFilter.mode(Color(0xFF000000), BlendMode.srcIn));
       canvas.drawRect(box, Paint()..blendMode = BlendMode.multiply);
     });
-    expect(export.ignored, {
-      'a picture of the engine',
-      'a paragraph of the engine',
-      'vertices',
-      'an atlas',
-      'a color in blend mode multiply',
-      'a shape with a color filter',
-      'a shape in blend mode multiply',
-    });
+    expect(export.ignored, {Ignored.picture, Ignored.paragraph, Ignored.vertices, Ignored.atlas, Ignored.blendMode, Ignored.colorFilter});
     expect(pdf.content, contains('f*'));
     expect(RegExp(r'/Im\d+ Do').allMatches(pdf.content), hasLength(11));
   });
