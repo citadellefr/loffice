@@ -213,6 +213,8 @@ class SlidePainter {
     final (fill, fillColors) = _fill(style, colors, theme);
     final painter = DrawingPainter(fillColors, images: images);
     final resolvedFill = fill != null && fill['grp'] == true ? groupFill : fill;
+    final (line, lineColors) = _line(style, colors, theme);
+    _shadow(canvas, shape, style, paths, painter, resolvedFill, DrawingPainter(lineColors), line);
     for (final p in paths) {
       if (p.fill != PathFill.none) painter.fill(canvas, p.path, Offset.zero & size, resolvedFill, mode: p.fill);
     }
@@ -229,13 +231,32 @@ class SlidePainter {
         canvas.restore();
       }
     }
-    final (line, lineColors) = _line(style, colors, theme);
     for (final p in paths) {
       if (p.stroke) DrawingPainter(lineColors).line(canvas, p.path, line);
     }
     final frame = textOf(shape);
     frame?.paint(canvas);
     canvas.restore();
+  }
+
+  /// The shadow of a shape: its fill's, or its outline's when it has no
+  /// fill.
+  void _shadow(Canvas canvas, Node shape, ShapeStyle style, List<ShapePath> paths, DrawingPainter fillPainter, Map<String, Object?>? fill, DrawingPainter linePainter, Map<String, Object?>? line) {
+    final shadow = style.shadow;
+    if (shadow == null) return;
+    final inverse = transformOf(shape).invert();
+    Offset toLocal(Offset d) => inverse.apply(d) - inverse.apply(Offset.zero);
+    final filled = shape.type == 'pic' || fill != null && fill['none'] != true;
+    final lineFill = line?['fill'];
+    final outlined = lineFill is Map<String, Object?> && lineFill['none'] != true;
+    final width = line?['w'] is num ? (line!['w']! as num) / 12700 : 0.75;
+    for (final p in paths) {
+      if (filled && p.fill != PathFill.none) {
+        fillPainter.shadow(canvas, p.path, shadow, toLocal: toLocal);
+      } else if (!filled && outlined && p.stroke) {
+        linePainter.shadow(canvas, p.path, shadow, stroke: width, toLocal: toLocal);
+      }
+    }
   }
 
   DiagramPainter? _diagramOf(Node frame, ColorContext colors, DeckTheme theme) => DiagramPainter.of(

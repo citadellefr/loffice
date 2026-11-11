@@ -16,6 +16,18 @@ Deck _fixture(String name) {
   return Deck(Tree.fromEdit(edit)!);
 }
 
+const _shadow = {
+  'color': {
+    'rgb': '000000',
+    'mods': [
+      ['alpha', 100000],
+    ],
+  },
+  'blur': 0,
+  'dist': 190500,
+  'dir': 2700000,
+};
+
 void main() {
   const fixtures = ['shp-shapes', 'ph-populated-placeholders', 'txt-text', 'dml-fill', 'tbl-cell'];
 
@@ -153,5 +165,40 @@ void main() {
         }
       }
     }
+  });
+
+  test('an outer shadow is part of what a shape looks like and is drawn behind it', () async {
+    final deck = _fixture('shp-shapes');
+    final shape = deck.tree['s257-9']!;
+    expect(deck.styleOf(shape).shadow, isNull);
+    final slide = deck.slides[1];
+    final painter = SlidePainter(deck);
+    Future<ui.Image> render() async {
+      final recorder = ui.PictureRecorder();
+      painter.paint(Canvas(recorder), slide);
+      return recorder.endRecording().toImage(deck.size.width.ceil(), deck.size.height.ceil());
+    }
+
+    Future<int> alphaAt(ui.Image image, Offset p) async {
+      final data = (await image.toByteData())!;
+      final i = (p.dy.round() * image.width + p.dx.round()) * 4;
+      return 255 - data.getUint8(i);
+    }
+
+    final bounds = deck.styleOf(shape).bounds!;
+    // 8 points past the corner: inside the shadow, which is 15 points down and right
+    final probe = bounds.bottomRight + const Offset(8, 8);
+    expect(await alphaAt(await render(), probe), 0);
+
+    deck.tree.apply(
+      Edit([
+        Change.set(shape.id, attributes: {'shadow': _shadow}),
+      ]),
+    );
+    final style = deck.styleOf(deck.tree[shape.id]!).shadow!;
+    expect(style['dist'], 190500);
+    expect(style['dir'], 2700000);
+    expect(await alphaAt(await render(), probe), 255);
+    expect(await alphaAt(await render(), bounds.bottomRight + const Offset(20, 20)), 0);
   });
 }
