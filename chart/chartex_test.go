@@ -3,6 +3,7 @@ package chart
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/citadellefr/loffice/internal/xmldom"
@@ -159,4 +160,18 @@ func mustParse(t *testing.T, data []byte) *xmldom.Document {
 		t.Fatal(err)
 	}
 	return doc
+}
+
+func TestHistogramBinsAsAttribute(t *testing.T) {
+	data, err := os.ReadFile("testdata/histogram.xml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := Read([]byte(strings.Replace(string(data), "<cx:binSize>3</cx:binSize>", `<cx:binSize val="3"/>`, 1)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b := c.Plots[0].Series[0].Options.Bins; b == nil || b.Size == nil || *b.Size != 3 {
+		t.Errorf("bins: %+v", b)
+	}
 }

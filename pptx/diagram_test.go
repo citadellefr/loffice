@@ -3,6 +3,7 @@ package pptx
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/citadellefr/loffice/drawingml"
@@ -89,15 +90,13 @@ func TestPreviews(t *testing.T) {
 
 func TestFallbackPicture(t *testing.T) {
 	_, tree := openCorpus(t, "libreoffice/forum-mso-de-138303.pptx")
-	for _, alt := range tree.Children(slidesOf(tree)[0].ID) {
-		if alt.Type != "alt" {
-			continue
-		}
-		pics := tree.Children(alt.ID)
-		if len(pics) != 1 || pics[0].Type != "pic" || len(pics[0].Attrs["blip"]) == 0 {
-			t.Errorf("fallback of %s: %+v", alt.ID, pics)
-		}
-		return
+	frames := framesOf(tree, "chart")
+	if len(frames) != 1 {
+		t.Fatalf("%d charts", len(frames))
 	}
-	t.Error("no alternate content")
+	var xml string
+	_ = json.Unmarshal(frames[0].Attrs["xml"], &xml)
+	if !strings.Contains(xml, "<mc:Fallback") || !strings.Contains(xml, "<p:pic>") {
+		t.Errorf("fallback of %s: %s", frames[0].ID, xml)
+	}
 }

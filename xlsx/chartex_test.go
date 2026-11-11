@@ -25,7 +25,7 @@ func chartexPackage(t *testing.T) ([]byte, map[string][]byte) {
 		t.Fatal(err)
 	}
 	const cx = `xmlns:cx="http://schemas.microsoft.com/office/drawing/2014/chartex"`
-	wsDr := `<xdr:wsDr xmlns:xdr="` + drawingNS + `" xmlns:a="` + aNS + `" xmlns:r="` + relNS + `" xmlns:mc="` + mcNS + `">`
+	wsDr := `<xdr:wsDr xmlns:xdr="` + drawingNS + `" xmlns:a="` + aNS + `" xmlns:r="` + relNS + `" xmlns:mc="` + mcNS + `" xmlns:cx1="http://schemas.microsoft.com/office/drawing/2015/9/8/chartex">`
 	var rels []opc.Relationship
 	parts := map[string][]byte{}
 	for i, name := range extendedCharts {
@@ -48,7 +48,7 @@ func chartexPackage(t *testing.T) ([]byte, map[string][]byte) {
 			`<xdr:graphicFrame macro=""><xdr:nvGraphicFramePr><xdr:cNvPr id="` + fmt.Sprint(i+2) + `" name="Graphique ` + fmt.Sprint(i+1) + `"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr>` +
 			`<xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm><a:graphic><a:graphicData uri="http://schemas.microsoft.com/office/drawing/2014/chartex">` +
 			`<cx:chart ` + cx + ` r:id="` + id + `"/></a:graphicData></a:graphic></xdr:graphicFrame><xdr:clientData/></xdr:twoCellAnchor></mc:Choice>` +
-			`<mc:Fallback><xdr:twoCellAnchor>` + pos(i) + `<xdr:sp macro="" textlink=""><xdr:nvSpPr><xdr:cNvPr id="0" name=""/><xdr:cNvSpPr/></xdr:nvSpPr><xdr:spPr/></xdr:sp><xdr:clientData/></xdr:twoCellAnchor></mc:Fallback></mc:AlternateContent>`
+			`<mc:Fallback><xdr:twoCellAnchor>` + pos(i) + `<xdr:sp macro="" textlink=""><xdr:nvSpPr><xdr:cNvPr id="` + fmt.Sprint(i+2) + `" name="Graphique ` + fmt.Sprint(i+1) + `"/><xdr:cNvSpPr/></xdr:nvSpPr><xdr:spPr/></xdr:sp><xdr:clientData/></xdr:twoCellAnchor></mc:Fallback></mc:AlternateContent>`
 	}
 	wsDr += `</xdr:wsDr>`
 	sheet := `<worksheet xmlns="` + mainNS + `" xmlns:r="` + relNS + `"><sheetData>` +

@@ -15,7 +15,9 @@
   JSON of classic charts, with the options of their series (`options`:
   subtotals, bins, quartiles, parents). `xlsx`, `pptx` and `docx` expose them
   like classic charts, read only: their frame moves and resizes, their parts
-  and relationships are saved as they were. The Dart painter draws all but
+  and relationships are saved as they were, the fallback picture of a moved
+  or renamed frame following it. `cx:binSize` and the other bin values are read
+  as the text of their element, or as `val`. The Dart painter draws all but
   the map, which gets a substitute.
 - Deleting an animated shape from a slide drops only the effects that aimed at
   it, with their builds and the click or group they leave empty; the other

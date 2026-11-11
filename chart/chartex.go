@@ -264,8 +264,8 @@ func readExOptions(layoutPr *xmldom.Element, layout string) *Options {
 				}
 			}
 		case "binning":
-			o.Bins = &Bins{Closed: c.Get("intervalClosed"), Size: number(val(child(c, "binSize"))), Under: number(val(child(c, "underflow"))), Over: number(val(child(c, "overflow")))}
-			if n, err := strconv.Atoi(val(child(c, "binCount"))); err == nil {
+			o.Bins = &Bins{Closed: c.Get("intervalClosed"), Size: number(binValue(c, "binSize")), Under: number(binValue(c, "underflow")), Over: number(binValue(c, "overflow"))}
+			if n, err := strconv.Atoi(binValue(c, "binCount")); err == nil {
 				o.Bins.Count = &n
 			}
 		case "aggregation":
@@ -279,6 +279,16 @@ func readExOptions(layoutPr *xmldom.Element, layout string) *Options {
 		}
 	}
 	return o
+}
+
+// binValue is a number of a cx:binning, written as the text of its element
+// or as the val attribute of it.
+func binValue(binning *xmldom.Element, local string) string {
+	e := child(binning, local)
+	if v := val(e); v != "" || e == nil {
+		return v
+	}
+	return strings.TrimSpace(e.Text())
 }
 
 func readExLabels(e *xmldom.Element) *Labels {

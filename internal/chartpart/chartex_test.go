@@ -72,7 +72,8 @@ func pptxWith(t *testing.T, kind string) []byte {
 		`<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="5" name="Graphique 1"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>` +
 		`<p:xfrm><a:off x="100" y="200"/><a:ext cx="3000" cy="2000"/></p:xfrm><a:graphic><a:graphicData uri="http://schemas.microsoft.com/office/drawing/2014/chartex">` +
 		`<cx:chart ` + chartExNS + ` r:id="rIdEx"/></a:graphicData></a:graphic></p:graphicFrame></mc:Choice>` +
-		`<mc:Fallback><p:sp><p:nvSpPr><p:cNvPr id="0" name=""/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr/></p:sp></mc:Fallback></mc:AlternateContent>`
+		`<mc:Fallback><p:pic><p:nvPicPr><p:cNvPr id="5" name="Graphique 1"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr><p:blipFill/>` +
+		`<p:spPr><a:xfrm><a:off x="100" y="200"/><a:ext cx="3000" cy="2000"/></a:xfrm></p:spPr></p:pic></mc:Fallback></mc:AlternateContent>`
 	slide = []byte(strings.Replace(string(slide), "</p:spTree>", frame+"</p:spTree>", 1))
 	if err := p.Set("ppt/slides/slide1.xml", slide); err != nil {
 		t.Fatal(err)
@@ -88,7 +89,7 @@ func docxWith(t *testing.T, kind string) []byte {
 	}
 	relate(t, p, "word/document.xml", "charts/chartEx1.xml")
 	doc, _ := p.Read("word/document.xml")
-	run := `<w:p><w:r><mc:AlternateContent xmlns:mc="` + mcNS + `" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">` +
+	run := `<w:p><w:r><mc:AlternateContent xmlns:mc="` + mcNS + `" xmlns:cx1="http://schemas.microsoft.com/office/drawing/2015/9/8/chartex" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">` +
 		`<mc:Choice Requires="cx1"><w:drawing><wp:inline><wp:extent cx="5000000" cy="3000000"/><wp:docPr id="1" name="Graphique 1"/>` +
 		`<a:graphic><a:graphicData uri="http://schemas.microsoft.com/office/drawing/2014/chartex"><cx:chart ` + chartExNS + ` r:id="rIdEx"/></a:graphicData></a:graphic></wp:inline></w:drawing></mc:Choice>` +
 		`<mc:Fallback><w:pict/></mc:Fallback></mc:AlternateContent></w:r></w:p>`
@@ -169,9 +170,9 @@ func TestExtendedFrameMoves(t *testing.T) {
 	}
 	p, _ := opc.Open(saved, opc.Limits{})
 	slide, _ := p.Read("ppt/slides/slide1.xml")
-	for _, want := range []string{`<a:off x="500" y="600"/>`, `name="Cascade"`, `<cx:chart`, `<mc:Fallback>`} {
-		if !strings.Contains(string(slide), want) {
-			t.Errorf("slide lacks %s: %s", want, slide)
+	for want, count := range map[string]int{`<a:off x="500" y="600"/>`: 2, `<a:ext cx="4000" cy="2500"/>`: 2, `name="Cascade"`: 2, `<cx:chart`: 1, `<mc:Fallback>`: 1} {
+		if got := strings.Count(string(slide), want); got != count {
+			t.Errorf("%d of %s, want %d: %s", got, want, count, slide)
 		}
 	}
 }
