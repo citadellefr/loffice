@@ -764,6 +764,7 @@ class LofficeStrings {
   };
   String get presenterView => 'Mode Présentateur';
   String get nextSlide => 'Diapositive suivante';
+  String animationStepsLeft(int n) => n == 0 ? 'Aucune animation restante' : (n == 1 ? '1 animation restante' : '$n animations restantes');
   String get previousSlide => 'Diapositive précédente';
   String get endSlideShow => 'Arrêter le diaporama';
   String get pauseTimer => 'Suspendre le minuteur';
