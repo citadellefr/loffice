@@ -63,10 +63,11 @@ type Engine struct {
 	formulas map[Pos]*cellFormula
 	// readers are the formulas reading a cell by itself; areas those
 	// reading a range, by column, or in wide when it spans many.
-	readers  map[Pos][]*cellFormula
-	areas    map[[2]int][]areaReader
-	wide     map[int][]areaReader
-	volatile map[Pos]bool
+	readers    map[Pos][]*cellFormula
+	areas      map[[2]int][]areaReader
+	wide       map[int][]areaReader
+	volatile   map[Pos]bool
+	structural map[Pos]bool
 	// subtotals are the formulas calling SUBTOTAL or AGGREGATE, which
 	// read whether rows are hidden.
 	subtotals map[Pos]bool
@@ -178,7 +179,7 @@ func NewEngine(src Source, opt Options) *Engine {
 		opt.Rand = rand.Float64
 	}
 	return &Engine{src: src, opt: opt, formulas: map[Pos]*cellFormula{}, readers: map[Pos][]*cellFormula{},
-		areas: map[[2]int][]areaReader{}, wide: map[int][]areaReader{}, volatile: map[Pos]bool{}, subtotals: map[Pos]bool{}, arrays: map[Pos]Pos{},
+		areas: map[[2]int][]areaReader{}, wide: map[int][]areaReader{}, volatile: map[Pos]bool{}, structural: map[Pos]bool{}, subtotals: map[Pos]bool{}, arrays: map[Pos]Pos{},
 		spills: map[Pos]*cellFormula{}, spread: map[Pos]*cellFormula{}, orphans: map[Pos]bool{}, circular: map[Pos]bool{}}
 }
 
@@ -231,6 +232,9 @@ func (e *Engine) set(p Pos, f string, array *Area, dynamic bool) {
 		if f := functions[name]; f != nil && f.volatile {
 			e.volatile[p] = true
 		}
+		if f := functions[name]; f != nil && f.structural {
+			e.structural[p] = true
+		}
 		if name == "SUBTOTAL" || name == "AGGREGATE" {
 			e.subtotals[p] = true
 		}
@@ -272,6 +276,7 @@ func (e *Engine) Spill(p Pos) *Area {
 
 func (e *Engine) unindex(p Pos, cf *cellFormula) {
 	delete(e.volatile, p)
+	delete(e.structural, p)
 	delete(e.circular, p)
 	delete(e.subtotals, p)
 	for _, a := range cf.reads {
@@ -693,6 +698,13 @@ func (e *Engine) spillsAt(p Pos, f func(*cellFormula)) {
 			f(cf)
 		}
 	}
+}
+
+// Structural are the formulas whose values depend on the sheets of the
+// book: SHEETS, INFO, CELL. Recalc them when sheets came, went or were
+// renamed.
+func (e *Engine) Structural() []Pos {
+	return slices.Collect(maps.Keys(e.structural))
 }
 
 // Known tells the engine the formulas in circles of the engine it replaces,

@@ -433,11 +433,20 @@ func TestCalcPr(t *testing.T) {
 }
 
 func largeTree(b *testing.B, n int) *ot.Tree {
+	return largeTreeWith(b, n, "")
+}
+
+// Every fourth formula of column B is extra, when it is not empty.
+func largeTreeWith(b *testing.B, n int, extra string) *ot.Tree {
 	cells := make([]ot.Cell, 0, 2*n)
 	for i := 1; i <= n; i++ {
+		f := fmt.Sprintf(`A%d*2+SUM(A%d:A%d)`, i, max(i-4, 1), i)
+		if extra != "" && i%4 == 0 {
+			f = extra
+		}
 		cells = append(cells,
 			ot.Cell{Row: i, Col: 1, Fields: json.RawMessage(`{"v":` + strconv.Itoa(i) + `}`)},
-			ot.Cell{Row: i, Col: 2, Fields: json.RawMessage(fmt.Sprintf(`{"f":"A%d*2+SUM(A%d:A%d)","v":0}`, i, max(i-4, 1), i))})
+			ot.Cell{Row: i, Col: 2, Fields: json.RawMessage(`{"f":"` + strings.ReplaceAll(f, `"`, `\"`) + `","v":0}`)})
 	}
 	tree, err := ot.NewTree(ot.Edit{
 		{Op: ot.OpNew, ID: "book", Type: "book", Key: "V"},
@@ -473,6 +482,27 @@ func BenchmarkRenameSheet(b *testing.B) {
 	}
 }
 
+// One cell edited in 100 000 formulas, a quarter of them CELL, SHEETS or
+// INFO, against the same book without them (a quarter of ROW).
+func BenchmarkEditPlain(b *testing.B)  { benchmarkEdit(b, `ROW(A1)`) }
+func BenchmarkEditCell(b *testing.B)   { benchmarkEdit(b, `CELL("filename",A1)`) }
+func BenchmarkEditSheets(b *testing.B) { benchmarkEdit(b, `SHEETS()`) }
+func BenchmarkEditInfo(b *testing.B)   { benchmarkEdit(b, `INFO("numfile")`) }
+
+func benchmarkEdit(b *testing.B, extra string) {
+	tree := largeTreeWith(b, 100000, extra)
+	c := NewCalc(tree, formula.Options{})
+	i := 0
+	for b.Loop() {
+		i++
+		e := ot.Edit{{Op: ot.OpCel, ID: "S1", Cells: []ot.Cell{cell(1, 1, `{"v":`+strconv.Itoa(i)+`}`)}}}
+		if err := tree.Apply(e); err != nil {
+			b.Fatal(err)
+		}
+		c.Follow(e, nil)
+	}
+}
+
 func TestCalcWorkbookInfo(t *testing.T) {
 	tree, c := calcTree(t)
 	edit(t, tree, c, ot.Edit{{Op: ot.OpNew, ID: "S3", Type: "sheet", Parent: "book", Key: "M", Attrs: ot.Values{"name": json.RawMessage(`"Trois"`)}}})
@@ -483,6 +513,29 @@ func TestCalcWorkbookInfo(t *testing.T) {
 			t.Fatalf("col %d: %s, want %s", col, got, want)
 		}
 	}
+}
+
+func TestCalcStructuralFollowsSheets(t *testing.T) {
+	tree, c := calcTree(t)
+	c.opt.FileName = "budget.xlsx"
+	c.rebuild()
+	edit(t, tree, c, ot.Edit{{Op: ot.OpCel, ID: "S1", Cells: []ot.Cell{
+		cell(6, 1, `{"f":"SHEETS()"}`), cell(6, 2, `{"f":"INFO(\"numfile\")"}`), cell(6, 3, `{"f":"CELL(\"filename\",A1)"}`)}}})
+	check := func(sheets, name string) {
+		t.Helper()
+		got := fieldsAt(tree, "S1", 6, 1) + "|" + fieldsAt(tree, "S1", 6, 2) + "|" + fieldsAt(tree, "S1", 6, 3)
+		want := `{"f":"_xlfn.SHEETS()","v":` + sheets + `}|{"f":"INFO(\"numfile\")","v":` + sheets + `}|{"f":"CELL(\"filename\",A1)","v":"[budget.xlsx]` + name + `"}`
+		if got != want {
+			t.Fatalf("got %s, want %s", got, want)
+		}
+	}
+	check("2", "Feuil1")
+	edit(t, tree, c, ot.Edit{{Op: ot.OpSet, ID: "S1", Attrs: ot.Values{"name": json.RawMessage(`"Autre"`)}}})
+	check("2", "Autre")
+	edit(t, tree, c, ot.Edit{{Op: ot.OpNew, ID: "S3", Type: "sheet", Parent: "book", Key: "M", Attrs: ot.Values{"name": json.RawMessage(`"Trois"`)}}})
+	check("3", "Autre")
+	edit(t, tree, c, ot.Edit{{Op: ot.OpDel, ID: "S3"}})
+	check("2", "Autre")
 }
 
 func TestCalcFileName(t *testing.T) {

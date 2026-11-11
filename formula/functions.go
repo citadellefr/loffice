@@ -13,6 +13,9 @@ type function struct {
 	// volatile functions give another value each time: the engine
 	// calculates them, and what depends on them, after every change.
 	volatile bool
+	// structural functions give another value only when the sheets of the
+	// book change: the engine calculates them then, see Structural.
+	structural bool
 }
 
 var functions = map[string]*function{}
@@ -43,6 +46,12 @@ func fn(min, max int, f func(c *Context, v []Value) Value) *function {
 		}
 		return f(c, v)
 	}}
+}
+
+// structural marks a function to calculate again when the sheets change.
+func structural(f *function) *function {
+	f.structural = true
+	return f
 }
 
 // volatile marks a function to calculate again after every edit.
