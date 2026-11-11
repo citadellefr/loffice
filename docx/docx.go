@@ -84,8 +84,11 @@ type Document struct {
 	// be written back. The seed is secret, so that no client can forge
 	// XML with the hash of some it was sent.
 	trusted map[uint64]bool
-	seed    maphash.Seed
-	loaded  *ot.Tree
+	// images are the pictures read in the XML the nodes carry, as JSON,
+	// by the hash of that XML.
+	images map[uint64]string
+	seed   maphash.Seed
+	loaded *ot.Tree
 
 	main     string
 	mainRels *partrel.Rels
@@ -125,6 +128,7 @@ func Open(data []byte, limits opc.Limits) (*Document, *ot.Tree, error) {
 		pkg:        pkg,
 		names:      partrel.NewNames(pkg),
 		trusted:    map[uint64]bool{},
+		images:     map[uint64]string{},
 		seed:       maphash.MakeSeed(),
 		parts:      map[string]*part{},
 		notes:      map[string]*part{},
@@ -613,6 +617,9 @@ func (r *reader) run(e *xmldom.Element, wrap []string, flow ot.Delta) ot.Delta {
 		}
 		with["o"] = r.d.raw(c)
 		r.describe(c, with)
+		if img := with["img"]; img != "" {
+			r.d.images[maphash.String(r.d.seed, with["o"])] = img
+		}
 		flow = flow.Push(ot.Op{Insert: Object, Attrs: clean(with)})
 	}
 	return flow
