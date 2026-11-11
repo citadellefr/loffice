@@ -1,6 +1,7 @@
 package pptx
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -9,7 +10,23 @@ import (
 	"github.com/citadellefr/trame/ot"
 )
 
-// Effect is an animation of a slide, in the order they play.
+// Effect is an animation of a slide. The "animations" attribute of a slide
+// node is the list of its effects in the order they play, absent for none:
+//
+//	[{"target":"s256-3","class":"entr","preset":10,"trigger":"click","dur":500},
+//	 {"target":"s256-3","para":{"from":0,"to":1},"class":"exit","preset":1,"trigger":"after"}]
+//
+// An effect that starts at a click opens a group; those "with" it start
+// together, and each "after" starts when the effects before it end. The
+// writer makes the effects of the gallery it knows (entrance Apparition 1,
+// Fondu 10, Entrée brusque 2 from the side of subtype 1, 2, 4 or 8, Zoom 53
+// of subtype 16; exit Disparition 1, Fondu 10) from their fields, so Preset,
+// Trigger, Delay and Dur can be edited, and writes the others from their
+// XML, which only the trigger changes: they can be moved and deleted. The
+// timing is rewritten only when the list changes; Check refuses targets
+// that are not shapes of the slide, delays and durations out of 0 to
+// 3600000 ms, and XML the document did not read. Deleting a shape takes its
+// effects out of the list.
 type Effect struct {
 	// Target is the shape the effect is on, a node of the slide, and Para
 	// the paragraphs of its text, when it is not all of it.
@@ -284,20 +301,28 @@ func firstTarget(el *xmldom.Element) *xmldom.Element {
 }
 
 // without gives the effects that stay when those that are gone leave. The
-// first of those that follow an effect that started a group and went takes
-// its trigger, so that a click or a chain still starts.
+// first of those that follow the effect that started a group, or a step,
+// and went takes its trigger, so that a click or a chain still starts.
 func without(list []Effect, gone func(Effect) bool) []Effect {
 	var out []Effect
-	lost := false
-	for _, e := range list {
+	var group, step string
+	for i, e := range list {
 		if gone(e) {
-			lost = lost || e.Trigger == "click"
+			if i == 0 || e.Trigger == "click" {
+				group = cmp.Or(group, e.Trigger)
+			} else if e.Trigger == "after" {
+				step = cmp.Or(step, e.Trigger)
+			}
 			continue
 		}
-		if lost {
-			e.Trigger = "click"
+		switch {
+		case e.Trigger == "click":
+		case group != "":
+			e.Trigger = group
+		case step != "" && e.Trigger == "with":
+			e.Trigger = step
 		}
-		lost = false
+		group, step = "", ""
 		out = append(out, e)
 	}
 	return out

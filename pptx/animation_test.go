@@ -260,3 +260,89 @@ func TestDeletedShapeLeavesTheAnimations(t *testing.T) {
 		t.Errorf("targets %s", got)
 	}
 }
+
+// afterAutoTiming starts by itself: two steps of effects, then a click and
+// two steps again, each shape on one effect or two.
+func afterAutoTiming() string {
+	return mainTiming(
+		par("indefinite",
+			par("0", effect("afterEffect", spTgt("2")), effect("withEffect", spTgt("3"))),
+			par("1", effect("afterEffect", spTgt("4"))),
+		) + par("indefinite",
+			par("0", effect("clickEffect", spTgt("5")), effect("withEffect", spTgt("2"))),
+			par("1", effect("afterEffect", spTgt("3")), effect("withEffect", spTgt("4"))),
+		),
+	)
+}
+
+// Deleting shapes gives the animations the list gives without their effects.
+func TestDeleteShapesAsDeleteEffects(t *testing.T) {
+	for mask := 1; mask < 16; mask++ {
+		d, tree := slideWithTiming(t, afterAutoTiming())
+		slide := slidesOf(tree)[0]
+		list := animationsOf(slide)
+		var e ot.Edit
+		gone := map[string]bool{}
+		for i, spid := range []string{"2", "3", "4", "5"} {
+			if mask>>i&1 == 1 {
+				e = append(e, ot.Change{Op: ot.OpDel, ID: slide.ID + "-" + spid})
+				gone[slide.ID+"-"+spid] = true
+			}
+		}
+		want := summary(without(list, func(e Effect) bool { return gone[e.Target] }))
+		apply(t, d, tree, e)
+		saved, err := d.Save(tree)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, again, err := Open(saved, d.limits)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := summary(animationsOf(slidesOf(again)[0])); got != want {
+			t.Errorf("deleting %v: %q, want %q", e, got, want)
+		}
+	}
+}
+
+func TestDeleteStarterOfTheSequenceKeepsTheNextClick(t *testing.T) {
+	d, tree := slideWithTiming(t, afterAutoTiming())
+	slide := slidesOf(tree)[0]
+	apply(t, d, tree, ot.Edit{{Op: ot.OpDel, ID: slide.ID + "-2"}})
+	saved, err := d.Save(tree)
+	if err != nil {
+		t.Fatal(err)
+	}
+	timing := timingPart(string(rawParts(t, saved)["ppt/slides/slide1.xml"]))
+	if got := regexp.MustCompile(`nodeType="(\w+Effect)"`).FindAllStringSubmatch(timing, -1); fmt.Sprint(got) != "[[nodeType=\"afterEffect\" afterEffect] [nodeType=\"afterEffect\" afterEffect] [nodeType=\"clickEffect\" clickEffect] [nodeType=\"afterEffect\" afterEffect] [nodeType=\"withEffect\" withEffect]]" {
+		t.Errorf("%s", timing)
+	}
+}
+
+func TestDeleteStepRetimesTheNext(t *testing.T) {
+	node := func(nodeType, spid string) string {
+		b, _ := body(preset{"entr", 10, 0}, spTgt(spid), 500)
+		return fmt.Sprintf(`<p:par><p:cTn id="0" presetID="10" presetClass="entr" presetSubtype="0" fill="hold" nodeType="%s"><p:stCondLst><p:cond delay="0"/></p:stCondLst><p:childTnLst>%s</p:childTnLst></p:cTn></p:par>`, nodeType, b)
+	}
+	timing := mainTiming(par("indefinite",
+		par("0", node("clickEffect", "2")),
+		par("500", node("afterEffect", "3")),
+		par("1000", node("afterEffect", "4")),
+		par("1500", node("afterEffect", "5")),
+	))
+	d, tree := slideWithTiming(t, timing)
+	slide := slidesOf(tree)[0]
+	apply(t, d, tree, ot.Edit{{Op: ot.OpDel, ID: slide.ID + "-3"}})
+	saved, err := d.Save(tree)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := timingPart(string(rawParts(t, saved)["ppt/slides/slide1.xml"]))
+	var delays []string
+	for _, m := range regexp.MustCompile(`<p:cTn id="\d+" fill="hold"><p:stCondLst><p:cond delay="(\w+)"/>`).FindAllStringSubmatch(got, -1) {
+		delays = append(delays, m[1])
+	}
+	if fmt.Sprint(delays) != "[indefinite 0 500 1000]" {
+		t.Errorf("delays %v in %s", delays, got)
+	}
+}

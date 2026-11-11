@@ -674,8 +674,10 @@ func dropStaleTiming(root, spTree *xmldom.Element) {
 
 // pruneAnimation removes from a time node the effects aimed at missing
 // shapes and the containers they leave empty. It reports whether the node
-// stays. The first surviving effect of a container takes the trigger of the
-// first effect removed from it, so that a click or a chain still starts.
+// stays. The first surviving effect of a group or of a step takes the
+// trigger of the first effect removed from it, so that a click or a chain
+// still starts, and the steps of a group that lost effects start again as
+// soon as those before them end.
 func pruneAnimation(n *xmldom.Element, live map[string]bool) bool {
 	ctn := n.Child(pNS, "cTn")
 	if ctn == nil {
@@ -698,13 +700,44 @@ func pruneAnimation(n *xmldom.Element, live map[string]bool) bool {
 			list.Remove(c)
 		}
 	}
-	if after := effectNodes(n); len(before) > 0 && len(after) > 0 && after[0] != before[0] {
-		after[0].Set("nodeType", before[0].Get("nodeType"))
+	if after := effectNodes(n); ctn.Get("nodeType") == "" {
+		if len(before) > 0 && len(after) > 0 && after[0] != before[0] {
+			after[0].Set("nodeType", before[0].Get("nodeType"))
+		}
+		if len(after) < len(before) && isGroup(ctn) {
+			retime(list)
+		}
 	}
 	if had && len(list.Elements()) == 0 {
 		return ctn.Get("nodeType") == "mainSeq"
 	}
 	return true
+}
+
+// isGroup tells whether a time node is a group of the main sequence, which
+// waits for a click.
+func isGroup(ctn *xmldom.Element) bool {
+	cond := descend(ctn, "stCondLst", "cond")
+	return cond != nil && cond.Get("delay") == "indefinite"
+}
+
+// retime gives the steps of a group the delays they have when each starts
+// as the steps before it end.
+func retime(steps *xmldom.Element) {
+	end := 0
+	for i, step := range steps.Elements() {
+		start := 0
+		if i > 0 {
+			start = end
+		}
+		if cond := descend(step, "cTn", "stCondLst", "cond"); cond != nil {
+			cond.Set("delay", strconv.Itoa(start))
+		}
+		for _, el := range childrenOf(step) {
+			e, _ := describe(el, descend(el, "cTn"), "", "", func(string) bool { return false })
+			end = max(end, start+e.Delay+e.Dur)
+		}
+	}
 }
 
 func isEffect(ctn *xmldom.Element) bool {
