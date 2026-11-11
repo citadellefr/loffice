@@ -25,6 +25,15 @@
   in order, adding an entrance or an exit to the selected shape, and moving,
   deleting and changing the start, delay and duration of each; an effect the
   writer does not make is listed and moved, only its start changing.
+- `chart` reads the charts Excel 2016 added (`cx:chartSpace`: waterfall,
+  histogram, pareto, box and whisker, funnel, treemap, sunburst, map) into the
+  JSON of classic charts, with the options of their series (`options`:
+  subtotals, bins, quartiles, parents). `xlsx`, `pptx` and `docx` expose them
+  like classic charts, read only: their frame moves and resizes, their parts
+  and relationships are saved as they were, the fallback picture of a moved
+  or renamed frame following it. `cx:binSize` and the other bin values are read
+  as the text of their element, or as `val`. The Dart painter draws all but
+  the map, which gets a substitute.
 - Deleting an animated shape from a slide drops only the effects that aimed at
   it, with their builds and the click or group they leave empty; the other
   animations of the slide stay as they were.

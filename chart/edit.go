@@ -147,6 +147,9 @@ func hasAxes(kind string) bool { return kind != "pie" && kind != "doughnut" }
 // titles, and the cells and values of its series. What does not differ
 // from what space holds is left as it is, byte for byte.
 func Patch(space *xmldom.Element, want *Chart) bool {
+	if space.Space == CXNS {
+		return false
+	}
 	have, err := ReadElement(space)
 	if err != nil {
 		return false

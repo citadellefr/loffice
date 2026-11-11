@@ -1,6 +1,7 @@
 package xlsx
 
 import (
+	"bytes"
 	"encoding/json"
 	"slices"
 	"strconv"
@@ -90,11 +91,8 @@ func (d *Document) sheetCharts(part string, root *xmldom.Element) []Placed {
 	}
 	var out []Placed
 	seen := map[string]bool{}
-	for _, a := range drawing.Elements() {
-		if a.Space != drawingNS {
-			continue
-		}
-		ref := find(a, chart.NS, "chart")
+	for _, a := range drawingAnchors(drawing, false) {
+		ref := chart.FindRef(a)
 		if ref == nil {
 			continue
 		}
@@ -121,6 +119,46 @@ func (d *Document) sheetCharts(part string, root *xmldom.Element) []Placed {
 		out = append(out, p)
 	}
 	return out
+}
+
+const mcNS = "http://schemas.openxmlformats.org/markup-compatibility/2006"
+
+// drawingAnchors are the anchors of a drawing, with those of the alternate
+// content it offers: Excel wraps in it the anchors of its newest charts,
+// before a fallback. Only the choices are taken unless all is set.
+func drawingAnchors(root *xmldom.Element, all bool) []*xmldom.Element {
+	var out []*xmldom.Element
+	for _, e := range root.Elements() {
+		switch {
+		case e.Space == drawingNS:
+			out = append(out, e)
+		case e.Space == mcNS && e.Local == "AlternateContent":
+			for _, branch := range e.Elements() {
+				if branch.Space == mcNS && (branch.Local == "Choice" || all && branch.Local == "Fallback") {
+					for _, a := range branch.Elements() {
+						if a.Space == drawingNS {
+							out = append(out, a)
+						}
+					}
+				}
+			}
+		}
+	}
+	return out
+}
+
+// alternateOf is the alternate content of a drawing whose choice holds
+// the anchor a, nil when a stands alone.
+func alternateOf(root, a *xmldom.Element) *xmldom.Element {
+	for _, e := range root.Elements() {
+		if e.Space != mcNS || e.Local != "AlternateContent" {
+			continue
+		}
+		if choice := e.Child(mcNS, "Choice"); choice != nil && slices.Contains(choice.Elements(), a) {
+			return e
+		}
+	}
+	return nil
 }
 
 // sheetChart is the chart a chart sheet shows, nil when it has none.
@@ -293,6 +331,9 @@ var (
 // changed: what c keeps of old is not bounded again. What it reads anew
 // comes off read.
 func checkChart(c, old *chart.Chart, read *int) bool {
+	if c.Extended() || old != nil && old.Extended() {
+		return old != nil && bytes.Equal(mustJSON(c), mustJSON(old))
+	}
 	if old == nil {
 		old = &chart.Chart{}
 	}

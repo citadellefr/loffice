@@ -183,3 +183,25 @@ func TestPictureInsertedResized(t *testing.T) {
 		t.Errorf("document\n%s", doc)
 	}
 }
+
+func TestPictureResizeFollowedByFallback(t *testing.T) {
+	const ns = `xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"`
+	drawing := func(name string) string {
+		return `<w:drawing><wp:inline><wp:extent cx="914400" cy="457200"/><wp:docPr id="1" name="` + name + `"/>` +
+			`<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">` +
+			`<pic:blipFill><a:blip r:embed="rId4"/></pic:blipFill><pic:spPr><a:xfrm><a:ext cx="914400" cy="457200"/></a:xfrm></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing>`
+	}
+	d, tree := open(t, `<w:p><w:r><mc:AlternateContent `+ns+`><mc:Choice Requires="am3d">`+drawing("Choice")+`</mc:Choice><mc:Fallback>`+drawing("Fallback")+`</mc:Fallback></mc:AlternateContent></w:r></w:p>`)
+	apply(t, d, tree, pictureEdit(t, tree, func(p *Picture) { p.W, p.H = 1828800, 914400 }))
+	saved, err := d.Save(tree)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc := partOf(t, saved, "word/document.xml")
+	if n := strings.Count(doc, `<wp:extent cx="1828800" cy="914400"/>`); n != 2 {
+		t.Errorf("%d drawings resized of 2:\n%s", n, doc)
+	}
+	if n := strings.Count(doc, `<a:ext cx="1828800" cy="914400"/>`); n != 2 {
+		t.Errorf("%d pictures resized of 2:\n%s", n, doc)
+	}
+}
