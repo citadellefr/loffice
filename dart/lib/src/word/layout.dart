@@ -407,9 +407,9 @@ class _Paginator {
       if (_y + need > _limit + 0.01 && need <= _bottom - _top) _nextColumn(natural: true);
     }
     var space = _spacing(p0);
-    final lp = _around(plain, _y + space);
-    final p = lp.box;
-    final lines = p.lines;
+    final top = _y + space;
+    var lp = _around(plain, top);
+    var lines = lp.box.lines;
     var i = 0;
     while (i < lines.length) {
       var n = 0;
@@ -430,7 +430,7 @@ class _Paginator {
         if (line.breakAfter != null) break;
       }
       final hard = n > 0 ? lines[i + n - 1].breakAfter : null;
-      if (hard == null && below == null && i + n < lines.length) n = _keep(p, i, n);
+      if (hard == null && below == null && i + n < lines.length) n = _keep(lp.box, i, n);
       if (n == 0 && _atTop && below == null) n = 1;
       if (n > 0) {
         _place(lp, i, i + n, space);
@@ -445,16 +445,20 @@ class _Paginator {
         _y = below;
         continue;
       }
+      if (i < lines.length) {
+        lp = _around(plain, top, lines[i].top);
+        lines = lp.box.lines;
+      }
       if (hard == 'page') {
         _newPage(natural: false);
       } else if (hard == 'column') {
         _nextColumn(natural: false);
       } else if (i < lines.length) {
         _nextColumn(natural: true);
-        if (i == 0) space = _spacing(p);
+        if (i == 0) space = _spacing(lp.box);
       }
     }
-    _prev = p;
+    _prev = lp.box;
     _started = true;
   }
 
@@ -583,13 +587,15 @@ class _Paginator {
 
   /// The paragraph laid out again around the pictures of the page, and
   /// those it anchors, when it is placed with its top at [top] and they
-  /// cross it.
-  LaidPara _around(LaidPara lp, double top) {
+  /// cross it; with [cut], they only count down to that height of the
+  /// paragraph, where the page ends.
+  LaidPara _around(LaidPara lp, double top, [double? cut]) {
     final p = lp.box;
+    final end = top + math.min(p.height, cut ?? double.infinity);
     final wraps = [..._wraps, for (final f in p.floats) ?_wrapAround(f.picture, _floatRect(f.picture, top, top).$1)];
     final near = [
       for (final w in wraps)
-        if (w.rect.top < top + p.height && w.rect.bottom > top) TextWrap(w.rect.shift(Offset(-_colLeft, -top)), w.sides),
+        if (w.rect.top < end && w.rect.bottom > top) TextWrap(w.rect.shift(Offset(-_colLeft, -top)).intersect(Rect.fromLTRB(-1e9, 0, 1e9, end - top)), w.sides),
     ];
     if (near.isEmpty) return lp;
     return LaidPara(ParaBox.layout(p.source, ctx, p.width, around: near), lp.flow, lp.start, lp.section);

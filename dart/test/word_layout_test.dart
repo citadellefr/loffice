@@ -305,6 +305,35 @@ void main() {
       }
     });
 
+    test('goes around it on the page it is anchored in only, when the paragraph goes on to the next', () {
+      final img = jsonEncode({
+        'w': 1270000,
+        'h': 12000000,
+        'media': 'm',
+        'float': {'relX': 'column', 'x': 1905000, 'relY': 'paragraph', 'y': 0, 'wrap': 'square', 'wrapText': 'bothSides'},
+      });
+      final flow = Delta()
+        ..insert('￼', {'img': img})
+        ..insert('mot ' * 1500)
+        ..insert('\n');
+      final layout = lay(document([text('t', 'V', flow)]));
+      expect(layout.pages.length, greaterThan(1));
+      final first = layout.pages[0].lines.single, next = layout.pages[1].lines.first;
+      const image = Rect.fromLTWH(150, 0, 100, 944.9);
+      expect(next.from, first.to);
+      expect(next.box.lines[next.from].top, lessThan(image.bottom), reason: 'the picture would still be in the way if it went on');
+      for (var k = first.from; k < first.to; k++) {
+        final l = first.box.lines[k];
+        for (final b in first.box.selection(l.start, l.end - 1)) {
+          expect(b.right <= image.left + 0.5 || b.left >= image.right - 0.5, isTrue, reason: '$b overlaps the picture');
+        }
+      }
+      for (var k = next.from; k < next.to - 1; k++) {
+        final l = next.box.lines[k];
+        expect(next.box.selection(l.start, l.end - 1).any((b) => b.left < image.left && b.right > image.right), isTrue, reason: 'line $k');
+      }
+    });
+
     test('does not move text that is not beside it', () {
       final layout = lay(document([text('t', 'V', plain('mot ' * 200))]));
       final box = layout.pages.first.lines.first.box;
