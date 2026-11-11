@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:trame/trame.dart';
 
 import '../chart/chart.dart';
+import '../chart/chart_edits.dart';
+import '../chart/chart_tabs.dart' show chartTypeItems;
 import '../chrome/comments.dart';
 import '../chrome/comments_pane.dart';
 import '../chrome/ribbon.dart';
@@ -1799,7 +1801,9 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
             RibbonButton(icon: const Icon(Icons.table_rows_outlined), label: _s.insertRows, onPressed: editable ? () => _insert(rows: true) : null),
             RibbonButton(icon: const Icon(Icons.view_column_outlined), label: _s.insertColumns, onPressed: editable ? () => _insert(rows: false) : null),
           ]),
-          RibbonGroup(_s.charts, [RibbonMenu<ChartType>(icon: const Icon(Icons.bar_chart), label: _s.chart, large: true, enabled: editable, items: _chartTypeItems(null), onSelected: _insertChart)]),
+          RibbonGroup(_s.charts, [
+            RibbonMenu<ChartType>(icon: const Icon(Icons.bar_chart), label: _s.chart, large: true, enabled: editable, items: chartTypeItems(_s, null), onSelected: _insertChart),
+          ]),
           RibbonGroup(_s.links, [RibbonButton(icon: const Icon(Icons.link), label: _s.insertLink, large: true, onPressed: editable ? _editLink : null)]),
           RibbonGroup(_s.tables, [RibbonButton(icon: const Icon(Icons.table_chart_outlined), label: _s.table, large: true, onPressed: editable ? _insertTable : null)]),
         ]),
@@ -1902,10 +1906,6 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     );
   }
 
-  List<PopupMenuEntry<ChartType>> _chartTypeItems(ChartType? current) => [
-    for (final (key, label) in _s.chartTypes) CheckedPopupMenuItem(value: ChartType.values.byName(key), checked: ChartType.values.byName(key) == current, child: Text(label)),
-  ];
-
   /// The tabs of the chart selected.
   List<RibbonTab> _chartTabs(SheetChart chart, bool editable) {
     final spec = chart.spec;
@@ -1920,7 +1920,7 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
             label: _s.changeChartType,
             large: true,
             enabled: editable && plot != null,
-            items: _chartTypeItems(plot == null ? null : ChartType.of(plot)),
+            items: chartTypeItems(_s, plot == null ? null : ChartType.of(plot)),
             onSelected: (type) => _changeChart((edits, i) => edits.retype(i, type)),
           ),
         ]),

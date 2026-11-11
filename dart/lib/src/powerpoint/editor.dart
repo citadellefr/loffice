@@ -6,6 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:trame/trame.dart';
 
+import '../chart/chart_data_pane.dart';
+import '../chart/chart_edits.dart';
+import '../chart/chart_tabs.dart';
 import '../chrome/commands.dart';
 import '../chrome/comments.dart';
 import '../chrome/comments_pane.dart';
@@ -549,6 +552,33 @@ class _PresentationEditorState extends State<PresentationEditor> {
     }
   }
 
+  // charts
+
+  var _chartDataShown = false;
+
+  /// The chart selected, alone.
+  Node? get _chart {
+    final shapes = _selectedShapes;
+    return shapes.length == 1 && shapes.first.attributes['frame'] == 'chart' ? shapes.first : null;
+  }
+
+  void _changeChart(void Function(Map<String, Object?> chart) change) {
+    final chart = _chart;
+    if (chart != null) _edit(ChartChanges.edit(chart, change));
+  }
+
+  Widget _chartDataPane(Node chart) => ChartDataPane(
+    strings: _s,
+    data: chart.attributes['chartData'] as Map<String, Object?>?,
+    readOnly: _session.readOnly,
+    onChanged: (data) => _edit(
+      Edit([
+        Change.set(chart.id, attributes: {'chartData': data}),
+      ]),
+    ),
+    onClose: () => setState(() => _chartDataShown = false),
+  );
+
   // tables
 
   /// The table selected, or the one whose cells are selected, with the
@@ -824,6 +854,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
     final slide = _slide;
     _slideId = slide?.id;
     final slides = deck.slides;
+    final chart = _chart;
     final at = slide == null ? -1 : slides.indexWhere((s) => s.id == slide.id);
     final canvas = ColoredBox(
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -879,6 +910,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
                           Expanded(child: canvas),
                           const Divider(height: 1),
                           if (_commentsShown && slide != null) SizedBox(height: 280, child: _commentsPane(slide)),
+                          if (_chartDataShown && chart != null) SizedBox(height: 280, child: _chartDataPane(chart)),
                           SizedBox(height: 88, child: _Thumbnails(editor: this, horizontal: true)),
                         ],
                       )
@@ -895,6 +927,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
                             ),
                           ),
                           if (_commentsShown && slide != null) ...[const VerticalDivider(width: 1), SizedBox(width: 320, child: _commentsPane(slide))],
+                          if (_chartDataShown && chart != null) ...[const VerticalDivider(width: 1), SizedBox(width: 360, child: _chartDataPane(chart))],
                         ],
                       ),
               ),
@@ -937,6 +970,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
     final hasText = editable && _textTarget != null;
     final shapes = editable && _selection.shapes.isNotEmpty;
     final table = _table;
+    final chart = _chart;
     final cell = editable ? table?.$2 : null;
     final cells = editable ? _cells : const <CellLayout>[];
     final options = table?.$1.attributes['tbl'] as Map<String, Object?>? ?? const {};
@@ -1340,6 +1374,7 @@ class _PresentationEditorState extends State<PresentationEditor> {
               RibbonButton(icon: const Icon(Icons.call_split), label: _s.splitCells, large: true, onPressed: cells.length == 1 ? _splitCells : null),
             ]),
           ]),
+        if (chart != null) ...chartTabs(context, _s, chart, editable: editable, onChange: _changeChart, onData: () => setState(() => _chartDataShown = true)),
         RibbonTab(_s.transitions, [
           RibbonGroup(_s.preview, [RibbonButton(icon: const Icon(Icons.play_circle_outline), label: _s.preview, large: true, onPressed: _transition['effect'] != null ? _preview : null)]),
           RibbonGroup(_s.transitionToThisSlide, [

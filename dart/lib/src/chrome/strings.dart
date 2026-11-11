@@ -359,6 +359,9 @@ class LofficeStrings {
   String get categoryLabels => 'Étiquettes des catégories';
   String get addSeries => 'Ajouter une série';
   String get removeSeries => 'Supprimer la série';
+  String get addRow => 'Ajouter une ligne';
+  String get removeRow => 'Supprimer la ligne';
+  String get chartReadOnly => 'Les données de ce graphique sont en lecture seule : il n’a pas de classeur incorporé.';
   String get deleteChart => 'Supprimer le graphique';
   String get calculating => 'Calcul…';
   String get dataValidation => 'Validation des données';

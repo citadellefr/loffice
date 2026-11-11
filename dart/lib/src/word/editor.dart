@@ -7,6 +7,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:trame/trame.dart';
 
+import '../chart/chart_data_pane.dart';
+import '../chart/chart_edits.dart';
+import '../chart/chart_tabs.dart';
 import '../chrome/commands.dart';
 import '../chrome/comments.dart';
 import '../chrome/comments_pane.dart';
@@ -211,6 +214,42 @@ class _WordEditorState extends State<WordEditor> {
     final first = flowsOf(_session.document).firstOrNull;
     if (first != null) _selection.set(first.id, 0, null, 0, PageArea.body);
   }
+
+  // charts
+
+  var _chartDataShown = false;
+
+  /// The chart the selection is on: the one drawn at the caret or just
+  /// before it, or the only object selected.
+  Node? get _chart {
+    final flow = _flow;
+    if (flow == null || _selection.spans) return null;
+    final editing = wordEditing(flow);
+    final start = _selection.start, end = _selection.end;
+    for (final at in end == start ? [start, start - 1] : (end - start == 1 ? [start] : const <int>[])) {
+      final id = at < 0 ? null : jsonObject(editing.attributesAt(at)?['img'])?['chartNode'];
+      final node = id is String ? _session.document[id] : null;
+      if (node?.type == 'chart') return node;
+    }
+    return null;
+  }
+
+  void _changeChart(void Function(Map<String, Object?> chart) change) {
+    final chart = _chart;
+    if (chart != null) _edit(ChartChanges.edit(chart, change));
+  }
+
+  Widget _chartDataPane(Node chart) => ChartDataPane(
+    strings: _s,
+    data: chart.attributes['chartData'] as Map<String, Object?>?,
+    readOnly: _session.readOnly,
+    onChanged: (data) => _edit(
+      Edit([
+        Change.set(chart.id, attributes: {'chartData': data}),
+      ]),
+    ),
+    onClose: () => setState(() => _chartDataShown = false),
+  );
 
   // formatting
 
@@ -1070,6 +1109,7 @@ class _WordEditorState extends State<WordEditor> {
     final phone = MediaQuery.sizeOf(context).width < phoneWidth;
     if (phone && !_fitWidth) _fitWidth = true;
     final comments = _commentsShown ?? (!phone && _commentThreads.isNotEmpty);
+    final chart = _chart;
     return Stack(
       children: [
         Column(
@@ -1108,6 +1148,7 @@ class _WordEditorState extends State<WordEditor> {
                     ),
                   ),
                   if (comments && !phone) ...[const VerticalDivider(width: 1), SizedBox(width: 320, child: _commentsPane(context))],
+                  if (_chartDataShown && chart != null && !phone) ...[const VerticalDivider(width: 1), SizedBox(width: 360, child: _chartDataPane(chart))],
                 ],
               ),
             ),
@@ -1115,6 +1156,7 @@ class _WordEditorState extends State<WordEditor> {
           ],
         ),
         if (comments && phone) Positioned.fill(child: SafeArea(child: _commentsPane(context))),
+        if (_chartDataShown && chart != null && phone) Positioned.fill(child: SafeArea(child: _chartDataPane(chart))),
         if (_backstage) _Backstage(editor: this),
       ],
     );
@@ -1149,6 +1191,7 @@ class _WordEditorState extends State<WordEditor> {
 
   Widget _ribbon(BuildContext context) {
     final editable = !_session.readOnly && _flow != null;
+    final chart = _chart;
     final run = _runProps;
     final para = _paraProps;
     final doc = _document;
@@ -1505,6 +1548,7 @@ class _WordEditorState extends State<WordEditor> {
             RibbonButton(icon: const Icon(Icons.fit_screen_outlined), label: _s.pageWidth, large: true, selected: _fitWidth, onPressed: () => setState(() => _fitWidth = true)),
           ]),
         ]),
+        if (chart != null) ...chartTabs(context, _s, chart, editable: editable, onChange: _changeChart, onData: () => setState(() => _chartDataShown = true)),
       ],
     );
   }
