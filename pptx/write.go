@@ -31,7 +31,7 @@ func (d *Document) Save(tree *ot.Tree) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	w := &writer{d: d, pkg: pkg, tree: tree, fresh: map[*xmldom.Element]bool{}, authors: slices.Clone(d.authors)}
+	w := &writer{d: d, pkg: pkg, tree: tree, fresh: map[*xmldom.Element]bool{}, spids: map[string]*xmldom.Element{}, authors: slices.Clone(d.authors)}
 	if err := w.save(); err != nil {
 		return nil, err
 	}
@@ -45,6 +45,8 @@ type writer struct {
 	// fresh are the ids of the shapes created since the document was
 	// read, which may need new ones.
 	fresh map[*xmldom.Element]bool
+	// spids are the non-visual properties of the shapes written, by node.
+	spids map[string]*xmldom.Element
 	// authors are those of the comments, as the writer has them.
 	authors        []cmAuthor
 	authorsChanged bool
@@ -239,6 +241,7 @@ func (w *writer) slide(n *ot.Node, name string, rels *partrel.Rels, isNew bool) 
 	}
 	putJSON(old, "bg", background(cSld, w.d.media))
 	putJSON(old, "transition", readTransition(root))
+	putJSON(old, "animations", readAnimations(root, n.ID, func(id string) bool { return w.d.loaded.Node(id) != nil }))
 	if changed(old, n.Attrs, "name") {
 		if s := str(n, "name"); s != "" {
 			cSld.Set("name", s)
@@ -267,6 +270,9 @@ func (w *writer) slide(n *ot.Node, name string, rels *partrel.Rels, isNew bool) 
 		}
 	}
 	w.uniqueIDs(spTree)
+	if changed(old, n.Attrs, "animations") {
+		w.setAnimations(root, n.Attrs["animations"])
+	}
 	dropStaleTiming(root, spTree)
 
 	rw := w.rels(name, rels)
@@ -349,6 +355,9 @@ func (w *writer) shape(n *ot.Node) *xmldom.Element {
 		if c := cNvPr(e); c != nil {
 			w.fresh[c] = true
 		}
+	}
+	if e != nil {
+		w.spids[n.ID] = cNvPr(e)
 	}
 	return e
 }
