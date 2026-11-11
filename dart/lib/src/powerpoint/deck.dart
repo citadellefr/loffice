@@ -192,6 +192,7 @@ class Deck {
       geometry: _map(last('geom')),
       fill: _map(last('fill')),
       line: _map(last('line')),
+      shadow: _map(last('shadow')),
       style: _map(last('style')),
       body: body,
       levels: levels,
@@ -221,12 +222,13 @@ class Deck {
 /// What a shape looks like, what it inherited included. Values are as the
 /// Go package writes them.
 class ShapeStyle {
-  const ShapeStyle({this.xfrm, this.geometry, this.fill, this.line, this.style, this.body = const {}, this.levels = const [], this.placeholder});
+  const ShapeStyle({this.xfrm, this.geometry, this.fill, this.line, this.shadow, this.style, this.body = const {}, this.levels = const [], this.placeholder});
 
   final Map<String, Object?>? xfrm;
   final Map<String, Object?>? geometry;
   final Map<String, Object?>? fill;
   final Map<String, Object?>? line;
+  final Map<String, Object?>? shadow;
   final Map<String, Object?>? style;
   final Props body;
 

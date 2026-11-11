@@ -14,7 +14,8 @@ var spPrOrder = []string{
 }
 
 // ShapeProps reads the spPr of a shape into the attributes of its node:
-// "xfrm", "geom", "fill" and "line", those it has. media names the picture
+// "xfrm", "geom", "fill", "line" and "shadow", those it has. The shadow is read
+// only: the effects are written back as they were. media names the picture
 // a relationship id points to.
 func ShapeProps(spPr *xmldom.Element, media func(rid string) string) ot.Values {
 	v := ot.Values{}
@@ -25,6 +26,7 @@ func ShapeProps(spPr *xmldom.Element, media func(rid string) string) ot.Values {
 	put(v, "geom", GeometryIn(spPr))
 	put(v, "fill", FillIn(spPr, media))
 	put(v, "line", ReadLine(child(spPr, "ln")))
+	put(v, "shadow", ReadShadow(child(spPr, "effectLst")))
 	return v
 }
 

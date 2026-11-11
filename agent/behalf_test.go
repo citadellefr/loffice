@@ -125,6 +125,7 @@ func part(t *testing.T, data []byte, name string) string {
 func TestBehalfNodesAreChecked(t *testing.T) {
 	r := newRoom(t, loffice.Options{})
 	a := r.join("Héraut", Options{})
+	heraut, alice := r.human("Héraut"), r.human("Alice")
 	apply(t, a, "u1", Edit{Op: "replace", Block: "p2", Find: "en avance", Text: "à l'heure"})
 	date := a.Journal()[0].Date.Format(time.RFC3339)
 
@@ -135,7 +136,6 @@ func TestBehalfNodesAreChecked(t *testing.T) {
 		}
 		return ot.Edit{{Op: ot.OpNew, ID: id, Type: docx.BehalfType, Parent: "doc", Key: "~", Attrs: attrs}}
 	}
-	heraut, alice := r.human("Héraut"), r.human("Alice")
 	if f := heraut.edit(node("Héraut", date, "u2")); f.T != "nack" {
 		t.Errorf("a second user for the same author and date: %+v", f)
 	}
@@ -151,5 +151,81 @@ func TestBehalfNodesAreChecked(t *testing.T) {
 	}
 	if f := alice.edit(ot.Edit{{Op: ot.OpSet, ID: id, Attrs: ot.Values{"user": []byte(`"u3"`)}}}); f.T != "nack" {
 		t.Errorf("a node changed: %+v", f)
+	}
+}
+
+// rewritten is a Word document saved by the agent, a part of which is
+// changed by f, as another program saving it would.
+func rewritten(t *testing.T, data []byte, name string, f func(string) string) []byte {
+	t.Helper()
+	z, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out bytes.Buffer
+	w := zip.NewWriter(&out)
+	for _, file := range z.File {
+		r, err := file.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, _ := io.ReadAll(r)
+		r.Close()
+		if file.Name == name {
+			b = []byte(f(string(b)))
+		}
+		o, err := w.Create(file.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		o.Write(b)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return out.Bytes()
+}
+
+// savedAfterInsert is the document the agent inserted a paragraph in for
+// u1 at 09:00:00, as the store has it.
+func savedAfterInsert(t *testing.T) []byte {
+	t.Helper()
+	r := newRoom(t, loffice.Options{SaveDelay: 10 * time.Millisecond, SaveMaxDelay: 50 * time.Millisecond})
+	now := time.Date(2026, 11, 3, 9, 0, 0, 0, time.UTC)
+	a := r.join("Héraut", Options{Now: func() time.Time { return now }})
+	apply(t, a, "u1", Edit{Op: "insert", Block: "p5", Text: "Brouillon à relire."})
+	for range 200 {
+		data := []byte(r.store.File(key))
+		if strings.Contains(part(t, data, "word/settings.xml"), "loffice.behalf.") {
+			return data
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("the document is not saved")
+	return nil
+}
+
+func TestDeleteWhatTheAgentInsertedWithoutBehalf(t *testing.T) {
+	saved := savedAfterInsert(t)
+	for name, data := range map[string][]byte{
+		"no node": rewritten(t, saved, "word/settings.xml", func(s string) string {
+			return strings.ReplaceAll(s, "loffice.behalf.", "other.tool.")
+		}),
+		"date rewritten": rewritten(t, saved, "word/document.xml", func(s string) string {
+			return strings.ReplaceAll(s, "2026-11-03T09:00:00Z", "2026-11-03T09:00:01Z")
+		}),
+	} {
+		r := newRoom(t, loffice.Options{})
+		r.store.Data[key] = data
+		a := r.join("Héraut", Options{})
+		_, matches, _ := a.Search("Brouillon", false)
+		block := matches[0].Block
+		if got := behalfOfRevisions(t, a, block); got != " ins Brouillon à relire." {
+			t.Fatalf("%s: revisions of the document: %s", name, got)
+		}
+		apply(t, a, "u1", Edit{Op: "replace", Block: block, Find: "Brouillon", Text: "Texte"})
+		if got := behalfOfRevisions(t, a, block); got != " ins Brouillon, u1 del Brouillon, u1 ins Texte,  ins à relire." {
+			t.Errorf("%s: after u1 replaced it: %s", name, got)
+		}
 	}
 }

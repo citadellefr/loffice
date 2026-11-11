@@ -32,9 +32,10 @@ const (
 	codeRefused        = -32001
 )
 
-const instructions = "Read and edit Word documents with other people in them. Every call names the user you work for in on_behalf_of. " +
-	"Your edits are tracked changes in your name that people accept or reject: read the document with doc_read, " +
+const instructions = "Read and edit Word documents, presentations and workbooks with other people in them. Every call names the user you work for in on_behalf_of. " +
+	"In Word, your edits are tracked changes in your name that people accept or reject: read the document with doc_read, " +
 	"edit with the block ids it gives, and preview a batch with dry_run before applying it. " +
+	"In presentations (slide_list, slide_read) and workbooks (sheet_list, range_read), your edits are made directly, in view of everyone, and undo_mine takes them back. " +
 	"If a call fails, its message says what to do; nothing is written then."
 
 const internalError = "internal error: nothing was written that you can rely on; read the document again and retry"

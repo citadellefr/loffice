@@ -12,6 +12,7 @@ import '../chrome/ribbon.dart';
 import '../chrome/strings.dart';
 import '../clipboard.dart';
 import '../fonts.dart';
+import '../pdf/canvas.dart' show Ignored;
 import '../pdf/document.dart' show pdfName;
 import 'chart_dialogs.dart';
 import 'chart_edits.dart';
@@ -824,10 +825,10 @@ class _SpreadsheetEditorState extends State<SpreadsheetEditor> {
     setState(() => _exporting = true);
     final messenger = ScaffoldMessenger.maybeOf(context);
     try {
-      var missing = <String>{};
-      final pdf = await workbookPdf(_wb, locale: _locale, fonts: widget.fonts, title: widget.title, missing: (m) => missing = m);
+      var missing = <String>{}, ignored = <Ignored>{};
+      final pdf = await workbookPdf(_wb, locale: _locale, fonts: widget.fonts, title: widget.title, missing: (m) => missing = m, ignored: (i) => ignored = i);
       await export(pdf, pdfName(widget.title));
-      if (missing.isNotEmpty) messenger?.showSnackBar(SnackBar(content: Text(_s.exportMissing(missing.join(' ')))));
+      if (_s.exportNotice(missing, ignored) case final notice?) messenger?.showSnackBar(SnackBar(content: Text(notice)));
     } on NothingToPrint {
       messenger?.showSnackBar(SnackBar(content: Text(_s.nothingToPrint)));
     } on Object catch (error) {

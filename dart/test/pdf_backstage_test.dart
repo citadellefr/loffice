@@ -5,9 +5,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:loffice/loffice.dart';
+import 'package:loffice/src/pdf/canvas.dart' show Ignored;
 import 'package:trame/testing.dart';
 
 void main() {
+  test('the notice of an export names what was left aside', () {
+    const strings = LofficeStrings();
+    expect(strings.exportNotice({}, {}), isNull);
+    final notice = strings.exportNotice({'ß'}, {Ignored.blendMode, Ignored.colorFilter, Ignored.vertices})!;
+    expect(notice, contains('ß'));
+    expect(notice, contains('L’export en PDF a laissé de côté : des filtres de couleur, des modes de fusion, des éléments graphiques'));
+    expect(notice, isNot(contains('Ignored')));
+  });
+
   testWidgets('File > Export as PDF hands the host the document, named after it', (tester) async {
     await tester.runAsync(
       () => OfficeFonts.register({

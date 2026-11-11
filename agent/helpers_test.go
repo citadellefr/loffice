@@ -130,19 +130,25 @@ type room struct {
 	t     *testing.T
 	hub   *loffice.Hub
 	store *trametest.Store
+	key   string
 }
 
 func newRoom(t *testing.T, opt loffice.Options) *room {
+	return newRoomOf(t, key, sample(t), opt)
+}
+
+// newRoomOf is a room for the document name holding data.
+func newRoomOf(t *testing.T, name string, data []byte, opt loffice.Options) *room {
 	store := trametest.NewStore()
-	store.Data[key] = sample(t)
-	return &room{t, loffice.NewHub(store, opt, loffice.Limits{}), store}
+	store.Data[name] = data
+	return &room{t, loffice.NewHub(store, opt, loffice.Limits{}), store, name}
 }
 
 func (r *room) join(name string, opt Options) *Agent {
 	r.t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	a, err := Join(ctx, r.hub, key, trame.Peer{ID: name, Name: name}, opt)
+	a, err := Join(ctx, r.hub, r.key, trame.Peer{ID: name, Name: name}, opt)
 	if err != nil {
 		r.t.Fatal(err)
 	}
@@ -160,10 +166,14 @@ type human struct {
 
 func (r *room) human(name string) *human {
 	r.t.Helper()
-	c, _, doc := trametest.Join(r.t, func(c *trametest.Conn) error {
-		return r.hub.Serve(context.Background(), c, key, trame.Peer{ID: name, Name: name})
+	c := trametest.Connect(r.t, func(c *trametest.Conn) error {
+		return r.hub.Serve(context.Background(), c, r.key, trame.Peer{ID: name, Name: name})
 	})
-	return &human{t: r.t, c: c, v: doc.V}
+	c.Expect("hello")
+	c.Send(`{"t":"sync"}`)
+	h := &human{t: r.t, c: c}
+	h.v = h.next("doc").V
+	return h
 }
 
 // next is the next frame of that kind, others' edits followed on the way.

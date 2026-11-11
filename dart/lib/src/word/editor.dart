@@ -14,6 +14,7 @@ import '../chrome/link_card.dart';
 import '../chrome/ribbon.dart';
 import '../chrome/strings.dart';
 import '../fonts.dart';
+import '../pdf/canvas.dart' show Ignored;
 import '../pdf/document.dart' show pdfName;
 import '../powerpoint/slide_painter.dart' show MediaCache, MediaFetcher;
 import '../text/text_frame.dart' show Fonts, Props;
@@ -474,10 +475,10 @@ class _WordEditorState extends State<WordEditor> {
         recorder.endRecording().dispose();
       }
       await _media.settled;
-      var missing = <String>{};
-      final pdf = await wordPdf(layout, painter, title: widget.title, missing: (m) => missing = m);
+      var missing = <String>{}, ignored = <Ignored>{};
+      final pdf = await wordPdf(layout, painter, title: widget.title, missing: (m) => missing = m, ignored: (i) => ignored = i);
       await export(pdf, pdfName(widget.title));
-      if (missing.isNotEmpty) messenger?.showSnackBar(SnackBar(content: Text(_s.exportMissing(missing.join(' ')))));
+      if (_s.exportNotice(missing, ignored) case final notice?) messenger?.showSnackBar(SnackBar(content: Text(notice)));
     } on Object catch (error) {
       messenger?.showSnackBar(SnackBar(content: Text(_s.exportFailed('$error'))));
     } finally {

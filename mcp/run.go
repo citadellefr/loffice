@@ -185,7 +185,11 @@ func runUndo(ctx context.Context, s *Server, c *call) (string, error) {
 		case len(rec.Edits) == 0:
 			return "Nothing to undo: no change of yours remains for this user.", nil
 		}
-		return fmt.Sprintf("Rejected %d of your tracked changes. version: %s", len(rec.Edits), rec.Version), nil
+		out := fmt.Sprintf("Undid %d of your edits: rejected your tracked changes in Word, took back your edits elsewhere. version: %s", len(rec.Edits), rec.Version)
+		if len(rec.Lost) > 0 {
+			out += "\nNot restored, as nobody may make them again: " + strings.Join(rec.Lost, "; ") + ". Tell the user."
+		}
+		return out, nil
 	})
 }
 
@@ -203,7 +207,7 @@ func apply(ctx context.Context, a *agent.Agent, c *call, edits []agent.Edit) (st
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("Done: %d edit(s) made as tracked changes. version: %s. Read the document again for the ids of what you added.", len(edits), rec.Version), nil
+	return fmt.Sprintf("Done: %d edit(s) made. version: %s. Read the document again for the ids of what you added.", len(edits), rec.Version), nil
 }
 
 var (
@@ -249,7 +253,8 @@ func number(id string) int {
 func runBatch(ctx context.Context, s *Server, c *call) (string, error) {
 	edits := make([]agent.Edit, len(c.Edits))
 	for i, e := range c.Edits {
-		edits[i] = agent.Edit{Op: e.Op, Block: e.Block, Find: e.Find, Nth: e.Nth, Text: e.Text, Format: e.Format, Comment: e.Comment, Revision: e.Revision}
+		edits[i] = agent.Edit{Op: e.Op, Block: e.Block, Find: e.Find, Nth: e.Nth, Text: e.Text, Format: e.Format, Comment: e.Comment, Revision: e.Revision,
+			Layout: e.Layout, Box: e.Box, Sheet: e.Sheet, Range: e.Range, Values: e.Values}
 	}
 	return s.in(ctx, c, func(a *agent.Agent) (string, error) {
 		b := agent.Batch{OnBehalfOf: c.user, Version: c.Version, Edits: edits}
@@ -273,6 +278,72 @@ func runBatch(ctx context.Context, s *Server, c *call) (string, error) {
 				return "", fmt.Errorf("%d of %d edits made, edit %d failed: %w", i, len(edits), i+1, err)
 			}
 		}
-		return fmt.Sprintf("Done: %d edits made one by one, as tracked changes. version: %s", len(edits), a.Version()), nil
+		return fmt.Sprintf("Done: %d edits made one by one. version: %s", len(edits), a.Version()), nil
+	})
+}
+
+// calculating runs a tool that makes one edit op of a sheet.
+func calculating(op string) func(context.Context, *Server, *call) (string, error) {
+	return editing(func(c *call) agent.Edit {
+		return agent.Edit{Op: op, Sheet: c.Sheet, Range: c.Range, Values: c.Values}
+	})
+}
+
+func runSlides(ctx context.Context, s *Server, c *call) (string, error) {
+	return s.in(ctx, c, func(a *agent.Agent) (string, error) {
+		version, slides, layouts, err := a.Slides()
+		if err != nil {
+			return "", err
+		}
+		if slides == nil {
+			slides = []agent.SlideInfo{}
+		}
+		if layouts == nil {
+			layouts = []agent.Layout{}
+		}
+		return asJSON(map[string]any{"version": version, "slides": slides, "layouts": layouts})
+	})
+}
+
+func runSlide(ctx context.Context, s *Server, c *call) (string, error) {
+	return s.in(ctx, c, func(a *agent.Agent) (string, error) {
+		version, slide, err := a.Slide(c.Slide)
+		if err != nil {
+			return "", err
+		}
+		return asJSON(map[string]any{"version": version, "slide": slide})
+	})
+}
+
+func runSheets(ctx context.Context, s *Server, c *call) (string, error) {
+	return s.in(ctx, c, func(a *agent.Agent) (string, error) {
+		version, sheets, err := a.Sheets()
+		if err != nil {
+			return "", err
+		}
+		if sheets == nil {
+			sheets = []agent.SheetInfo{}
+		}
+		return asJSON(map[string]any{"version": version, "sheets": sheets})
+	})
+}
+
+func runRange(ctx context.Context, s *Server, c *call) (string, error) {
+	if c.View != "" && c.View != "markdown" && c.View != "json" {
+		return "", fmt.Errorf("%w: view is markdown or json", agent.ErrInvalid)
+	}
+	return s.in(ctx, c, func(a *agent.Agent) (string, error) {
+		version, r, err := a.Range(c.Sheet, c.Range)
+		if err != nil {
+			return "", err
+		}
+		out := "version: " + version + "\n\n" + r.Markdown()
+		if c.View == "json" {
+			out, err = asJSON(map[string]any{"version": version, "range": r})
+		}
+		if len(out) > maxReadSize {
+			return "", fmt.Errorf("%w: %s reads %d bytes, at most %d are read at once: read less", agent.ErrInvalid, r.Area, len(out), maxReadSize)
+		}
+		return out, err
 	})
 }

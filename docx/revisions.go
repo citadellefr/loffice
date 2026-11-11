@@ -199,10 +199,15 @@ func (d *Document) readRevision(wrap, kind, author string) bool {
 }
 
 // settings writes whether changes are tracked, and whom revisions were made
-// for, into settings.xml, when a client changed them.
+// for, into settings.xml, when a client changed them or revisions that
+// the latter named are gone.
 func (w *writer) settings() error {
 	track := tracking(w.tree)
-	if track == tracking(w.d.loaded) && w.sameBehalf() {
+	nodes, err := w.liveBehalf()
+	if err != nil {
+		return err
+	}
+	if track == tracking(w.d.loaded) && w.sameBehalf(nodes) {
 		return nil
 	}
 	name := w.d.mainRels.OfType(w.d.main, relSettings)
@@ -227,7 +232,7 @@ func (w *writer) settings() error {
 			insert(doc.Root, newW(doc.Root, "trackRevisions"), settingsOrder)
 		}
 	}
-	w.writeBehalf(doc.Root)
+	w.writeBehalf(doc.Root, nodes)
 	return w.write(name, typeSettings, doc.Bytes(), relSettings)
 }
 

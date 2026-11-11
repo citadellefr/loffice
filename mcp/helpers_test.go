@@ -21,7 +21,11 @@ import (
 	"github.com/citadellefr/trame/trametest"
 )
 
-const docKey = "rapport.docx"
+const (
+	docKey  = "rapport.docx"
+	deckKey = "deck.pptx"
+	bookKey = "book.xlsx"
+)
 
 // host is what a host of the server brings: a hub with the sample
 // document, and an Authorize that remembers what it was asked.
@@ -46,12 +50,15 @@ func newHost(t testing.TB) *host {
 }
 
 func makeHost(t interface{ Fatal(...any) }) *host {
-	data, err := os.ReadFile("../agent/testdata/sample.docx")
-	if err != nil {
-		t.Fatal(err)
-	}
 	store := trametest.NewStore()
-	store.Data[docKey] = data
+	for key, file := range map[string]string{docKey: "../agent/testdata/sample.docx", deckKey: "../agent/testdata/deck.pptx", bookKey: "../testdata/xlsx/transitional.xlsx"} {
+		data, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		store.Data[key] = data
+	}
+	var err error
 	h := &host{store: store, hub: loffice.NewHub(store, loffice.Options{}, loffice.Limits{})}
 	h.srv, err = New(Config{
 		Hub:  h.hub,
@@ -69,7 +76,7 @@ func makeHost(t interface{ Fatal(...any) }) *host {
 			return nil
 		},
 		List: func(_ context.Context, a Access) ([]Document, error) {
-			return []Document{{docKey, "Rapport"}}, nil
+			return []Document{{docKey, "Rapport"}, {deckKey, "Présentation"}, {bookKey, "Classeur"}}, nil
 		},
 	})
 	if err != nil {
@@ -282,11 +289,11 @@ func (c *stdioClient) notify(method string) {
 }
 
 // someone is another participant of the room, who edits the document.
-func (h *host) someone(name string) *agent.Agent {
+func (h *host) someone(doc, name string) *agent.Agent {
 	h.t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	a, err := agent.Join(ctx, h.hub, docKey, trame.Peer{ID: name, Name: name}, agent.Options{})
+	a, err := agent.Join(ctx, h.hub, doc, trame.Peer{ID: name, Name: name}, agent.Options{})
 	if err != nil {
 		h.t.Fatal(err)
 	}

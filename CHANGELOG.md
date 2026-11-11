@@ -2,21 +2,44 @@
 
 ## Unreleased
 
-- `formula` no longer refuses large ranges: a range, explicit or whole, holds
-  only the rows its sheet fills, and the arrays calculated from it keep the
-  shape Excel gives them (`A1:D1048576+1` has 1048576 rows), so whole columns
-  no longer lose their blank rows and `A:A*2` below the first row is
-  `#SPILL!`. An area that is at least half filled is read whatever its size,
-  VLOOKUP and HLOOKUP read only their keys and the cell found, and `#NUM!`
-  stays for arrays made from a size (MUNIT, SEQUENCE, MAKEARRAY) or a sheet of
-  a few cells far apart.
+- `formula` no longer refuses explicit ranges larger than its memory bound
+  when their sheet holds few cells: `SUM(A1:D1048576)`, `A1:D1048576+1`,
+  SUMPRODUCT, SUMIFS, COUNTIFS, AGGREGATE and the functions of two ranges
+  (CORREL, SUMXMY2…) read only the rows the sheet fills. An area at least half
+  filled is read whatever its size, so VLOOKUP on `A:D` of 300000 rows finds
+  its value. `#NUM!` stays for arrays made from a size (MUNIT, SEQUENCE), for
+  a function that needs every cell of such a range as an array (TRANSPOSE,
+  SORT), and for arrays of more than 4194304 cells (`A1:XFD1048576*1`).
+- `agent` and `mcp` edit presentations and workbooks, directly and in view of
+  everyone: fourteen tools (`slide_list`, `slide_read`, `shape_text_set`,
+  `shape_add`, `slide_add`, `slide_delete`, `notes_set`, `sheet_list`,
+  `range_read`, `cells_set`, `rows_insert`, `rows_delete`, `columns_insert`,
+  `columns_delete`), and `comment_add` on a slide, through the same `Check`,
+  batches, dry runs and versions as Word. The agent shows the room its
+  selection and its recent edits (`recent` in its presence) for editors to
+  highlight. `UndoMine` takes back only its edits, rebased over those of
+  others, and fails with `ErrChanged` when someone changed the same content
+  since, or inserted or deleted rows or columns that move what it would set
+  back. It sets back the formulas, array formulas, merges, validations,
+  conditional formats, filters, tables, print breaks and names that deleting
+  rows or columns broke, and tells in `Record.Lost` the notes, others'
+  comments and charts it cannot make again.
+- `pptx` exposes the outer shadow of a shape (`a:effectLst/a:outerShdw`: color,
+  blur, distance, direction) as its `shadow` attribute, read only (the
+  effects are written back as they were); the slide painter draws it on the
+  screen and in the PDF export. Shadows of the theme's effect styles, inner
+  shadows, glows and reflections are not drawn, nor are those of the shapes
+  of Word and Excel.
 - `agent` keeps whom its revisions are for in the document, one `behalf` node
   per author and date written as a document variable of `settings.xml`
   (`docx.BehalfNode`, `docx.BehalfOf`), instead of in a journal of the
   session; two instances of the same name, even in the same second, are told
   apart. Deleting, replacing or formatting text the agent inserted for
   another user is now a revision, and the same user's text still goes away
-  at once.
+  at once. `BehalfOf` also compares the author and date of the node, so two
+  authors whose ids collide no longer share an attribution, and saving a
+  Word document drops the `loffice.behalf.*` variables of lots no revision
+  carries any more (other variables are untouched).
 - `legacy` converts more of the `.xls` workbooks: the fonts within a text,
   links, notes, how sheets print (margins, headers, footers, breaks, fit),
   conditional formats, validations, filters on values and the protection of
