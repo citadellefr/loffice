@@ -1224,7 +1224,7 @@ class _CanvasPainter extends CustomPainter {
       }
       final caret = frame.caretAt(s.extent);
       canvas.drawRect(_bar(caret, 1.5 / scale), Paint()..color = color);
-      _tag(canvas, peerLabel(w.ai, peer), color, caret.topLeft);
+      paintTag(canvas, peerLabel(w.ai, peer), color, caret.topLeft, scale: scale);
       canvas.restore();
     }
 
@@ -1245,7 +1245,7 @@ class _CanvasPainter extends CustomPainter {
           ..strokeWidth = 2 / scale
           ..color = aiColor.withValues(alpha: opacity),
       );
-      _tag(canvas, aiLabel(ai!.name), aiColor.withValues(alpha: opacity), Offset.zero);
+      paintTag(canvas, aiLabel(ai!.name), aiColor.withValues(alpha: opacity), Offset.zero, scale: scale);
       canvas.restore();
     }
 
@@ -1373,21 +1373,6 @@ class _CanvasPainter extends CustomPainter {
       label.paint(canvas, box.center - Offset(label.width / 2, label.height / 2));
     }
     canvas.restore();
-  }
-
-  /// A name on [color] standing on [at], in the coordinates of the canvas.
-  void _tag(Canvas canvas, String text, Color color, Offset at) {
-    final scale = state._scale;
-    final label = TextPainter(
-      text: TextSpan(
-        text: text,
-        style: TextStyle(fontSize: 10 / scale, color: Colors.white),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    final tag = Rect.fromLTWH(at.dx, at.dy - label.height - 2 / scale, label.width + 6 / scale, label.height + 2 / scale);
-    canvas.drawRect(tag, Paint()..color = color);
-    label.paint(canvas, tag.topLeft + Offset(3 / scale, 1 / scale));
   }
 
   /// A caret drawn [width] thick, across the line of the text: upright in

@@ -17,6 +17,7 @@ const (
 	wpNS  = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
 	dgmNS = "http://schemas.openxmlformats.org/drawingml/2006/diagram"
 	aNS   = "http://schemas.openxmlformats.org/drawingml/2006/main"
+	picNS = "http://schemas.openxmlformats.org/drawingml/2006/picture"
 	vmlNS = "urn:schemas-microsoft-com:vml"
 )
 
@@ -63,9 +64,11 @@ type Float struct {
 	Y      int64  `json:"y"`
 	AlignY string `json:"alignY,omitempty"`
 	// Wrap is how text flows around: "square" "tight" "through"
-	// "topAndBottom" "none".
-	Wrap   string `json:"wrap"`
-	Behind bool   `json:"behind,omitempty"`
+	// "topAndBottom" "none"; WrapText on which sides: "bothSides" "left"
+	// "right" "largest".
+	Wrap     string `json:"wrap"`
+	WrapText string `json:"wrapText,omitempty"`
+	Behind   bool   `json:"behind,omitempty"`
 }
 
 // describe adds to the attributes of an Object what it means, in keys a
@@ -281,6 +284,7 @@ func anchor(a *xmldom.Element) *Float {
 		if c.Space == wpNS && strings.HasPrefix(c.Local, "wrap") {
 			f.Wrap = strings.TrimPrefix(c.Local, "wrap")
 			f.Wrap = strings.ToLower(f.Wrap[:1]) + f.Wrap[1:]
+			f.WrapText = c.Get("wrapText")
 		}
 	}
 	return f

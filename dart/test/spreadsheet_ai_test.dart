@@ -23,6 +23,7 @@ Edit workbook() => Edit([
 void main() {
   late FakeHub hub;
   final ai = const AiParticipant(id: 'ai', name: 'Héraut');
+  final named = ValueNotifier<AiParticipant?>(null);
   final glow = aiColor.withValues(alpha: 0.25);
 
   Future<void> settle(WidgetTester tester) async {
@@ -38,6 +39,7 @@ void main() {
   }
 
   Future<void> open(WidgetTester tester, {AiParticipant? participant}) async {
+    named.value = participant;
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -47,7 +49,10 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: SpreadsheetEditor(session: session, title: 'classeur.xlsx', ai: participant),
+          body: ValueListenableBuilder(
+            valueListenable: named,
+            builder: (_, ai, _) => SpreadsheetEditor(session: session, title: 'classeur.xlsx', ai: ai),
+          ),
         ),
       ),
     );
@@ -95,9 +100,12 @@ void main() {
   });
 
   testWidgets('what the AI changed lately is lit a few seconds', (tester) async {
+    debugTags = [];
+    addTearDown(() => debugTags = null);
     await open(tester, participant: ai);
     await act(tester, await join(tester, 'ai'), mark: true);
     expect(tester.renderObject(grid()), drawn(glow));
+    expect(debugTags, contains('✦ Héraut'));
     await tester.pump(const Duration(seconds: 5));
     expect(tester.renderObject(grid()), isNot(drawn(glow)));
     await finish(tester);
@@ -109,6 +117,31 @@ void main() {
     expect(tester.renderObject(grid()), isNot(drawn(aiColor)));
     expect(tester.renderObject(grid()), isNot(drawn(glow)));
     expect(find.byIcon(Icons.auto_awesome), findsNothing);
+    await finish(tester);
+  });
+
+  testWidgets('follows an AI the host names after the editor is open', (tester) async {
+    await open(tester);
+    final bot = await join(tester, 'ai');
+    await act(tester, bot, mark: true);
+    expect(tester.renderObject(grid()), isNot(drawn(aiColor)));
+
+    debugTags = [];
+    addTearDown(() => debugTags = null);
+    named.value = ai;
+    await tester.pump();
+    bot.share({
+      'recent': [
+        {
+          'n': 'S1',
+          'c': [1, 1, 2, 2],
+          'at': 2,
+        },
+      ],
+    });
+    await act(tester, bot);
+    expect(tester.renderObject(grid()), allOf(drawn(aiColor), drawn(glow)));
+    expect(debugTags, contains('✦ Héraut'));
     await finish(tester);
   });
 }

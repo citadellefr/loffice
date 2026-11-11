@@ -842,7 +842,7 @@ func (w *writer) run(items []item, in *xmldom.Element, deleted bool) *xmldom.Ele
 		if o := it.attrs["o"]; o != "" {
 			flush()
 			for range utf8.RuneCountInString(it.text) {
-				if e := w.d.fragment(o); e != nil {
+				if e, _ := w.d.edited(o, it.attrs["img"]); e != nil {
 					r.Append(e)
 				}
 			}
