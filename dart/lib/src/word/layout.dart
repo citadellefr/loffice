@@ -49,11 +49,18 @@ class PlacedCell {
 
 /// A picture floating on a page.
 class PlacedPicture {
-  PlacedPicture(this.picture, this.rect, this.behind);
+  PlacedPicture(this.picture, this.rect, this.behind, this.flow, this.offset, this.reference);
 
   final Map<String, Object?> picture;
   final Rect rect;
   final bool behind;
+
+  /// Where it is anchored: its flow and the offset of its character.
+  final String flow;
+  final int offset;
+
+  /// The top-left of what its position is relative to.
+  final Offset reference;
 }
 
 /// A page of the document laid out.
@@ -154,6 +161,26 @@ class WordLayout {
     final firstTop = best.box.lines[best.from].top, lastBottom = best.box.lines[best.to - 1].bottom;
     final clamped = Offset(local.dx, local.dy.clamp(firstTop, lastBottom - 0.01));
     return (best.para.flow, best.para.start + best.box.offsetAt(clamped));
+  }
+
+  /// The floating picture drawn over the text at a point of a page, the one
+  /// on top.
+  PlacedPicture? floatingAt(int page, Offset p) {
+    if (page < 0 || page >= pages.length) return null;
+    return pages[page].pictures.where((f) => !f.behind && f.picture['media'] is String && f.rect.contains(p)).lastOrNull;
+  }
+
+  /// The picture at an offset of a flow: its page, its rectangle and, when
+  /// it floats, where it is placed.
+  (int, Rect, PlacedPicture?)? pictureAt(String flow, int offset) {
+    for (var i = 0; i < pages.length; i++) {
+      for (final f in pages[i].pictures) {
+        if (f.flow == flow && f.offset == offset) return (i, f.rect, f);
+      }
+    }
+    final line = placementAt(flow, offset);
+    final rect = line?.$2.box.objectAt(offset - line.$2.para.start);
+    return line == null || rect == null ? null : (line.$1, rect.shift(Offset(line.$2.origin.dx, line.$2.paraTop)), null);
   }
 
   /// The rectangles of a range of a flow, by page.
@@ -559,7 +586,7 @@ class _Paginator {
   /// cross it.
   LaidPara _around(LaidPara lp, double top) {
     final p = lp.box;
-    final wraps = [..._wraps, for (final f in p.floats) ?_wrapAround(f.picture, _floatRect(f.picture, top, top))];
+    final wraps = [..._wraps, for (final f in p.floats) ?_wrapAround(f.picture, _floatRect(f.picture, top, top).$1)];
     final near = [
       for (final w in wraps)
         if (w.rect.top < top + p.height && w.rect.bottom > top) TextWrap(w.rect.shift(Offset(-_colLeft, -top)), w.sides),
@@ -579,8 +606,9 @@ class _Paginator {
   }
 
   /// Where a floating picture is on the page, anchored in a paragraph
-  /// whose top is at [paraTop], and whose line is at [lineTop].
-  Rect _floatRect(Map<String, Object?> pic, double paraTop, double lineTop) {
+  /// whose top is at [paraTop], and whose line is at [lineTop], and the
+  /// top-left of what its position is relative to.
+  (Rect, Offset) _floatRect(Map<String, Object?> pic, double paraTop, double lineTop) {
     final fl = pic['float'] as Map<String, Object?>? ?? const {};
     final w = ((pic['w'] as num?) ?? 0) / 12700, h = ((pic['h'] as num?) ?? 0) / 12700;
     final page = _page;
@@ -608,16 +636,16 @@ class _Paginator {
       'top' || 'inside' => ry.top,
       _ => ry.top + ((fl['y'] as num?) ?? 0) / 12700,
     };
-    return Rect.fromLTWH(x, y, w, h);
+    return (Rect.fromLTWH(x, y, w, h), Offset(rx.left, ry.top));
   }
 
   void _floats(LaidPara lp, PlacedLines placed) {
     for (final f in lp.box.floats) {
       final pic = f.picture;
-      final rect = _floatRect(pic, placed.paraTop, placed.origin.dy);
+      final (rect, reference) = _floatRect(pic, placed.paraTop, placed.origin.dy);
       final fl = pic['float'] as Map<String, Object?>? ?? const {};
       final page = _page;
-      page.pictures.add(PlacedPicture(pic, rect, fl['behind'] == true));
+      page.pictures.add(PlacedPicture(pic, rect, fl['behind'] == true, lp.flow, lp.start + f.offset, reference));
       final wrap = fl['wrap'];
       if (fl['behind'] != true && (wrap == 'topAndBottom' || rect.width >= _colWidth * 0.6 && (wrap == 'square' || wrap == 'tight' || wrap == 'through'))) {
         _bands.add((rect.top, rect.bottom));

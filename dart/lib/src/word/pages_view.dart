@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
@@ -106,6 +107,7 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
   Offset _lastDownAt = Offset.zero;
   var _clicks = 0;
   var _dragging = false;
+  _PictureDrag? _pictureDrag;
   var _viewport = Size.zero;
 
   WordSelection get _selection => widget.selection;
@@ -364,11 +366,17 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
       area = inHeader ? PageArea.header : (inFooter ? PageArea.footer : PageArea.body);
       if (area != _selection.area) _clicks = 1;
     }
+    if (_pictureDown(page, local, p)) return;
     final hit = _layout.hit(page, p, area: area);
     if (hit == null) return;
     final (flow, offset) = hit;
     final node = _session.document[flow];
     if (node == null) return;
+    final inline = _clicks == 1 ? _inlineAt(page, p, flow, offset) : null;
+    if (inline != null) {
+      _selection.set(flow, inline, inline + 1, page, area);
+      return;
+    }
     if (_linkAt(flow, offset) case final uri?) {
       if (_ctrl || e.kind == PointerDeviceKind.mouse || !_cards.tap(uri, e.position)) widget.onOpenLink!(uri);
       return;
@@ -388,13 +396,97 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
     _dragging = true;
   }
 
+  /// The offset of the picture in the line under a point, among the
+  /// characters nearest to it.
+  int? _inlineAt(int page, Offset p, String flow, int offset) {
+    final editing = wordEditing(_session.document[flow]!);
+    for (final o in [offset, offset - 1]) {
+      final picture = o < 0 ? null : jsonObject(editing.attributesAt(o)?['img']);
+      if (picture == null || picture['float'] != null) continue;
+      if (_layout.selection(flow, o, o + 1).any((r) => r.$1 == page && r.$2.contains(p))) return o;
+    }
+    return null;
+  }
+
+  /// The picture selected, alone, and where it is.
+  _SelectedPicture? get _selectedPicture {
+    final s = _selection, flow = s.flow;
+    if (flow == null || s.spans || s.end - s.start != 1) return null;
+    final node = _session.document[flow];
+    if (node == null) return null;
+    final picture = jsonObject(wordEditing(node).attributesAt(s.start)?['img']);
+    if (picture == null) return null;
+    final at = _layout.pictureAt(flow, s.start);
+    return at == null ? null : _SelectedPicture(flow, s.start, picture, at.$1, at.$2, at.$3);
+  }
+
+  /// Starts to resize the picture selected or to move a floating one, or
+  /// selects the floating picture at [p]: true when the pointer is on a
+  /// picture.
+  bool _pictureDown(int page, Offset local, Offset p) {
+    if (_session.readOnly) return false;
+    final picked = _selectedPicture;
+    if (picked != null && picked.page == page) {
+      final handle = _handleAt(picked.rect, p);
+      if (handle != null || picked.floating != null && picked.rect.contains(p)) {
+        _pictureDrag = _PictureDrag(picked, local, handle);
+        return true;
+      }
+    }
+    final float = _layout.floatingAt(page, p);
+    if (float == null || headerNodeOf(_session.document, float.flow) != null) return false;
+    _selection.set(float.flow, float.offset, float.offset + 1, page, PageArea.body);
+    if (_selectedPicture case final now?) _pictureDrag = _PictureDrag(now, local, null);
+    return true;
+  }
+
+  /// The handle of a rectangle at a point: its direction on each axis, from
+  /// -1 to 1.
+  (int, int)? _handleAt(Rect r, Offset p) {
+    for (final (hx, hy) in _handles) {
+      if ((p - _handleCentre(r, hx, hy)).distance <= _handleReach / _scale) return (hx, hy);
+    }
+    return null;
+  }
+
+  void _pictureMoved(Offset local) {
+    final drag = _pictureDrag!;
+    setState(() => drag.rect = drag.dragged((local - drag.start) / _scale, free: _shift));
+  }
+
+  void _pictureReleased() {
+    final drag = _pictureDrag;
+    _pictureDrag = null;
+    if (drag == null || (drag.rect.topLeft - drag.picked.rect.topLeft).distance < 1 && (drag.rect.bottomRight - drag.picked.rect.bottomRight).distance < 1) {
+      setState(() {});
+      return;
+    }
+    final node = _session.document[drag.picked.flow];
+    if (node == null) return;
+    final at = drag.picked.offset;
+    _text(
+      node,
+      Delta()
+        ..retain(at)
+        ..retain(1, {'img': jsonEncode(drag.picture())}),
+      at,
+      at + 1,
+    );
+  }
+
   void _move(int page, Offset local) {
+    if (_pictureDrag != null) return _pictureMoved(local);
     if (!_dragging) return;
     final flow = _selection.flow;
     if (flow == null) return;
     final hit = _layout.hit(page, local / _scale, area: _selection.area);
     if (hit == null) return;
     _selection.extendTo(hit.$1, hit.$2, page);
+  }
+
+  void _up() {
+    _dragging = false;
+    if (_pictureDrag != null) _pictureReleased();
   }
 
   // keys
@@ -918,7 +1010,8 @@ class WordPagesViewState extends State<WordPagesView> implements DeltaTextInputC
                             onPointerDown: (e) => _down(i, e, e.localPosition),
                             onPointerHover: (e) => _hover(i, e),
                             onPointerMove: (e) => _move(i, e.localPosition),
-                            onPointerUp: (_) => _dragging = false,
+                            onPointerUp: (_) => _up(),
+                            onPointerCancel: (_) => _up(),
                             child: Container(
                               decoration: BoxDecoration(
                                 boxShadow: [BoxShadow(color: theme.shadowColor.withValues(alpha: 0.25), blurRadius: 4, offset: const Offset(0, 1))],
@@ -1017,6 +1110,20 @@ class _PagePainter extends CustomPainter {
           }
         }
       }
+      if (state._selectedPicture case final picked? when picked.page == index) {
+        final rect = state._pictureDrag?.rect ?? picked.rect;
+        final line = Paint()
+          ..color = colors.primary
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1 / state._scale;
+        canvas.drawRect(rect, line);
+        final size = _handleSize / state._scale;
+        for (final (hx, hy) in _handles) {
+          final handle = Rect.fromCenter(center: _handleCentre(rect, hx, hy), width: size, height: size);
+          canvas.drawRect(handle, Paint()..color = Colors.white);
+          canvas.drawRect(handle, line);
+        }
+      }
       final caret = layout.caret(flow, s.extent, page: s.page);
       if (caret != null && caret.$1 == index && s.collapsed && state._caretOn && state.widget.focusNode.hasFocus) {
         canvas.drawRect(Rect.fromLTWH(caret.$2.left, caret.$2.top, 1 / state._scale * 1.5, caret.$2.height), Paint()..color = const Color(0xFF000000));
@@ -1027,6 +1134,78 @@ class _PagePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_PagePainter old) => true;
+}
+
+const _handleSize = 8.0;
+const _handleReach = 7.0;
+const _minPicture = 8.0;
+const _handles = [(-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1)];
+
+Offset _handleCentre(Rect r, int hx, int hy) => Offset(r.center.dx + hx * r.width / 2, r.center.dy + hy * r.height / 2);
+
+/// A picture selected, alone: where it is, and where it is placed when it
+/// floats.
+class _SelectedPicture {
+  _SelectedPicture(this.flow, this.offset, this.picture, this.page, this.rect, this.floating);
+
+  final String flow;
+  final int offset;
+  final Map<String, Object?> picture;
+  final int page;
+  final Rect rect;
+  final PlacedPicture? floating;
+}
+
+/// A picture being resized by one of its [handle]s, or moved when it is
+/// null, the pointer having gone down at [start]; [rect] is where it is
+/// dragged to.
+class _PictureDrag {
+  _PictureDrag(this.picked, this.start, this.handle) : rect = picked.rect;
+
+  final _SelectedPicture picked;
+  final Offset start;
+  final (int, int)? handle;
+  Rect rect;
+
+  /// The rectangle of the picture when the pointer has moved by [by]: it
+  /// keeps its proportions unless [free].
+  Rect dragged(Offset by, {required bool free}) {
+    final r = picked.rect;
+    final handle = this.handle;
+    if (handle == null) return r.shift(by);
+    final (hx, hy) = handle;
+    var w = math.max(r.width + hx * by.dx, _minPicture), h = math.max(r.height + hy * by.dy, _minPicture);
+    if (!free) {
+      final k = hx == 0
+          ? h / r.height
+          : hy == 0
+          ? w / r.width
+          : math.max(w / r.width, h / r.height);
+      final k0 = math.max(_minPicture / r.width, _minPicture / r.height);
+      (w, h) = (r.width * math.max(k, k0), r.height * math.max(k, k0));
+    }
+    return Rect.fromLTWH(hx < 0 ? r.right - w : r.left, hy < 0 ? r.bottom - h : r.top, w, h);
+  }
+
+  /// The picture as [rect] makes it: its size and, when it floats, its
+  /// position relative to what it is placed by.
+  Map<String, Object?> picture() {
+    const emu = 12700;
+    final out = {...picked.picture, 'w': (rect.width * emu).round(), 'h': (rect.height * emu).round()};
+    final placed = picked.floating;
+    if (placed == null) return out;
+    final float = {...?(picked.picture['float'] as Map<String, Object?>?)};
+    void axis(String align, String offset, double at) {
+      if (handle != null && float[align] != null) return;
+      float
+        ..remove(align)
+        ..[offset] = (at * emu).round();
+    }
+
+    axis('alignX', 'x', rect.left - placed.reference.dx);
+    axis('alignY', 'y', rect.top - placed.reference.dy);
+    return out..['float'] = float;
+  }
 }
 
 /// What was last copied in a Word editor, with its formatting: pasted as

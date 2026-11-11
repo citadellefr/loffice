@@ -474,6 +474,17 @@ class ParaBox {
     return Rect.fromLTWH(piece.x + o.dx, math.max(top, line.top), 0, math.min(h, line.height));
   }
 
+  /// The rectangle of the picture in a line, at [offset]; null when the
+  /// character is not drawn.
+  Rect? objectAt(int offset) {
+    final piece = lineAt(offset)._piece;
+    final at = piece.painterOffset(offset);
+    final boxes = piece.painter.getBoxesForSelection(TextSelection(baseOffset: at, extentOffset: at + 1));
+    if (boxes.isEmpty) return null;
+    final box = boxes.first;
+    return Rect.fromLTRB(piece.x + box.left, piece.y + box.top, piece.x + box.right, piece.y + box.bottom);
+  }
+
   /// The start and end offsets of the line holding [offset].
   (int, int) lineRange(int offset) {
     final l = lineAt(offset);
@@ -862,7 +873,20 @@ _TabStop _stopAfter(double x, List<_TabStop> stops, double left, double first, d
 
 /// Lays out spans with a painter, their tabs set one after another where
 /// their stops put the text after them.
-_Piece _layoutPiece(List<_Op> ops, List<_Slot> lead, double x, double width, StrutStyle? strut, int from, double y, Props para, WordContext ctx, List<_TabStop> stops, {required bool first, int limit = 0}) {
+_Piece _layoutPiece(
+  List<_Op> ops,
+  List<_Slot> lead,
+  double x,
+  double width,
+  StrutStyle? strut,
+  int from,
+  double y,
+  Props para,
+  WordContext ctx,
+  List<_TabStop> stops, {
+  required bool first,
+  int limit = 0,
+}) {
   final slots = <_Slot>[...lead, for (final o in ops) ?o.slot];
   final align = switch (para['jc']) {
     'center' => TextAlign.center,

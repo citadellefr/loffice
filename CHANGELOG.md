@@ -2,6 +2,16 @@
 
 ## 0.13.0 — 2026-11-11
 
+- `docx` writes the changes made to a picture of the document into the XML
+  Word wrote, touching only its size (`wp:extent`, `a:ext`), crop
+  (`a:srcRect`), description, position (`wp:positionH`, `wp:positionV`) and
+  wrapping; `Check` refuses any other change to a picture, which was lost
+  silently before.
+- In the Dart Word editor a click selects a picture, in the line or floating,
+  with handles that resize it keeping its proportions (Shift frees them);
+  Delete removes it and a floating picture is dragged to its place. The text
+  wraps around small floating pictures (square, tight and through, drawn as
+  their rectangle) on the sides `wrapText` says.
 - The Dart package depends on `trame` 0.5.1: a `DocSession` no longer keeps a
   presence timer nor saves a draft after `dispose`.
 - The Dart editors tell, in French, what a PDF export left aside: the missing
