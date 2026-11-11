@@ -392,8 +392,10 @@ func (w *writer) element(n *ot.Node) *xmldom.Element {
 				}
 			}
 			for _, e := range append([]*xmldom.Element{frame}, fallback...) {
-				if x := xfrmOf(e); x != nil && moved != nil {
-					drawingml.SetXfrm(x, moved)
+				if moved != nil {
+					if x := xfrmOrNew(e); x != nil {
+						drawingml.SetXfrm(x, moved)
+					}
 				}
 				w.setNames(e, old, n.Attrs)
 			}
@@ -441,6 +443,21 @@ func xfrmOf(e *xmldom.Element) *xmldom.Element {
 		return pr.Child(aNS, "xfrm")
 	}
 	return nil
+}
+
+// xfrmOrNew is the xfrm of e, made as the first child of the properties of a
+// shape that has none; nil when e has nowhere to hold one.
+func xfrmOrNew(e *xmldom.Element) *xmldom.Element {
+	if x := xfrmOf(e); x != nil {
+		return x
+	}
+	pr := e.Child(pNS, "spPr")
+	if pr == nil {
+		return nil
+	}
+	x := xmldom.New(aNS, "a:xfrm")
+	pr.Content = append([]xmldom.Node{x}, pr.Content...)
+	return x
 }
 
 func mustJSON(x any) json.RawMessage {
