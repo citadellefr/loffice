@@ -158,7 +158,7 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m51** (à_revérifier) Le paquet loffice/agent donne aux paragraphes des ids pN qui suivent leur marque, et aux tableaux des ids tN. Ces ids et les versions (jeton de session-n) ne valent que pour un même Agent : une autre session renumérote. Le Journal (Options.Journal) transmet de session en session le « au nom de » des révisions. — _ag5, t23_
 
 ### chart/edit.go
-- **m141** Dans chart.Patch et refresh, une série est identifiée par son index (c:idx), pas par sa position : un client qui ajoute une série doit lui donner un index que le tracé n'a pas, sinon elle reprend l'élément de cet index avec sa mise en forme. Dart : ChartEdits.setSeries. — _ag1, t18_
+- **m141** (à_revérifier) Dans chart.Patch et refresh, une série est identifiée par son index (c:idx), pas par sa position : un client qui ajoute une série doit lui donner un index que le tracé n'a pas, sinon elle reprend l'élément de cet index avec sa mise en forme. Dart : ChartEdits.setSeries. — _ag1, t18_
 
 ### dart/lib/src/excel/formula_text.dart
 - **m29** (à_revérifier) Les noms français de T.TEST et CHISQ.TEST sont T.TEST et CHISQ.TEST (non traduits) ; leurs noms de compatibilité sont TEST.STUDENT et TEST.KHIDEUX. — _ag2, t8_
