@@ -205,3 +205,22 @@ func TestPictureResizeFollowedByFallback(t *testing.T) {
 		t.Errorf("%d pictures resized of 2:\n%s", n, doc)
 	}
 }
+
+func TestPictureOnPlainText(t *testing.T) {
+	d, tree := open(t, `<w:p><w:r><w:t>Bonjour</w:t></w:r></w:p>`)
+	n := firstText(t, tree)
+	for name, tc := range map[string]struct {
+		img  string
+		want error
+	}{
+		"plain":   {`{"media":"x","w":10,"h":10}`, nil},
+		"cropped": {`{"media":"x","w":10,"h":10,"crop":{"l":5}}`, ErrReadOnly},
+		"floated": {`{"media":"x","w":10,"h":10,"float":{"relX":"page","relY":"page","wrap":"square"}}`, ErrReadOnly},
+		"no size": {`{"media":"x"}`, ErrReadOnly},
+	} {
+		edit := ot.Edit{{Op: ot.OpTxt, ID: n.ID, Text: ot.Delta{{Retain: 3, Attrs: ot.Attrs{"img": tc.img}}}}}
+		if err := d.Check(tree, edit, ""); err != tc.want {
+			t.Errorf("%s: err = %v, want %v", name, err, tc.want)
+		}
+	}
+}
