@@ -65,12 +65,21 @@ void main() {
     expect(at('emph', 8, elapsed: 125)!.angle, closeTo(3.14159265 / 2, 1e-6));
   });
 
-  test('a preset that is not known fades, whatever its class', () {
-    for (final (kind, preset) in [('entr', 999), ('entr', 0), ('exit', 999), ('emph', 999), ('path', 0)]) {
-      final look = AnimationSequence.of([effect('a', 'click', kind: kind, preset: preset)]).looks(0, 250)['a']!;
-      expect(look.opacity, kind == 'entr' ? 0.5 : (kind == 'exit' ? 0.5 : lessThan(1)), reason: '$kind $preset');
-      expect(look.scale, 1);
-      expect(look.reveal, isNull);
+  test('a preset that is not known fades when it enters or exits, pulses when it emphasizes or moves', () {
+    ShapeLook look(String kind, int preset) => AnimationSequence.of([effect('a', 'click', kind: kind, preset: preset)]).looks(0, 250)['a']!;
+    for (final kind in ['entr', 'exit']) {
+      final fade = look(kind, 10), unknown = look(kind, 999);
+      expect(unknown.opacity, fade.opacity, reason: kind);
+      expect(unknown.opacity, closeTo(0.5, 1e-9));
+      expect(unknown.scale, 1);
+      expect(unknown.reveal, isNull);
+    }
+    final pulse = look('emph', 26);
+    for (final kind in ['emph', 'path']) {
+      final unknown = look(kind, 999);
+      expect(unknown.scale, pulse.scale, reason: kind);
+      expect(unknown.scale, greaterThan(1));
+      expect(unknown.opacity, 1);
     }
   });
 }
