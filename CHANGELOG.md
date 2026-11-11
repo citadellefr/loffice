@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- The PowerPoint slide show plays the animations of a slide: a click, the
+  right arrow or the space bar plays the next step (the effect that starts at
+  the click with those that go with it or after it, in their delays) before
+  going on to the next slide, and going back takes the last step back first.
+  A shape that comes in is hidden until its effect. Appear, Fade, Fly in from
+  the four edges, Zoom, Wipe, Disappear, Fade out, Pulse and Spin are drawn;
+  any other preset fades. The presenter view shows the steps left.
 - The Dart Word, PowerPoint and Excel editors take an `AiParticipant? ai`: the
   AI's cursor is labelled with its name, and what it edited lately is lit a
   few seconds in PowerPoint and Excel; a host that provides or changes `ai`

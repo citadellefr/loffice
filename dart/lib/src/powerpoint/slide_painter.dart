@@ -13,6 +13,7 @@ import '../drawing/geometry.dart';
 import '../drawing/paint.dart';
 import '../pdf/canvas.dart';
 import '../text/text_frame.dart';
+import 'animation_sequence.dart';
 import 'deck.dart';
 import 'table.dart';
 
@@ -83,7 +84,9 @@ class SlidePainter {
   final _diagrams = Expando<DiagramPainter>();
   final _tables = Expando<TableLayout>();
 
-  void paint(Canvas canvas, Node slide) {
+  /// Paints a slide; a shape of [looks] is drawn as its look says, not at all
+  /// when it is hidden.
+  void paint(Canvas canvas, Node slide, {Map<String, ShapeLook>? looks}) {
     final size = deck.size;
     final colors = deck.colorsOf(slide);
     final theme = deck.themeOf(slide);
@@ -94,8 +97,33 @@ class SlidePainter {
       _shape(canvas, shape, colors, theme, null);
     }
     for (final shape in deck.shapesOf(slide)) {
-      _shape(canvas, shape, colors, theme, null);
+      final look = looks?[shape.id];
+      if (look == null) {
+        _shape(canvas, shape, colors, theme, null);
+      } else if (look.opacity > 0) {
+        _animated(canvas, shape, look, colors, theme);
+      }
     }
+    canvas.restore();
+  }
+
+  void _animated(Canvas canvas, Node shape, ShapeLook look, ColorContext colors, DeckTheme theme) {
+    final size = deck.size;
+    final box = deck.styleOf(shape).bounds ?? Offset.zero & size;
+    final from = look.from;
+    final reach = Offset(from.dx > 0 ? size.width - box.left : (from.dx < 0 ? -box.right : 0), from.dy > 0 ? size.height - box.top : (from.dy < 0 ? -box.bottom : 0));
+    final c = box.center;
+    canvas.save();
+    if (look.opacity < 1) canvas.saveLayer(null, Paint()..color = Color.fromRGBO(0, 0, 0, look.opacity));
+    canvas.translate(reach.dx * look.away, reach.dy * look.away);
+    canvas.translate(c.dx, c.dy);
+    canvas.rotate(look.angle);
+    canvas.scale(look.scale);
+    canvas.translate(-c.dx, -c.dy);
+    final r = look.reveal;
+    if (r != null) canvas.clipRect(Rect.fromLTRB(box.left + r.left * box.width, box.top + r.top * box.height, box.left + r.right * box.width, box.top + r.bottom * box.height));
+    _shape(canvas, shape, colors, theme, null);
+    if (look.opacity < 1) canvas.restore();
     canvas.restore();
   }
 

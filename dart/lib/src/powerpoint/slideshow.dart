@@ -6,12 +6,14 @@ import 'package:flutter/services.dart';
 import 'package:trame/trame.dart';
 
 import '../chrome/strings.dart';
+import 'animation_sequence.dart';
 import 'deck.dart';
 import 'slide_painter.dart';
 
 /// A slide show: the slides full screen, one after the other, those hidden
-/// left out; each comes on with its transition, and the show goes on by
-/// itself after the time a slide gives.
+/// left out; each comes on with its transition, its animations play one step
+/// at a time before the next slide, and the show goes on by itself after the
+/// time a slide gives.
 class Slideshow extends StatefulWidget {
   const Slideshow({super.key, required this.deck, required this.painter, this.start = 0, this.strings = const LofficeStrings(), this.images, this.presenter = false});
 
@@ -43,7 +45,7 @@ class Slideshow extends StatefulWidget {
   State<Slideshow> createState() => _SlideshowState();
 }
 
-class _SlideshowState extends State<Slideshow> with SingleTickerProviderStateMixin {
+class _SlideshowState extends State<Slideshow> with TickerProviderStateMixin {
   late final List<Node> _slides = [
     for (final s in widget.deck.slides)
       if (s.attributes['hidden'] != true) s,
@@ -51,6 +53,12 @@ class _SlideshowState extends State<Slideshow> with SingleTickerProviderStateMix
   late int _at;
   int? _from;
   late final _progress = AnimationController(vsync: this, value: 1)..addStatusListener(_settled);
+  late final _step = AnimationController(vsync: this)..addStatusListener(_stepped);
+  late AnimationSequence _sequence;
+
+  /// The animation steps played on the slide shown, and whether one plays.
+  var _done = 0;
+  var _playing = false;
   Timer? _timer;
   final _focus = FocusNode();
 
@@ -65,6 +73,7 @@ class _SlideshowState extends State<Slideshow> with SingleTickerProviderStateMix
     final start = widget.deck.slides.elementAtOrNull(widget.start);
     _at = start == null ? 0 : _slides.indexWhere((s) => s.id == start.id);
     if (_at < 0) _at = 0;
+    _enter(false);
     widget.images?.addListener(_repaint);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive);
     _shown();
@@ -81,6 +90,7 @@ class _SlideshowState extends State<Slideshow> with SingleTickerProviderStateMix
     _timer?.cancel();
     _tick?.cancel();
     _progress.dispose();
+    _step.dispose();
     _focus.dispose();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
@@ -90,6 +100,58 @@ class _SlideshowState extends State<Slideshow> with SingleTickerProviderStateMix
 
   static Map<String, Object?> _transition(Node? slide) => slide?.attributes['transition'] as Map<String, Object?>? ?? const {};
 
+  void _enter(bool played) {
+    _sequence = _at < _slides.length ? AnimationSequence(_slides[_at]) : AnimationSequence.of(const []);
+    _done = played ? _sequence.steps.length : 0;
+    _playing = false;
+  }
+
+  /// Plays the next step of the slide's animations, or goes on to the next
+  /// slide when there is none left, a click doing so only when the slide
+  /// lets it. A step still playing ends at once.
+  void _next({bool click = false}) {
+    if (_playing) _finish();
+    if (_done < _sequence.steps.length) {
+      _play();
+    } else if (!click || _at >= _slides.length || _transition(_slides[_at])['noClick'] != true) {
+      _go(_at + 1);
+    }
+  }
+
+  /// Takes back the last step of the animations, the one playing if there is
+  /// one, before going back to the slide before.
+  void _back() {
+    if (_playing) {
+      _step.stop();
+      setState(() => _playing = false);
+      if (_done >= _sequence.floor) return;
+    } else if (_done > _sequence.floor) {
+      setState(() => _done--);
+      return;
+    }
+    _go(_at - 1);
+  }
+
+  void _play() {
+    _step.duration = Duration(milliseconds: math.max(1, _sequence.steps[_done].dur));
+    setState(() => _playing = true);
+    _step.forward(from: 0);
+  }
+
+  void _finish() {
+    _step.stop();
+    setState(() {
+      _playing = false;
+      _done++;
+    });
+  }
+
+  Map<String, ShapeLook> _looks() => _sequence.looks(_done, _playing ? (_step.value * _step.duration!.inMilliseconds).round() : null);
+
+  void _stepped(AnimationStatus status) {
+    if (status == AnimationStatus.completed && _playing) _finish();
+  }
+
   void _go(int to) {
     if (to < 0) return;
     if (to > _slides.length) {
@@ -97,13 +159,16 @@ class _SlideshowState extends State<Slideshow> with SingleTickerProviderStateMix
       return;
     }
     _timer?.cancel();
+    _step.stop();
     // a slide comes on with its transition going forward, at once going back
     final next = to == _at + 1 ? _transition(_slides.elementAtOrNull(to)) : const <String, Object?>{};
     final ms = next['dur'] is num ? (next['dur']! as num).toInt() : 0;
     final effect = next['effect'];
+    final back = to == _at - 1;
     setState(() {
       _from = _at;
       _at = to;
+      _enter(back);
     });
     if (effect is String && effect.isNotEmpty && effect != 'cut' && ms > 0) {
       _progress.duration = Duration(milliseconds: ms);
@@ -121,6 +186,7 @@ class _SlideshowState extends State<Slideshow> with SingleTickerProviderStateMix
   /// Waits the time the slide shown gives before going on, if it gives one.
   void _shown() {
     if (_at >= _slides.length) return;
+    if (_sequence.auto && _done == 0 && !_playing) _play();
     final after = _transition(_slides[_at])['after'];
     if (after is num) _timer = Timer(Duration(milliseconds: after.toInt()), () => _go(_at + 1));
   }
@@ -140,9 +206,9 @@ class _SlideshowState extends State<Slideshow> with SingleTickerProviderStateMix
     if (key == LogicalKeyboardKey.escape) {
       Navigator.of(context).pop();
     } else if (_forward.contains(key)) {
-      _go(_at + 1);
+      _next();
     } else if (_backward.contains(key)) {
-      _go(_at - 1);
+      _back();
     } else if (key == LogicalKeyboardKey.home) {
       _go(0);
     } else if (key == LogicalKeyboardKey.end) {
@@ -157,11 +223,10 @@ class _SlideshowState extends State<Slideshow> with SingleTickerProviderStateMix
   Widget build(BuildContext context) {
     final end = _at >= _slides.length;
     final from = _from == null ? null : _slides.elementAtOrNull(_from!);
-    final click = end || _transition(_slides[_at])['noClick'] != true;
     final show = GestureDetector(
-      onTap: click ? () => _go(_at + 1) : null,
-      onSecondaryTap: () => _go(_at - 1),
-      onHorizontalDragEnd: (d) => _go(_at + ((d.primaryVelocity ?? 0) < 0 ? 1 : -1)),
+      onTap: () => _next(click: true),
+      onSecondaryTap: _back,
+      onHorizontalDragEnd: (d) => (d.primaryVelocity ?? 0) < 0 ? _next() : _back(),
       child: ColoredBox(
         color: Colors.black,
         child: end
@@ -170,7 +235,7 @@ class _SlideshowState extends State<Slideshow> with SingleTickerProviderStateMix
               )
             : SizedBox.expand(
                 child: CustomPaint(
-                  painter: _ShowPainter(widget.painter, widget.deck, _slides[_at], from: from, transition: _transition(_slides[_at]), progress: _progress),
+                  painter: _ShowPainter(widget.painter, widget.deck, _slides[_at], from: from, transition: _transition(_slides[_at]), progress: _progress, looks: _looks, step: _step),
                 ),
               ),
       ),
@@ -255,9 +320,10 @@ class _SlideshowState extends State<Slideshow> with SingleTickerProviderStateMix
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                IconButton(tooltip: s.previousSlide, color: Colors.white70, icon: const Icon(Icons.chevron_left), onPressed: () => _go(_at - 1)),
+                IconButton(tooltip: s.previousSlide, color: Colors.white70, icon: const Icon(Icons.chevron_left), onPressed: _back),
                 Text(s.slideOf(math.min(_at + 1, _slides.length), _slides.length), style: light),
-                IconButton(tooltip: s.nextSlide, color: Colors.white70, icon: const Icon(Icons.chevron_right), onPressed: () => _go(_at + 1)),
+                if (_sequence.steps.isNotEmpty) ...[const SizedBox(width: 16), Text(s.animationStepsLeft(_sequence.steps.length - _done - (_playing ? 1 : 0)), style: light)],
+                IconButton(tooltip: s.nextSlide, color: Colors.white70, icon: const Icon(Icons.chevron_right), onPressed: _next),
               ],
             ),
           ],
@@ -329,7 +395,8 @@ class _TransitionPreviewState extends State<TransitionPreview> with SingleTicker
 
 /// A slide shown, coming on over the one before with its transition.
 class _ShowPainter extends CustomPainter {
-  _ShowPainter(this.painter, this.deck, this.slide, {this.from, required this.transition, required this.progress}) : super(repaint: progress);
+  _ShowPainter(this.painter, this.deck, this.slide, {this.from, required this.transition, required this.progress, this.looks, Listenable? step})
+    : super(repaint: step == null ? progress : Listenable.merge([progress, step]));
 
   final SlidePainter painter;
   final Deck deck;
@@ -338,10 +405,15 @@ class _ShowPainter extends CustomPainter {
   final Map<String, Object?> transition;
   final Animation<double> progress;
 
+  /// The looks of the shapes of [slide] as its animations have them now;
+  /// without it the slide shows all it has.
+  final Map<String, ShapeLook> Function()? looks;
+
   @override
   void paint(Canvas canvas, Size size) {
     final t = progress.value, from = this.from;
-    if (t >= 1) return _draw(canvas, size, slide);
+    final looks = this.looks?.call();
+    if (t >= 1) return _draw(canvas, size, slide, looks: looks);
     void back({Offset shift = Offset.zero, double opacity = 1}) {
       if (from != null) _draw(canvas, size, from, shift: shift, opacity: opacity);
     }
@@ -357,12 +429,12 @@ class _ShowPainter extends CustomPainter {
     switch (transition['effect']) {
       case 'push':
         back(shift: away(dir) * t);
-        _draw(canvas, size, slide, shift: away(dir) * (t - 1));
+        _draw(canvas, size, slide, looks: looks, shift: away(dir) * (t - 1));
       case 'cover':
         back();
-        _draw(canvas, size, slide, shift: away(dir) * (t - 1));
+        _draw(canvas, size, slide, looks: looks, shift: away(dir) * (t - 1));
       case 'pull':
-        _draw(canvas, size, slide);
+        _draw(canvas, size, slide, looks: looks);
         back(shift: away(dir) * t);
       case 'wipe':
         final (w, h) = (size.width, size.height);
@@ -391,24 +463,24 @@ class _ShowPainter extends CustomPainter {
                 ..addRect(Rect.fromCenter(center: c, width: edges.width, height: edges.height)))
             : (Path()..addRect(Rect.fromCenter(center: c, width: band.width, height: band.height)));
         back();
-        _draw(canvas, size, slide, clip: clip);
+        _draw(canvas, size, slide, looks: looks, clip: clip);
       case 'zoom':
         back();
-        _draw(canvas, size, slide, opacity: t, scale: dir == 'out' ? 1.6 - 0.6 * t : 0.4 + 0.6 * t);
+        _draw(canvas, size, slide, looks: looks, opacity: t, scale: dir == 'out' ? 1.6 - 0.6 * t : 0.4 + 0.6 * t);
       case 'fade' when transition['thruBlk'] == true:
         if (t < 0.5) {
           back(opacity: 1 - 2 * t);
         } else {
-          _draw(canvas, size, slide, opacity: 2 * t - 1);
+          _draw(canvas, size, slide, looks: looks, opacity: 2 * t - 1);
         }
       default:
         back();
-        _draw(canvas, size, slide, opacity: t);
+        _draw(canvas, size, slide, looks: looks, opacity: t);
     }
   }
 
   /// Draws a slide fitted in [size], nothing outside it.
-  void _draw(Canvas canvas, Size size, Node slide, {Offset shift = Offset.zero, double opacity = 1, double scale = 1, Path? clip}) {
+  void _draw(Canvas canvas, Size size, Node slide, {Offset shift = Offset.zero, double opacity = 1, double scale = 1, Path? clip, Map<String, ShapeLook>? looks}) {
     final s = deck.size;
     final fit = math.min(size.width / s.width, size.height / s.height) * scale;
     canvas.save();
@@ -418,7 +490,7 @@ class _ShowPainter extends CustomPainter {
     canvas.scale(fit);
     canvas.translate(-s.width / 2, -s.height / 2);
     canvas.clipRect(Offset.zero & s);
-    painter.paint(canvas, slide);
+    painter.paint(canvas, slide, looks: looks);
     if (opacity < 1) canvas.restore();
     canvas.restore();
   }
