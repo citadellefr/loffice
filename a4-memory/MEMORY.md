@@ -76,6 +76,12 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 ### agent/slides.go
 - **m150** (à_revérifier) pptx : les enfants d'un nœud master ne sont pas que ses layouts, les formes du masque (sp, pic…) y sont aussi (pptx/pptx.go) ; pour lister les dispositions (agent/slides.go), filtrer Type=="layout". Les fixtures testdata/pptx ont des masques sans forme et ne révèlent pas le cas : tester sur corpus/files/python-pptx (ex. mst-placeholders.pptx). — _ag2, t26_
 
+### chart/testdata/
+- **m224** Open XML SDK (tools/validate) sur le chartex : les valeurs de cx:binning (binSize, binCount, underflow, overflow) sont le texte de l'élément (`<cx:binSize>3</cx:binSize>`), pas un attribut val ; le préfixe cx1 de mc:Requires doit être déclaré (xmlns:cx1="http://schemas.microsoft.com/office/drawing/2015/9/8/chartex") ; les id de cNvPr de l'AlternateContent doivent être uniques. Pour valider des fixtures sans original, passer en 1er argument un dossier de fichiers de même nom (testdata/*/blank|transitional) et LOFFICE_EDITED=1. — _ag1, t55_
+
+### corpus/
+- **m223** corpus/files est ignoré par git et absent d'un worktree neuf : un test qui lit le corpus y est sauté (t.Skip) au lieu d'échouer. Une régression sur un fichier du corpus n'apparaît qu'aux merge_checks, pas dans le worktree : vérifier que le corpus y existe (ls corpus/files) avant de croire un test vert. — _ag1, t55_
+
 ### dart/
 - **m2** dart/ Flutter et Dart ne sont pas dans le PATH de cette machine. Soit `nix shell nixpkgs#flutter -c flutter test` depuis loffice/dart (suite complète ≈ 1 min 40), soit ajouter au PATH /nix/store/x8cc2489gk0lhbgm5q3y7pxfb7v9r706-flutter-wrapped-3.47.4-sdk-links/bin (Flutter 3.47.4, Dart 3.13.3) avant flutter test / dart analyze. — _orchestra_
 
@@ -123,7 +129,7 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m213** Les tests pptx qui construisent writer{} à la main (corpus_test.go) doivent initialiser spids, sinon panic dans writer.shape. — _ag2, t53_
 
 ### pptx/pptx.go
-- **m217** (à_revérifier) Un graphique chartex est empaqueté dans un mc:AlternateContent (xlsx : ancre de dessin, pptx : spTree, docx : w:r) dont le Choice contient le graphicFrame ; il faut passer par chart.FindRef(graphicData) et par pptx chartChoice() pour retrouver le cadre, sinon le graphique est ignoré. — _ag1, t55_
+- **m217** Un graphique chartex est empaqueté dans un mc:AlternateContent (xlsx : ancre de dessin, pptx : spTree, docx : w:r) dont le Choice contient le graphicFrame ; il faut passer par chart.FindRef(graphicData) et par pptx chartChoice() pour retrouver le cadre, sinon le graphique est ignoré. — _ag1, t55_
 
 ### pptx/transition_test.go
 - **m122** (à_revérifier) `-run Edits` de pptx (CI, run.sh) n'écrit que 2 fichiers édités ; TestTransitions et TestComments écrivent aussi avec LOFFICE_EDITED (saveCorpus) mais sous des noms (comments/two.pptx) sans original : le validateur les ignore. Copier la sortie en <dossier>/poi/aptia.pptx pour la valider. — _ag4, t29_
@@ -133,7 +139,7 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 
 ### tools/validate/Program.cs
 - **m75** Validation Open XML SDK hors CI : dotnet vit dans /nix/store/qybc3wpz3hz5daipbmnj7rgc73hn35j2-dotnet-sdk-wrapped-8.0.425/bin/dotnet (pas dans le PATH ; sinon `nix shell nixpkgs#dotnet-sdk_8 -c dotnet ...`). Écrire d'abord les classeurs avec LOFFICE_EDITED, LOFFICE_MOVED ou LOFFICE_COMMENTED (les tests de graphiques écrivent sous charts/), puis `DOTNET_CLI_HOME=/tmp/x LOFFICE_EDITED=1 dotnet run -c Release --project tools/validate -- corpus/files <dossier>` (~3 min), ou `dotnet build tools/validate -o /tmp/x` puis `dotnet /tmp/x/Validate.dll <originaux> <réécrits>` (la dll s'appelle Validate.dll). Les deux dossiers doivent porter les mêmes chemins relatifs. tools/validate/run.sh automatise l'ensemble (voir m121). — _ag5, t15_
-- **m204** Les graphiques écrits par python-pptx/POI portent des c:axId négatifs, invalides pour l'Open XML SDK. Changer le type renomme l'élément de tracé (c:barChart → c:lineChart) et déplace donc ces erreurs ; tools/validate/Program.cs (Unplaced) ignore ce nom d'élément pour ne pas les compter comme nouvelles. — _ag3, t45_
+- **m204** (à_revérifier) Les graphiques écrits par python-pptx/POI portent des c:axId négatifs, invalides pour l'Open XML SDK. Changer le type renomme l'élément de tracé (c:barChart → c:lineChart) et déplace donc ces erreurs ; tools/validate/Program.cs (Unplaced) ignore ce nom d'élément pour ne pas les compter comme nouvelles. — _ag3, t45_
 
 ### xlsx/
 - **m10** Dans loffice (et dans ses worktrees a4), lancer go avec GOWORK=off : le go.work parent (/home/me/Code/Citadelle/go.work) n'inclut ni loffice ni les worktrees, et go build/vet/test échouent sinon (« directory prefix . does not contain modules listed in go.work »). `go test ./xlsx` sans -short dure ≈ 4 min : le lancer en arrière-plan ou avec un délai long. dotnet, qpdf et soffice ne sont pas installés : nix est disponible (nix shell nixpkgs#dotnet-sdk_8 etc.) pour les obtenir sans toucher au système. — _ag6, t6_
@@ -178,6 +184,9 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 ### dart/lib/src/excel/formula_text.dart
 - **m29** (à_revérifier) Les noms français de T.TEST et CHISQ.TEST sont T.TEST et CHISQ.TEST (non traduits) ; leurs noms de compatibilité sont TEST.STUDENT et TEST.KHIDEUX. — _ag2, t8_
 
+### dart/lib/src/powerpoint/animation_sequence.dart
+- **m226** Diaporama Dart : AnimationSequence(slide) découpe l'attribut animations en pas (clic ouvre un pas, with part avec l'effet de tête, after à la fin de ce qui précède ; les effets avant le premier clic forment un pas auto). sequence.looks(done, elapsedMs) rend Map<idForme, ShapeLook> ; SlidePainter.paint(canvas, slide, looks:) dessine les formes de premier niveau selon leur look (opacité 0 = non dessinée). Les vignettes et l'aperçu de transition n'en passent pas. — _ag6, t54_
+
 ### docx/behalf.go
 - **m165** (à_revérifier) loffice docx : l'attribution « au nom de » d'une révision de l'agent est un nœud `behalf` (parent doc, id déterministe docx.BehalfNode(auteur, date, utilisateur)) écrit dans w:docVars de settings.xml (variable loffice.behalf.<id>) ; docx.BehalfOf(tree, auteur, date) la relit. Check refuse un nœud behalf d'un autre auteur, sa suppression et sa modification ; l'id déterministe fait refuser par le hub un doublon. Agent.date() saute les dates déjà prises. Options.Journal ne sert plus qu'à la monotonie des dates. — _ag1, t36_
 - **m187** docx : à l'enregistrement, writer.liveBehalf ne garde que les nœuds behalf dont (auteur, date UTC) est porté par une révision (w:ins/w:del/…PrChange) d'une partie wordprocessingml du paquet ; settings.xml est réécrit si cet ensemble diffère de celui lu. BehalfOf compare aussi auteur et date du nœud (l'id FNV-32 seul peut collisionner). — _ag5, t48_
@@ -213,6 +222,9 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 
 ### pptx/pptx.go
 - **m38** (à_revérifier) loffice pptx : l'attribut « xml » d'une forme (XML brut hors texte) n'est pas mis à jour par OpSet avant la sauvegarde. Après une édition, l'arbre en mémoire diffère donc de sa relecture. Pour tester une réécriture, comparer la relecture à celle d'un fichier de référence qui a reçu les mêmes éditions. — _ag1, t7_
+
+### pptx/write.go
+- **m225** pptx : le repli (mc:Fallback) d'un graphique chartex suit le cadre : un déplacement, redimensionnement ou renommage met à jour le Choice et chaque forme du Fallback (pptx/write.go, xfrmOf). docx : edited() place sur tous les wp:inline/wp:anchor du run, Choice et Fallback ; les replis VML (w:pict) ne suivent pas. — _ag1, t55_
 
 ### xlsx/calc.go
 - **m11** (à_revérifier) Formule dynamique Excel 365 dans l'arbre xlsx : l'ancre porte f, fa (aire déversée) et cm=1, et les cellules déversées n'ont que v. Une formule tapée par le client (OpCel avec f chaîne) est dynamique. Calc pose fa et cm, et le writer crée xl/metadata.xml (XLDAPR) dès qu'une cellule réécrite a cm et f (xlsx/metadata.go). — _ag6, t6_
