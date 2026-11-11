@@ -60,9 +60,12 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 
 ### agent/edit.go
 - **m52** (à_revérifier) docx : pour supprimer le dernier paragraphe d'un flux, on supprime la marque précédente et le contenu, et la marque finale prend les attributs de la précédente. Un flux ne peut pas perdre sa marque finale (ErrNoMark), et un body ou un tc doit finir par un paragraphe. Voir removeRange dans agent/edit.go. — _ag5, t23_
+- **m190** loffice agent : revises() (t36) compte l'op "delete", qui sert aussi aux slides. Le nœud docx behalf ne doit être ajouté que pour Word (!a.direct()), sinon le Check pptx refuse la suppression d'une slide (ErrReadOnly). — _ag2, t26_
 
 ### agent/helpers_test.go
-- **m131** Dans les tests agent, human.edit envoie depuis la dernière version lue par le humain, pas la version courante : le hub transforme donc son op, et un Ins At=3 peut atterrir ligne 4. Consommer les frames op avec human.next("op") jusqu'à la version de l'agent avant d'envoyer une op positionnelle. — _ag2, t26_
+- **m131** (à_revérifier) Dans les tests agent, human.edit envoie depuis la dernière version lue par le humain, pas la version courante : le hub transforme donc son op, et un Ins At=3 peut atterrir ligne 4. Consommer les frames op avec human.next("op") jusqu'à la version de l'agent avant d'envoyer une op positionnelle. — _ag2, t26_
+- **m188** (à_revérifier) agent/helpers_test.go : trametest.Join attend « doc » juste après « sync » mais le hub peut envoyer une trame « eph » avant : human() attend « hello », envoie sync puis lit jusqu'à « doc » (h.next). Avant ce correctif TestBehalfNodesAreChecked échouait ~1 fois sur 3. — _ag5, t48_
+- **m191** (à_revérifier) loffice agent, tests : dès que l'agent a publié un eph (sélection, éditions récentes), un humain qui rejoint la salle reçoit cet eph avant le frame doc. trametest.Join échoue alors avec « got eph frame, want doc ». Faire rejoindre les humains (room.human) avant les éditions de l'agent. — _ag2, t26_
 
 ### agent/sheets_test.go
 - **m183** Revue de fusion loffice : git diff et les fichiers lus doivent venir de la tête de branche ET du résultat fusionné. Une branche a4 peut passer ses tests seule et ne plus compiler sur main (helper de test du même nom dans le même paquet) ou reposer sur une règle du Check que main a changée. Simuler la fusion dans un clone jetable (git clone puis git merge) avant le verdict. — _oa, t26_
@@ -125,7 +128,7 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 ### xlsx/calc.go
 - **m23** (à_revérifier) xlsx : le writer ne doit jamais réécrire le texte d'une formule lue d'un fichier, sinon TestCorpusRewrite échoue (LibreOffice écrit par exemple ISO.CEILING sans préfixe). Les préfixes _xlfn. sont posés à la saisie, par Calc via formula.Stored, et seulement pour les formules tapées par le client. — _ag6, t6_
 - **m40** (à_revérifier) xlsx : Calc.Follow doit flusher après chaque ins/rem de l'édit (f.shift puis f.flush). Sinon les décalages successifs lisent le texte non décalé de l'arbre et le dernier écrase les précédents dans f.cells. Le book "moves" est posé par workbook.moved (format.go) avant calc.Follow, pour survivre à un panic du calcul. — _ag3, t28_
-- **m148** Le coût d'un renommage de feuille sur 100 000 formules vient surtout de formula.Rename (réécriture des textes) et du Set de chaque formule dans Calc.rebuild, pas de la recherche des cercles (≈ 60 ms). BenchmarkRenameSheet et BenchmarkOpenFormulas (xlsx/calc_test.go) le mesurent. — _ag3, t34_
+- **m148** (à_revérifier) Le coût d'un renommage de feuille sur 100 000 formules vient surtout de formula.Rename (réécriture des textes) et du Set de chaque formule dans Calc.rebuild, pas de la recherche des cercles (≈ 60 ms). BenchmarkRenameSheet et BenchmarkOpenFormulas (xlsx/calc_test.go) le mesurent. — _ag3, t34_
 - **m175** loffice xlsx : quand des lignes ou colonnes sont supprimées (rem), le Follower (xlsx/calc.go shift) ne décale pas seulement les formules. Il décale ou retire aussi valid, cf, charts, filter, tables, print, names, le nœud looks et les attributs m/fa des cellules. Réinsérer les lignes ne répare pas ce qui pointait dans la bande supprimée : l'inverse d'un rem doit reposer ces attributs (agent state.unshifted). Le Check refuse d'écrire charts, qui part donc dans Record.Lost. — _ag2, t26_
 
 ### xlsx/check.go
@@ -141,10 +144,11 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 
 ### agent/direct.go
 - **m130** UndoMine en édition directe : chaque utilisateur a une pile. Ses annulations s'enchaînent, la dernière d'abord, et ne sont jamais rebasées sur ses propres lots : rebaser sur eux perd de l'information, par exemple deux réécritures du même texte donnent « UnAlpha ». Seule une édition étrangère les traverse, en descendant la pile avec l'édition transformée à chaque étage (rebaseMine, rebase). — _ag2, t26_
+- **m192** loffice agent : UndoMine refuse avec ErrChanged quand un humain a inséré ou supprimé, depuis, des lignes ou colonnes qui décaleraient ce que l'annulation repose tel quel : formule f, plage fa, fusion m, attributs valid/cf/filter/tables/print/charts, names (state.moves dans clash). — _ag2, t26_
 
 ### agent/edit.go
 - **m152** Record.Lost (agent) liste ce qu'UndoMine a annulé sans pouvoir le refaire : les notes d'une slide et les commentaires d'autrui, que le Check pptx interdit de recréer. L'outil MCP undo_mine l'affiche avec « Not restored ». — _ag2, t26_
-- **m166** loffice agent : le planner ne supprime directement que les insertions de l'agent faites pour le même utilisateur (docx.BehalfOf == lot, ou même date que le lot) ; sinon la suppression est une révision de suivi (jamais d'effacement sans trace). — _ag1, t36_
+- **m166** (à_revérifier) loffice agent : le planner ne supprime directement que les insertions de l'agent faites pour le même utilisateur (docx.BehalfOf == lot, ou même date que le lot) ; sinon la suppression est une révision de suivi (jamais d'effacement sans trace). — _ag1, t36_
 
 ### agent/state.go
 - **m51** (à_revérifier) Le paquet loffice/agent donne aux paragraphes des ids pN qui suivent leur marque, et aux tableaux des ids tN. Ces ids et les versions (jeton de session-n) ne valent que pour un même Agent : une autre session renumérote. Le Journal (Options.Journal) transmet de session en session le « au nom de » des révisions. — _ag5, t23_
@@ -156,7 +160,8 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m29** (à_revérifier) Les noms français de T.TEST et CHISQ.TEST sont T.TEST et CHISQ.TEST (non traduits) ; leurs noms de compatibilité sont TEST.STUDENT et TEST.KHIDEUX. — _ag2, t8_
 
 ### docx/behalf.go
-- **m165** loffice docx : l'attribution « au nom de » d'une révision de l'agent est un nœud `behalf` (parent doc, id déterministe docx.BehalfNode(auteur, date, utilisateur)) écrit dans w:docVars de settings.xml (variable loffice.behalf.<id>) ; docx.BehalfOf(tree, auteur, date) la relit. Check refuse un nœud behalf d'un autre auteur, sa suppression et sa modification ; l'id déterministe fait refuser par le hub un doublon. Agent.date() saute les dates déjà prises. Options.Journal ne sert plus qu'à la monotonie des dates. — _ag1, t36_
+- **m165** (à_revérifier) loffice docx : l'attribution « au nom de » d'une révision de l'agent est un nœud `behalf` (parent doc, id déterministe docx.BehalfNode(auteur, date, utilisateur)) écrit dans w:docVars de settings.xml (variable loffice.behalf.<id>) ; docx.BehalfOf(tree, auteur, date) la relit. Check refuse un nœud behalf d'un autre auteur, sa suppression et sa modification ; l'id déterministe fait refuser par le hub un doublon. Agent.date() saute les dates déjà prises. Options.Journal ne sert plus qu'à la monotonie des dates. — _ag1, t36_
+- **m187** docx : à l'enregistrement, writer.liveBehalf ne garde que les nœuds behalf dont (auteur, date UTC) est porté par une révision (w:ins/w:del/…PrChange) d'une partie wordprocessingml du paquet ; settings.xml est réécrit si cet ensemble diffère de celui lu. BehalfOf compare aussi auteur et date du nœud (l'id FNV-32 seul peut collisionner). — _ag5, t48_
 
 ### formula/engine.go
 - **m60** (à_revérifier) formula/engine.go : Engine.run calcule une liste de formules (all) par tour de déversement. La détection des cercles (Kahn puis Tarjan, circle, again) s'applique à all, pas à e.dirty. join remet cf.circle à nil à chaque tour. Le recalcul again ne vide pas e.filled, qui garde les cellules qu'un déversement a libérées. — _ag6, t6_
@@ -175,7 +180,7 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m137** formula.Table peut être compacte : Cells ne tient que held() lignes, les lignes suivantes répètent la dernière tenue. Lire par At(i,j) ; ne jamais indexer Cells au-delà de held() sur une table issue de c.grid. c.grid rend une table éventuellement compacte, c.array une table dense (bornée par maxCells, rognée si la queue est vide). Une nouvelle fonction de tableau sur de grandes plages doit passer par c.grid et calculer sur les lignes tenues. — _ag4, t33_
 
 ### mcp/tools.go
-- **m113** loffice MCP : l'outil select (curseur ou présence de l'IA) reste autorisé comme une lecture (Access.Write=false), décision de l'hôte Citadelle : la présence ne modifie pas le document. Aucun tag de version loffice (v0.12.0…) ne doit être posé ni publié sans l'accord transmis par sys:main/orchestra. — _orchestra_
+- **m113** (à_revérifier) loffice MCP : l'outil select (curseur ou présence de l'IA) reste autorisé comme une lecture (Access.Write=false), décision de l'hôte Citadelle : la présence ne modifie pas le document. Aucun tag de version loffice (v0.12.0…) ne doit être posé ni publié sans l'accord transmis par sys:main/orchestra. — _orchestra_
 
 ### opc/strict.go
 - **m36** loffice opc : dans un paquet OOXML Strict (Package.Strict()), Read rend chaque partie XML traduite en Transitional (espaces de noms, types de relations, pourcentages DrawingML « 75% » → 75000), et Set/Add retraduisent en Strict. Les lecteurs et writers des formats ne voient donc que du Transitional. Table et liste des attributs pourcentage : opc/strict.go. — _ag1, t7_
@@ -218,3 +223,6 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 ### agent/
 - **m4** (à_revérifier) Coédition IA dans PowerPoint et Excel (sans suivi des modifications) : l'IA écrit directement, de façon visible (curseur et nom de l'IA, surlignage temporaire de ce qu'elle vient de modifier), avec « annuler les miennes » qui retire seulement ses éditions. Dans Word, suivi des modifications signé de son nom. — _orchestra_
 - **m114** (à_revérifier) Coédition IA (décision de l'humain, 04/11) : l'IA écrit en direct dans le document même quand d'autres personnes l'ont ouvert ; aucune attente ni verrou parce que des humains sont présents dans la salle. — _orchestra_
+
+### chart/
+- **m186** (à_revérifier) Portée restante de la v1.0 de loffice, fixée par l'humain le 05/11 : fidélité seulement, soit les graphiques Excel 2016 (chartex), les objets éditables dans Word (images, champs) et les animations PowerPoint. Les formats .doc, .ppt, .xlsb et ODF sont repoussés après la 1.0. — _orchestra_
