@@ -189,6 +189,19 @@ func grown(table *xlsx.ChartTable) *xlsx.ChartTable {
 	return &out
 }
 
+// asked tells whether a table keeps what was asked of it: the first value
+// that is 42.5, whatever the formulas of the workbook make of the others,
+// and the series and categories asked for.
+func asked(table, requested *xlsx.ChartTable) error {
+	if len(table.Series) != len(requested.Series) || len(table.Categories) != len(requested.Categories) {
+		return fmt.Errorf("%d series and %d categories, not %d and %d", len(table.Series), len(table.Categories), len(requested.Series), len(requested.Categories))
+	}
+	if v := table.Series[0].Values[0]; v != 42.5 {
+		return fmt.Errorf("the first value is %v, not 42.5", v)
+	}
+	return nil
+}
+
 // matches tells how the series of a chart differ from a table.
 func matches(c *chart.Chart, table *xlsx.ChartTable) error {
 	series := map[int]chart.Series{}
@@ -287,7 +300,11 @@ func editCharts(t *testing.T, name string, data []byte) (saved []byte, withData,
 	if saved, err = f.Save(tree); err != nil {
 		t.Fatalf("%s: %v", name, err)
 	}
+	requested := want
 	want = tableOf(t, tree, id)
+	if err := asked(want, requested); err != nil {
+		t.Fatalf("%s: %v", name, err)
+	}
 	for _, part := range changedParts(t, data, saved) {
 		if !chartName.MatchString(part) && !bookName.MatchString(part) {
 			t.Fatalf("%s: %s changed", name, part)
@@ -297,11 +314,18 @@ func editCharts(t *testing.T, name string, data []byte) (saved []byte, withData,
 		t.Fatalf("%s: %v", name, err)
 	}
 	again := reopen(t, name, saved)
-	if got := tableOf(t, again, id); !reflect.DeepEqual(got, want) {
+	got := tableOf(t, again, id)
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("%s: table %+v, not %+v", name, got, want)
 	}
 	if err := matches(chartOf(t, again, id), want); err != nil {
 		t.Fatalf("%s: read again: %v", name, err)
+	}
+	if err := asked(got, requested); err != nil {
+		t.Fatalf("%s: read again: %v", name, err)
+	}
+	if v := chartOf(t, again, id).Plots[0].Series[0].Val.Num[0]; v == nil || *v != 42.5 {
+		t.Fatalf("%s: the first value of the chart reads %v, not 42.5", name, v)
 	}
 	return saved, true, true
 }
