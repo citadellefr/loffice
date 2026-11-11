@@ -83,7 +83,7 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m223** (à_revérifier) corpus/files est ignoré par git et absent d'un worktree neuf : un test qui lit le corpus y est sauté (t.Skip) au lieu d'échouer. Une régression sur un fichier du corpus n'apparaît qu'aux merge_checks, pas dans le worktree : vérifier que le corpus y existe (ls corpus/files) avant de croire un test vert. — _ag1, t55_
 
 ### dart/
-- **m2** dart/ Flutter et Dart ne sont pas dans le PATH de cette machine. Soit `nix shell nixpkgs#flutter -c flutter test` depuis loffice/dart (suite complète ≈ 1 min 40), soit ajouter au PATH /nix/store/x8cc2489gk0lhbgm5q3y7pxfb7v9r706-flutter-wrapped-3.47.4-sdk-links/bin (Flutter 3.47.4, Dart 3.13.3) avant flutter test / dart analyze. — _orchestra_
+- **m2** (à_revérifier) dart/ Flutter et Dart ne sont pas dans le PATH de cette machine. Soit `nix shell nixpkgs#flutter -c flutter test` depuis loffice/dart (suite complète ≈ 1 min 40), soit ajouter au PATH /nix/store/x8cc2489gk0lhbgm5q3y7pxfb7v9r706-flutter-wrapped-3.47.4-sdk-links/bin (Flutter 3.47.4, Dart 3.13.3) avant flutter test / dart analyze. — _orchestra_
 
 ### dart/analysis_options.yaml
 - **m6** dart format ne lit formatter.page_width de analysis_options.yaml qu'après `flutter pub get` (il lui faut .dart_tool/package_config.json) ; sans cela le réglage est ignoré silencieusement et la largeur reste 80. — _ag1, t1_
@@ -93,7 +93,7 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 
 ### formula/engine.go
 - **m19** (à_revérifier) formula : les plages sont évaluées paresseusement, et la conversion scalaire (Context.scalar) lit les cellules après Eval. Tout état « en cours de calcul » (busy, pile) doit donc être levé après le remplissage de la valeur (fill), pas juste après Eval. — _ag5, t5_
-- **m65** (à_revérifier) formula/engine.go : Calc rend dynamique toute formule tapée par le client, même scalaire (xlsx/calc.go, SetDynamic), donc un parcours de tout e.spills par cellule, formule ou lecture de plage devient quadratique : les parcours doivent porter sur e.spread (formules dont la plage dépasse leur cellule). BenchmarkFollow ne charge que des formules lues du fichier ; pour mesurer les formules saisies (Calc.set typed=true), utiliser BenchmarkFollowTyped (xlsx/calc_test.go), un collage OpCel de milliers de formules. — _ag6, t6_
+- **m65** formula/engine.go : Calc rend dynamique toute formule tapée par le client, même scalaire (xlsx/calc.go, SetDynamic), donc un parcours de tout e.spills par cellule, formule ou lecture de plage devient quadratique : les parcours doivent porter sur e.spread (formules dont la plage dépasse leur cellule). BenchmarkFollow ne charge que des formules lues du fichier ; pour mesurer les formules saisies (Calc.set typed=true), utiliser BenchmarkFollowTyped (xlsx/calc_test.go), un collage OpCel de milliers de formules. — _ag6, t6_
 
 ### formula/eval.go
 - **m172** (à_revérifier) formula : c.table rogne les colonnes d'une référence de lignes entières (drapeau Rows) à la largeur utilisée de sa propre feuille. Deux aires de même forme sur deux feuilles différentes peuvent donc donner des tables de largeurs différentes. Si un appelant fixe lui-même la forme (tables() pour COUNTIFS/SUMIF), il doit effacer Rows/Cols avant d'appeler c.table. — _ob, t33_
@@ -123,7 +123,7 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m169** formula : depuis les tables compactes, deux aires de même forme n'ont pas forcément la même longueur de Cells (c.table tient les lignes de la feuille + une vide répétée, selon R1). Pour lire plusieurs aires en parallèle (SUMIF, COUNTIFS), itérer sur Rows*Cols avec At(i/Cols, i%Cols), jamais indexer Cells[i] d'une table par l'indice d'une autre. — _ag4, t33_
 
 ### formula/functions.go
-- **m179** formula : une table compacte a une taille logique (Rows×Cols) sans rapport avec ses cellules tenues ; maxCells ne borne que held*cols. Tout parcours par Rows×Cols, notamment eachOf, peut donc énumérer 1,7e10 cellules (A:XFD+1) et épuiser la mémoire. Tester les formules hostiles sur A:XFD, pas seulement sur MUNIT. — _oa, t33_
+- **m179** (à_revérifier) formula : une table compacte a une taille logique (Rows×Cols) sans rapport avec ses cellules tenues ; maxCells ne borne que held*cols. Tout parcours par Rows×Cols, notamment eachOf, peut donc énumérer 1,7e10 cellules (A:XFD+1) et épuiser la mémoire. Tester les formules hostiles sur A:XFD, pas seulement sur MUNIT. — _oa, t33_
 
 ### internal/xmldom/xmldom_test.go
 - **m37** loffice : opc importe internal/xmldom (opc/strict.go). Un test d'internal/xmldom ou d'internal/xmltok (package interne) ne doit donc pas importer opc, sinon il y a un cycle d'import en test. Pour lire un zip dans ces tests, utiliser archive/zip. — _ag1, t7_
@@ -153,8 +153,8 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 ### xlsx/calc.go
 - **m23** (à_revérifier) xlsx : le writer ne doit jamais réécrire le texte d'une formule lue d'un fichier, sinon TestCorpusRewrite échoue (LibreOffice écrit par exemple ISO.CEILING sans préfixe). Les préfixes _xlfn. sont posés à la saisie, par Calc via formula.Stored, et seulement pour les formules tapées par le client. — _ag6, t6_
 - **m40** (à_revérifier) xlsx : Calc.Follow doit flusher après chaque ins/rem de l'édit (f.shift puis f.flush). Sinon les décalages successifs lisent le texte non décalé de l'arbre et le dernier écrase les précédents dans f.cells. Le book "moves" est posé par workbook.moved (format.go) avant calc.Follow, pour survivre à un panic du calcul. — _ag3, t28_
-- **m148** (à_revérifier) Le coût d'un renommage de feuille sur 100 000 formules vient surtout de formula.Rename (réécriture des textes) et du Set de chaque formule dans Calc.rebuild, pas de la recherche des cercles (≈ 60 ms). BenchmarkRenameSheet et BenchmarkOpenFormulas (xlsx/calc_test.go) le mesurent. — _ag3, t34_
-- **m175** loffice xlsx : quand des lignes ou colonnes sont supprimées (rem), le Follower (xlsx/calc.go shift) ne décale pas seulement les formules. Il décale ou retire aussi valid, cf, charts, filter, tables, print, names, le nœud looks et les attributs m/fa des cellules. Réinsérer les lignes ne répare pas ce qui pointait dans la bande supprimée : l'inverse d'un rem doit reposer ces attributs (agent state.unshifted). Le Check refuse d'écrire charts, qui part donc dans Record.Lost. — _ag2, t26_
+- **m148** Le coût d'un renommage de feuille sur 100 000 formules vient surtout de formula.Rename (réécriture des textes) et du Set de chaque formule dans Calc.rebuild, pas de la recherche des cercles (≈ 60 ms). BenchmarkRenameSheet et BenchmarkOpenFormulas (xlsx/calc_test.go) le mesurent. — _ag3, t34_
+- **m175** (à_revérifier) loffice xlsx : quand des lignes ou colonnes sont supprimées (rem), le Follower (xlsx/calc.go shift) ne décale pas seulement les formules. Il décale ou retire aussi valid, cf, charts, filter, tables, print, names, le nœud looks et les attributs m/fa des cellules. Réinsérer les lignes ne répare pas ce qui pointait dans la bande supprimée : l'inverse d'un rem doit reposer ces attributs (agent state.unshifted). Le Check refuse d'écrire charts, qui part donc dans Record.Lost. — _ag2, t26_
 
 ### xlsx/chartbook_test.go
 - **m203** Dans les tests xlsx du dépôt loffice, la feuille du classeur de test s'appelle « Feuille1 » et non « Sheet1 » : une référence de graphique « Sheet1!… » ne la trouve pas (ErrChartLayout dans chartbook). — _ag3, t45_
