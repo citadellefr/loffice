@@ -33,8 +33,8 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m96** (à_revérifier) Values of type TypeLambda never leave the calculation: a cell, scalar() and the engine's cellValue turn them into #CALC!. — _ag5, t11_
 
 ### tools/validate/run.sh
-- **m121** tools/validate/run.sh [dossier [famille...]] lance toute la validation Open XML SDK (réécritures et éditions de opc, pptx, xlsx, legacy, docx) et prend dotnet de nix s'il manque dans le PATH ; il compile Validate.dll une fois dans <dossier>/validate. Les familles peuvent tourner en parallèle avec un même dossier ; opc (3641 fichiers) prend ~25 min, le total ~35 min. — _ag4, t29_
-- **m167** Validation Open XML locale sans dotnet installé : `nix shell nixpkgs#dotnet-sdk_8 -c dotnet build tools/validate -c Release -o /tmp/v` puis `LOFFICE_EDITED=1 dotnet /tmp/v/Validate.dll corpus/files <dossier de docx réécrits>` ; corpus/files est un lien : find ne le suit pas, utiliser un glob Go. — _ag1, t36_
+- **m121** (à_revérifier) tools/validate/run.sh [dossier [famille...]] lance toute la validation Open XML SDK (réécritures et éditions de opc, pptx, xlsx, legacy, docx) et prend dotnet de nix s'il manque dans le PATH ; il compile Validate.dll une fois dans <dossier>/validate. Les familles peuvent tourner en parallèle avec un même dossier ; opc (3641 fichiers) prend ~25 min, le total ~35 min. — _ag4, t29_
+- **m167** (à_revérifier) Validation Open XML locale sans dotnet installé : `nix shell nixpkgs#dotnet-sdk_8 -c dotnet build tools/validate -c Release -o /tmp/v` puis `LOFFICE_EDITED=1 dotnet /tmp/v/Validate.dll corpus/files <dossier de docx réécrits>` ; corpus/files est un lien : find ne le suit pas, utiliser un glob Go. — _ag1, t36_
 
 ### xlsx/links.go
 - **m78** (à_revérifier) xlsx : les liens hypertexte sont le champ `link` de la cellule ({"url"|"loc","tip"}), lu par Document.links (xlsx/links.go) qui retire de la feuille les hyperlinks éditables ; ceux sur plus de 1024 cellules ou à adresse non canonique restent dans le XML de la feuille. Une fusion vérifiée par merges.apply (xlsx/merges.go) compare aux fusions de l'arbre. — _ag3, t14_
@@ -71,7 +71,7 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m183** Revue de fusion loffice : git diff et les fichiers lus doivent venir de la tête de branche ET du résultat fusionné. Une branche a4 peut passer ses tests seule et ne plus compiler sur main (helper de test du même nom dans le même paquet) ou reposer sur une règle du Check que main a changée. Simuler la fusion dans un clone jetable (git clone puis git merge) avant le verdict. — _oa, t26_
 
 ### agent/slides.go
-- **m150** pptx : les enfants d'un nœud master ne sont pas que ses layouts, les formes du masque (sp, pic…) y sont aussi (pptx/pptx.go) ; pour lister les dispositions (agent/slides.go), filtrer Type=="layout". Les fixtures testdata/pptx ont des masques sans forme et ne révèlent pas le cas : tester sur corpus/files/python-pptx (ex. mst-placeholders.pptx). — _ag2, t26_
+- **m150** (à_revérifier) pptx : les enfants d'un nœud master ne sont pas que ses layouts, les formes du masque (sp, pic…) y sont aussi (pptx/pptx.go) ; pour lister les dispositions (agent/slides.go), filtrer Type=="layout". Les fixtures testdata/pptx ont des masques sans forme et ne révèlent pas le cas : tester sur corpus/files/python-pptx (ex. mst-placeholders.pptx). — _ag2, t26_
 
 ### dart/
 - **m2** (à_revérifier) dart/ Flutter et Dart ne sont pas dans le PATH de cette machine. Soit `nix shell nixpkgs#flutter -c flutter test` depuis loffice/dart (suite complète ≈ 1 min 40), soit ajouter au PATH /nix/store/x8cc2489gk0lhbgm5q3y7pxfb7v9r706-flutter-wrapped-3.47.4-sdk-links/bin (Flutter 3.47.4, Dart 3.13.3) avant flutter test / dart analyze. — _orchestra_
@@ -117,7 +117,7 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m132** Un test d'annulation xlsx doit vérifier toute la grille, pas une cellule : après une annulation fausse, B1 peut valoir la bonne valeur par hasard alors que lignes et colonnes sont restées décalées. — _ag2, t26_
 
 ### pptx/transition_test.go
-- **m122** `-run Edits` de pptx (CI, run.sh) n'écrit que 2 fichiers édités ; TestTransitions et TestComments écrivent aussi avec LOFFICE_EDITED (saveCorpus) mais sous des noms (comments/two.pptx) sans original : le validateur les ignore. Copier la sortie en <dossier>/poi/aptia.pptx pour la valider. — _ag4, t29_
+- **m122** (à_revérifier) `-run Edits` de pptx (CI, run.sh) n'écrit que 2 fichiers édités ; TestTransitions et TestComments écrivent aussi avec LOFFICE_EDITED (saveCorpus) mais sous des noms (comments/two.pptx) sans original : le validateur les ignore. Copier la sortie en <dossier>/poi/aptia.pptx pour la valider. — _ag4, t29_
 
 ### tools/validate/Program.cs
 - **m75** Validation Open XML SDK hors CI : dotnet vit dans /nix/store/qybc3wpz3hz5daipbmnj7rgc73hn35j2-dotnet-sdk-wrapped-8.0.425/bin/dotnet (pas dans le PATH ; sinon `nix shell nixpkgs#dotnet-sdk_8 -c dotnet ...`). Écrire d'abord les classeurs avec LOFFICE_EDITED, LOFFICE_MOVED ou LOFFICE_COMMENTED (les tests de graphiques écrivent sous charts/), puis `DOTNET_CLI_HOME=/tmp/x LOFFICE_EDITED=1 dotnet run -c Release --project tools/validate -- corpus/files <dossier>` (~3 min), ou `dotnet build tools/validate -o /tmp/x` puis `dotnet /tmp/x/Validate.dll <originaux> <réécrits>` (la dll s'appelle Validate.dll). Les deux dossiers doivent porter les mêmes chemins relatifs. tools/validate/run.sh automatise l'ensemble (voir m121). — _ag5, t15_
@@ -144,7 +144,7 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 ## contrat
 
 ### agent/
-- **m5** Contraintes de l'hôte (serveur Citadelle, Héraut) pour le MCP de loffice : voie principale = http.Handler monté par le serveur, Héraut l'appelle en HTTP depuis son conteneur (stdio = dev local seulement) ; autorisation à deux niveaux par une fonction de l'hôte à chaque requête (service appelant autorisé par l'admin, modèle Services v3, + droits de l'utilisateur « au nom de » sur ce document ; l'IA n'a aucun droit propre) ; écriture refusée si l'utilisateur n'a pas consenti ; auteur Word = nom stable de l'IA, demandeur en métadonnée du lot, UndoMine par demandeur ; aperçu→application avec version/ETag, échec sans écrasement ; délais de plusieurs dizaines de secondes ; rien d'exposé ni d'affiché si l'hôte n'active pas l'IA. — _orchestra_
+- **m5** (à_revérifier) Contraintes de l'hôte (serveur Citadelle, Héraut) pour le MCP de loffice : voie principale = http.Handler monté par le serveur, Héraut l'appelle en HTTP depuis son conteneur (stdio = dev local seulement) ; autorisation à deux niveaux par une fonction de l'hôte à chaque requête (service appelant autorisé par l'admin, modèle Services v3, + droits de l'utilisateur « au nom de » sur ce document ; l'IA n'a aucun droit propre) ; écriture refusée si l'utilisateur n'a pas consenti ; auteur Word = nom stable de l'IA, demandeur en métadonnée du lot, UndoMine par demandeur ; aperçu→application avec version/ETag, échec sans écrasement ; délais de plusieurs dizaines de secondes ; rien d'exposé ni d'affiché si l'hôte n'active pas l'IA. — _orchestra_
 
 ### agent/direct.go
 - **m130** UndoMine en édition directe : chaque utilisateur a une pile. Ses annulations s'enchaînent, la dernière d'abord, et ne sont jamais rebasées sur ses propres lots : rebaser sur eux perd de l'information, par exemple deux réécritures du même texte donnent « UnAlpha ». Seule une édition étrangère les traverse, en descendant la pile avec l'édition transformée à chaque étage (rebaseMine, rebase). — _ag2, t26_
@@ -200,7 +200,7 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m11** (à_revérifier) Formule dynamique Excel 365 dans l'arbre xlsx : l'ancre porte f, fa (aire déversée) et cm=1, et les cellules déversées n'ont que v. Une formule tapée par le client (OpCel avec f chaîne) est dynamique. Calc pose fa et cm, et le writer crée xl/metadata.xml (XLDAPR) dès qu'une cellule réécrite a cm et f (xlsx/metadata.go). — _ag6, t6_
 
 ### xlsx/charts.go
-- **m142** checkChart (xlsx/charts.go) ne re-borne pas ce qu'un graphique garde de la version courante de l'arbre (comparaison JSON de chaque Data, titres égaux) : un graphique lu du fichier hors bornes ou une référence #REF! après suppression de lignes reste éditable. Seuls les nouveaux Data sont bornés, et maxChartRead limite les cellules lues anew par édit. — _ag1, t18_
+- **m142** (à_revérifier) checkChart (xlsx/charts.go) ne re-borne pas ce qu'un graphique garde de la version courante de l'arbre (comparaison JSON de chaque Data, titres égaux) : un graphique lu du fichier hors bornes ou une référence #REF! après suppression de lignes reste éditable. Seuls les nouveaux Data sont bornés, et maxChartRead limite les cellules lues anew par édit. — _ag1, t18_
 
 ### xlsx/check.go
 - **m106** (à_revérifier) xlsx/check.go,dart/lib/src/excel/tables.dart xlsx Check (check.go, shifts > 0 && shifts < len(e)) refuse une édition qui mêle insertion ou suppression de lignes/colonnes (OpIns/OpRem) et autres changements. Un client envoie deux éditions : l'insertion seule, puis le reste (cf. insertTableEdits/totalsEdits de dart/lib/src/excel/tables.dart). Les tests Dart qui n'appliquent l'édition qu'en local (tree.apply) ne voient pas ce refus. — _ag6, t17_
@@ -232,7 +232,7 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m201** Charge et machine (humain, 11/11/2026). Au plus 3 à 4 agents actifs à la fois, et des tâches réparties sur plusieurs instances (paramètre instance) plutôt que toutes sur une seule. La machine (31 Go, sans swap) est partagée : tout run de navigateur ou de VM se lance dans bancs.slice (`systemd-run --user --scope -q --slice=bancs.slice -p MemoryMax=6G -p MemorySwapMax=0 -- …`). Pas de banc pour un changement sans effet sur le client. — _orchestra_
 
 ### agent/
-- **m4** Coédition IA dans PowerPoint et Excel (sans suivi des modifications) : l'IA écrit directement, de façon visible (curseur et nom de l'IA, surlignage temporaire de ce qu'elle vient de modifier), avec « annuler les miennes » qui retire seulement ses éditions. Dans Word, suivi des modifications signé de son nom. — _orchestra_
+- **m4** (à_revérifier) Coédition IA dans PowerPoint et Excel (sans suivi des modifications) : l'IA écrit directement, de façon visible (curseur et nom de l'IA, surlignage temporaire de ce qu'elle vient de modifier), avec « annuler les miennes » qui retire seulement ses éditions. Dans Word, suivi des modifications signé de son nom. — _orchestra_
 - **m114** (à_revérifier) Coédition IA (décision de l'humain, 04/11) : l'IA écrit en direct dans le document même quand d'autres personnes l'ont ouvert ; aucune attente ni verrou parce que des humains sont présents dans la salle. — _orchestra_
 
 ### chart/
