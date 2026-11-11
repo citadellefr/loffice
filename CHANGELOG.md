@@ -72,6 +72,18 @@
   attributes only, never in the text. The docx and pptx fuzzers run with a
   lighter harness and an unreadable `styles.xml` is rewritten; CI takes the
   latest Go 1.26 for govulncheck.
+- `pptx` and `docx` edit charts too: the "chart" attribute of a chart frame
+  (pptx) or of a "chart" node of the document (docx, `chart-1`…, which the
+  drawing names in "chartNode") takes a change of type, title or legend,
+  written as a patch of the chart part alone. When the series read a table
+  of cells of the workbook embedded with the chart, "chartData" holds that
+  table (`xlsx.ChartTable`: categories, series by index, values): a table
+  set rewrites the cells of the workbook, calculates its formulas, and gives
+  the series their ranges and cached values, which the server sends back.
+  A chart without such a workbook (a link, none, series apart) keeps its
+  data read-only and the server refuses their edit. `xlsx.OpenChartBook`
+  reads such a workbook on its own. The Dart Word and PowerPoint editors
+  have the Chart Design and Format tabs and a pane of the data.
 
 ## 0.12.0 — 2026-11-04
 

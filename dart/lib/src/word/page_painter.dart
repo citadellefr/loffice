@@ -61,7 +61,9 @@ class PagePainter {
 
   /// Draws a chart, a diagram or a picture once loaded; tells whether it could.
   bool _object(Canvas canvas, Map<String, Object?> picture, Rect rect) {
-    final chart = _charts[picture] ??= ChartSpec.fromJson(picture['chart']);
+    final id = picture['chartNode'];
+    final node = id is String ? context?.doc.tree[id] : null;
+    final chart = _charts[node ?? picture] ??= ChartSpec.fromJson(node?.attributes['chart'] ?? picture['chart']);
     if (chart != null) {
       _chart(canvas, chart, rect);
       return true;

@@ -3,6 +3,7 @@ package pptx
 import (
 	"errors"
 
+	"github.com/citadellefr/loffice/internal/chartpart"
 	"github.com/citadellefr/loffice/internal/partrel"
 	"github.com/citadellefr/trame/ot"
 )
@@ -23,7 +24,7 @@ var editable = map[string]map[string]bool{
 	"pic":   {"name": true, "descr": true, "hidden": true, "xfrm": true, "geom": true, "fill": true, "line": true, "blip": true},
 	"cxn":   {"name": true, "descr": true, "hidden": true, "xfrm": true, "geom": true, "line": true},
 	"grp":   {"name": true, "descr": true, "hidden": true, "xfrm": true, "fill": true},
-	"frame": {"name": true, "descr": true, "hidden": true, "xfrm": true, "tbl": true, "grid": true},
+	"frame": {"name": true, "descr": true, "hidden": true, "xfrm": true, "tbl": true, "grid": true, chartpart.ChartKey: true, chartpart.DataKey: true},
 	"tr":    {"h": true},
 	"tc": {"gridSpan": true, "rowSpan": true, "hMerge": true, "vMerge": true, "fill": true, "mar": true, "anchor": true, "vert": true,
 		"lnL": true, "lnR": true, "lnT": true, "lnB": true, "lnTlToBr": true, "lnBlToTr": true},
@@ -87,6 +88,9 @@ func (d *Document) Check(tree *ot.Tree, e ot.Edit, author string) error {
 					return ErrReadOnly
 				}
 			}
+			if err := chartpart.Check(tree, c.ID, c.Attrs, d.charts); err != nil {
+				return err
+			}
 			if !d.inSlide(tree, created, c.ID) {
 				return ErrReadOnly
 			}
@@ -100,6 +104,11 @@ func (d *Document) Check(tree *ot.Tree, e ot.Edit, author string) error {
 		}
 	}
 	return nil
+}
+
+// Follow gives the charts an edit changed what goes with it, in tree.
+func (d *Document) Follow(tree *ot.Tree, e ot.Edit) ot.Edit {
+	return chartpart.Follow(tree, e, d.charts)
 }
 
 // inSlide tells whether a node is a slide or under one, or no longer

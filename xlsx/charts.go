@@ -343,6 +343,12 @@ func checkChart(c, old *chart.Chart, read *int) bool {
 	return true
 }
 
+// CheckChart tells whether c is old with only what can be edited changed.
+func CheckChart(c, old *chart.Chart) bool {
+	read := maxChartRead
+	return checkChart(c, old, &read) && read >= 0
+}
+
 func checkChartData(d *chart.Data, read *int) bool {
 	if d.Ref != "" {
 		n := chartRefCells(d.Ref, true)

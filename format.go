@@ -100,6 +100,15 @@ func (d document) Check(doc *ot.Tree, e ot.Edit, by Peer) (err error) {
 	return d.doc.Check(doc, e, by.Name)
 }
 
+var _ trame.Follower = document{}
+
+// Follow gives the charts an edit changed the references and values that
+// go with it.
+func (d document) Follow(doc *ot.Tree, e ot.Edit, _ []ot.Edit, _ trame.Peer) (out ot.Edit) {
+	defer guard("follow", new(error))
+	return d.doc.Follow(doc, e)
+}
+
 func (d document) Encode(doc *ot.Tree) (data []byte, err error) {
 	defer guard("encode", &err)
 	return d.doc.Save(doc)
@@ -135,6 +144,15 @@ func openPresentation(_ string, data []byte, l Limits) (*ot.Tree, trame.File, er
 func (p presentation) Check(doc *ot.Tree, e ot.Edit, by Peer) (err error) {
 	defer guard("check", &err)
 	return p.doc.Check(doc, e, by.Name)
+}
+
+var _ trame.Follower = presentation{}
+
+// Follow gives the charts an edit changed the references and values that
+// go with it.
+func (p presentation) Follow(doc *ot.Tree, e ot.Edit, _ []ot.Edit, _ trame.Peer) (out ot.Edit) {
+	defer guard("follow", new(error))
+	return p.doc.Follow(doc, e)
 }
 
 func (p presentation) Encode(doc *ot.Tree) (data []byte, err error) {

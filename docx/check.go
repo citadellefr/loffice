@@ -8,6 +8,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/citadellefr/loffice/internal/chartpart"
 	"github.com/citadellefr/loffice/internal/partrel"
 	"github.com/citadellefr/trame/ot"
 )
@@ -32,6 +33,7 @@ var editable = func() map[string]map[string]bool {
 	}
 	out["tbl"]["grid"] = true
 	out["comment"] = map[string]bool{"done": true}
+	out[ChartType] = map[string]bool{chartpart.ChartKey: true, chartpart.DataKey: true}
 	return out
 }()
 
@@ -66,7 +68,7 @@ func (d *Document) Check(tree *ot.Tree, e ot.Edit, author string) error {
 			created[c.ID] = c.Type
 		case ot.OpDel:
 			switch typeOf(c.ID) {
-			case "doc", "body", "hdr", "ftr", "note", BehalfType:
+			case "doc", "body", "hdr", "ftr", "note", BehalfType, ChartType:
 				return ErrReadOnly
 			}
 		case ot.OpSet:
@@ -82,6 +84,9 @@ func (d *Document) Check(tree *ot.Tree, e ot.Edit, author string) error {
 					return ErrReadOnly
 				}
 			}
+			if err := chartpart.Check(tree, c.ID, c.Attrs, d.charts); err != nil {
+				return err
+			}
 		case ot.OpTxt:
 			if t := typeOf(c.ID); t != "" && t != "text" || !d.signed(c.Text, author) {
 				return ErrReadOnly
@@ -91,6 +96,11 @@ func (d *Document) Check(tree *ot.Tree, e ot.Edit, author string) error {
 		}
 	}
 	return nil
+}
+
+// Follow gives the charts an edit changed what goes with it, in tree.
+func (d *Document) Follow(tree *ot.Tree, e ot.Edit) ot.Edit {
+	return chartpart.Follow(tree, e, d.charts)
 }
 
 // newComment tells whether a comment added is signed by author, dated and

@@ -12,6 +12,7 @@
 //	    sdt              a content control around blocks
 //	    other            what is only kept: a bookmark between blocks…
 //	  hdr ftr            a header or footer, with its blocks
+//	  chart "chart-1"    a chart the drawings show: chart, chartData (chartpart)
 //
 // A flow holds the text of paragraphs, "\n" ending each: its attributes
 // are those of the paragraph and of its mark (see Props), with "p" the pPr
@@ -35,6 +36,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/citadellefr/loffice/internal/chartpart"
 	"github.com/citadellefr/loffice/internal/partrel"
 	"github.com/citadellefr/loffice/internal/xmldom"
 	"github.com/citadellefr/loffice/opc"
@@ -93,6 +95,8 @@ type Document struct {
 	// footnotes and endnotes, by kind.
 	parts map[string]*part
 	notes map[string]*part
+	// charts are the chart parts, by node id.
+	charts map[string]*chartpart.Part
 	// comments is the part of the comments, commentMax the highest w:id
 	// it gives one.
 	comments   *part
@@ -124,6 +128,7 @@ func Open(data []byte, limits opc.Limits) (*Document, *ot.Tree, error) {
 		seed:       maphash.MakeSeed(),
 		parts:      map[string]*part{},
 		notes:      map[string]*part{},
+		charts:     map[string]*chartpart.Part{},
 		pending:    map[string]*pending{},
 		commentMax: -1,
 	}
@@ -135,7 +140,7 @@ func Open(data []byte, limits opc.Limits) (*Document, *ot.Tree, error) {
 	if d.main == "" {
 		return nil, nil, ErrNotDocument
 	}
-	r := &reader{d: d, headers: map[string]string{}}
+	r := &reader{d: d, headers: map[string]string{}, charts: chartpart.NewReader(pkg, limits), chartNodes: map[string]string{}}
 	if err := r.document(); err != nil {
 		return nil, nil, err
 	}
@@ -159,6 +164,9 @@ type reader struct {
 	// of commentOrder.
 	comments     map[string]*xmldom.Element
 	commentOrder []string
+	charts       *chartpart.Reader
+	// chartNodes are the ids of the nodes of the charts, by part.
+	chartNodes map[string]string
 	// source and rels are the part whose blocks are read, and its
 	// relationships.
 	source string
@@ -342,6 +350,7 @@ func (r *reader) document() error {
 		return err
 	}
 	r.behalf(r.optional(rels.OfType(r.d.main, relSettings)))
+	r.addCharts()
 	return nil
 }
 

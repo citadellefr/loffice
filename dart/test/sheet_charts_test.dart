@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:loffice/loffice.dart';
+import 'package:loffice/src/chart/chart_edits.dart';
 import 'package:loffice/src/chrome/ribbon.dart';
 import 'package:loffice/src/excel/chart_edits.dart';
 import 'package:loffice/src/excel/charts.dart';

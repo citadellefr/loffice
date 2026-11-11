@@ -4,33 +4,9 @@ import 'dart:ui';
 
 import 'package:trame/trame.dart';
 
-import '../chart/chart.dart';
+import '../chart/chart_edits.dart';
 import 'charts.dart';
 import 'workbook.dart';
-
-/// The kinds of chart the Insert tab offers.
-enum ChartType {
-  column('bar', 'col', 'clustered'),
-  bar('bar', 'bar', 'clustered'),
-  line('line', null, 'standard'),
-  pie('pie', null, 'standard'),
-  scatter('scatter', null, 'standard'),
-  area('area', null, 'standard');
-
-  const ChartType(this.kind, this.dir, this.grouping);
-
-  final String kind;
-  final String? dir;
-  final String grouping;
-
-  /// The type a plot is of, null for one the tab does not offer.
-  static ChartType? of(PlotSpec plot) {
-    for (final t in values) {
-      if (t.kind == plot.kind && (t.dir == null || t.dir == (plot.horizontal ? 'bar' : 'col')) && t.grouping == plot.grouping) return t;
-    }
-    return null;
-  }
-}
 
 /// A series as the dialog of the data lists it: the one of the plot it
 /// stands for, null for a new one, and the references it points to.
@@ -59,7 +35,7 @@ class ChartEdits {
 
   Map<String, Object?> _chart(int i) => _all[i]['chart']! as Map<String, Object?>;
 
-  Map<String, Object?> _plot(int i) => (_chart(i)['plots']! as List<Object?>).first! as Map<String, Object?>;
+  Map<String, Object?> _plot(int i) => ChartChanges.plot(_chart(i));
 
   /// Adds a chart of the cells of an area of the sheet [name], right of
   /// them; the Go package gives it its series.
@@ -84,34 +60,20 @@ class ChartEdits {
   }
 
   List<Map<String, Object?>> retype(int i, ChartType type) {
-    final plot = _plot(i);
-    plot['kind'] = type.kind;
-    if (type.dir == null) {
-      plot.remove('dir');
-    } else {
-      plot['dir'] = type.dir;
-    }
-    plot['grouping'] = type.grouping;
-    plot.remove('3d');
+    ChartChanges.retype(_chart(i), type);
     return _all;
   }
 
   /// Sets the title of a chart, the one made of its series for an empty
   /// text, none for null.
   List<Map<String, Object?>> setTitle(int i, String? text) {
-    _titled(_chart(i), text);
+    ChartChanges.setTitle(_chart(i), text);
     return _all;
   }
 
   /// Sets where the legend goes, none for null.
   List<Map<String, Object?>> setLegend(int i, String? position) {
-    final chart = _chart(i);
-    final legend = chart['legend'];
-    if (position == null) {
-      chart.remove('legend');
-    } else {
-      chart['legend'] = {if (legend is Map<String, Object?>) ...legend, 'pos': position};
-    }
+    ChartChanges.setLegend(_chart(i), position);
     return _all;
   }
 
@@ -123,7 +85,7 @@ class ChartEdits {
     for (final (k, text) in [categories, values].indexed) {
       if (k >= ids.length) continue;
       for (final axis in axes.whereType<Map<String, Object?>>()) {
-        if (axis['id'] == ids[k]) _titled(axis, text.isEmpty ? null : text);
+        if (axis['id'] == ids[k]) ChartChanges.setTitle(axis, text.isEmpty ? null : text);
       }
     }
     return _all;
@@ -168,21 +130,6 @@ class ChartEdits {
   }
 
   List<Map<String, Object?>> remove(int i) => _all..removeAt(i);
-
-  static void _titled(Map<String, Object?> owner, String? text) {
-    if (text == null) {
-      owner.remove('title');
-      return;
-    }
-    final old = owner['title'];
-    final title = <String, Object?>{if (old is Map<String, Object?>) ...old};
-    if (text.isEmpty) {
-      title.remove('text');
-    } else {
-      title['text'] = text;
-    }
-    owner['title'] = title;
-  }
 
   /// Points the values of a series to the cells a reference names, typed
   /// with or without "=", none for an empty one.

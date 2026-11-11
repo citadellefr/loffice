@@ -20,6 +20,9 @@ const (
 	vmlNS = "urn:schemas-microsoft-com:vml"
 )
 
+// ChartType is the type of the nodes that hold the charts of a document.
+const ChartType = "chart"
+
 // Picture is what the editor needs of a drawing or VML shape: its size in
 // EMU, its picture, and where it floats when it is not in the line.
 type Picture struct {
@@ -36,8 +39,11 @@ type Picture struct {
 	Text ot.Delta `json:"text,omitempty"`
 	Fill string   `json:"fill,omitempty"`
 	Line string   `json:"line,omitempty"`
-	// Chart is the chart the drawing shows, drawn but not edited.
-	Chart *chart.Chart `json:"chart,omitempty"`
+	// Chart is the chart the drawing shows as the file has it; the node
+	// ChartNode, of type "chart", holds it as it is edited, and its data
+	// (see chartpart).
+	Chart     *chart.Chart `json:"chart,omitempty"`
+	ChartNode string       `json:"chartNode,omitempty"`
 	// Diagram is the drawing recorded of the SmartArt the drawing shows,
 	// drawn but not edited.
 	Diagram *drawingml.Diagram `json:"diagram,omitempty"`
@@ -174,7 +180,7 @@ func (r *reader) drawing(e *xmldom.Element) *Picture {
 			}
 		}
 		if ref := find(c, chart.NS, "chart"); ref != nil {
-			p.Chart = r.chart(ref)
+			p.Chart, p.ChartNode = r.chart(ref)
 		}
 		if ref := find(c, dgmNS, "relIds"); ref != nil {
 			p.Diagram = r.diagram(ref)
@@ -188,21 +194,42 @@ func (r *reader) drawing(e *xmldom.Element) *Picture {
 	return nil
 }
 
-// chart reads the chart part a c:chart points to, nil when it cannot.
-func (r *reader) chart(ref *xmldom.Element) *chart.Chart {
+// chart reads the chart part a c:chart points to, and gives the node that
+// holds it, nil when it cannot.
+func (r *reader) chart(ref *xmldom.Element) (*chart.Chart, string) {
 	l, ok := r.d.names.Lookup(ref.Get("r:id"))
 	if !ok || l.External {
-		return nil
+		return nil, ""
 	}
-	data, err := r.d.pkg.Read(l.Target)
-	if err != nil {
-		return nil
+	p := r.charts.Read(l.Target)
+	if p == nil {
+		return nil, ""
 	}
-	c, err := chart.Read(data)
-	if err != nil {
-		return nil
+	id := r.chartNodes[l.Target]
+	if id == "" {
+		id = "chart-" + strconv.Itoa(len(r.d.charts)+1)
+		r.chartNodes[l.Target] = id
+		r.d.charts[id] = p
 	}
-	return c
+	return p.Chart(), id
+}
+
+// addCharts adds the nodes of the charts read, after the children of the
+// document.
+func (r *reader) addCharts() {
+	last := ""
+	for _, n := range r.nodes {
+		if n.Parent == "doc" {
+			last = max(last, n.Key)
+		}
+	}
+	for i := range len(r.d.charts) {
+		id := "chart-" + strconv.Itoa(i+1)
+		attrs := ot.Values{}
+		r.d.charts[id].Attrs(attrs)
+		last = ot.KeyBetween(last, "")
+		r.addID(id, ChartType, "doc", last, attrs, nil)
+	}
 }
 
 // diagram reads the drawing Word recorded of the SmartArt a dgm:relIds

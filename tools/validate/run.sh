@@ -4,12 +4,12 @@
 #
 #   tools/validate/run.sh [work directory [family...]]
 #
-# The families are opc, pptx, xlsx, legacy and docx, all by default.
+# The families are opc, pptx, xlsx, legacy, docx and charts, all by default.
 set -eu
 cd "$(dirname "$0")/../.."
 work=${1:-$(mktemp -d)}
 [ $# -gt 0 ] && shift
-families=${*:-opc pptx xlsx legacy docx}
+families=${*:-opc pptx xlsx legacy docx charts}
 [ -d corpus/files ] || go run ./tools/corpus
 
 if ! command -v dotnet >/dev/null; then
@@ -60,6 +60,10 @@ for family in $families; do
 		validate corpus/files docx
 		edit docx-edited docx CorpusEdit LOFFICE_EDITED
 		validate corpus/files docx-edited 1
+		;;
+	charts)
+		edit charts internal/chartpart CorpusCharts LOFFICE_EDITED
+		validate corpus/files charts 1
 		;;
 	*)
 		echo "unknown family $family" >&2

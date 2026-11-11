@@ -22,7 +22,8 @@
 //
 // Shapes have the attributes drawingml reads from their spPr (xfrm, geom,
 // fill, line), their name, descr, hidden, their placeholder (ph), style,
-// body and lst; pictures a blip. Every node written back from its XML
+// body and lst; pictures a blip; a frame of a chart its chart and data
+// (chartpart). Every node written back from its XML
 // carries it in "xml", its text left out: what the model does not cover is
 // kept, even in a copy.
 package pptx
@@ -40,6 +41,7 @@ import (
 
 	"github.com/citadellefr/loffice/chart"
 	"github.com/citadellefr/loffice/drawingml"
+	"github.com/citadellefr/loffice/internal/chartpart"
 	"github.com/citadellefr/loffice/internal/partrel"
 	"github.com/citadellefr/loffice/internal/xmldom"
 	"github.com/citadellefr/loffice/opc"
@@ -84,6 +86,8 @@ type Document struct {
 	layouts     map[string]string // part name of each layout node
 	// layoutNodes are the layout node ids by part name.
 	layoutNodes map[string]string
+	// charts are the parts of the frames that show a chart, by node id.
+	charts map[string]*chartpart.Part
 }
 
 type slidePart struct {
@@ -108,6 +112,7 @@ func Open(data []byte, limits opc.Limits) (*Document, *ot.Tree, error) {
 		original:    data,
 		pkg:         pkg,
 		names:       partrel.NewNames(pkg),
+		charts:      map[string]*chartpart.Part{},
 		trusted:     map[uint64]bool{},
 		seed:        maphash.MakeSeed(),
 		slides:      map[string]*slidePart{},
@@ -123,7 +128,7 @@ func Open(data []byte, limits opc.Limits) (*Document, *ot.Tree, error) {
 	if d.presName == "" {
 		return nil, nil, ErrNotPresentation
 	}
-	r := &reader{d: d, ids: map[string]bool{}, tableStyles: map[string]bool{}}
+	r := &reader{d: d, ids: map[string]bool{}, tableStyles: map[string]bool{}, charts: chartpart.NewReader(pkg, limits)}
 	if err := r.presentation(); err != nil {
 		return nil, nil, err
 	}
@@ -142,6 +147,7 @@ type reader struct {
 	ids   map[string]bool
 	// tableStyles are the styles the tables name.
 	tableStyles map[string]bool
+	charts      *chartpart.Reader
 	// source and rels are the part whose shapes are read, and its
 	// relationships.
 	source string
@@ -599,8 +605,9 @@ func (r *reader) shape(e *xmldom.Element, parent, prefix, key string, spaces map
 		putString(attrs, "frame", kind)
 		switch kind {
 		case "chart":
-			if c := r.d.chart(e); c != nil {
-				attrs["chart"] = c.JSON()
+			if p := r.chart(e); p != nil {
+				p.Attrs(attrs)
+				r.d.charts[id] = p
 			}
 		case "diagram":
 			putJSON(attrs, "diagram", r.diagram(e))
@@ -700,7 +707,7 @@ func frameKind(e *xmldom.Element) string {
 }
 
 // chart reads the chart a graphic frame shows, nil when it cannot.
-func (d *Document) chart(frame *xmldom.Element) *chart.Chart {
+func (r *reader) chart(frame *xmldom.Element) *chartpart.Part {
 	gd := graphicData(frame)
 	if gd == nil {
 		return nil
@@ -709,15 +716,7 @@ func (d *Document) chart(frame *xmldom.Element) *chart.Chart {
 	if ref == nil {
 		return nil
 	}
-	data, err := d.pkg.Read(d.targetOf(ref))
-	if err != nil {
-		return nil
-	}
-	c, err := chart.Read(data)
-	if err != nil {
-		return nil
-	}
-	return c
+	return r.charts.Read(r.d.targetOf(ref))
 }
 
 // diagram reads the drawing PowerPoint recorded of the SmartArt a graphic
