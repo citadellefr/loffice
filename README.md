@@ -8,7 +8,7 @@ Office users. It is developed by [Citadelle](https://github.com/citadellefr),
 where it replaces a LibreOffice-based editor, and is released under the MIT
 license.
 
-L'Office is at version 1.0.0, its first stable release, for `.docx`, `.xlsx`
+L'Office is at version 1.1.0 (1.0.0 was its first stable release), for `.docx`, `.xlsx`
 and `.pptx` files. See the [changelog](CHANGELOG.md).
 
 ## Principles
