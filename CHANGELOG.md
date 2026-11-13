@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.1.0 — 2026-11-13
+
+- New widget `DocPreview({required Tree tree, required DocKind kind, MediaFetcher? media, Key? key})`
+  and enum `DocKind { word, deck, book }`, both exported by `loffice.dart`. It
+  draws a still picture of a document from its trame `Tree` (the snapshot a
+  `DocSession` loads), with no session: the first page of a Word document, the
+  first slide of a PowerPoint deck, or the first printed page of an Excel
+  workbook (its first visible sheet, as it prints, bounded by the used area).
+  The picture is as wide as the room the widget is given, the page's ratio
+  kept (give it a bounded width; its height follows). It has no cursor,
+  selection or interaction and never changes the tree. `media`, when given,
+  fetches the pictures of a Word or PowerPoint document; a picture not loaded
+  yet, or without `media`, leaves its place blank. A tree without a page or a
+  slide, or an empty one, is a blank page (Letter for `word`, the deck's size
+  for `deck`, A4 for `book`).
+- No change to the existing API.
+
 ## 1.0.0 — 2026-11-11
 
 First stable release. L'Office opens, edits and saves `.docx`, `.xlsx` and
