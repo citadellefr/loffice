@@ -33,6 +33,7 @@ export 'src/chrome/ai.dart' show AiParticipant;
 export 'src/chrome/commands.dart' show Answer, Answerer, Command, Mention, MentionSource;
 export 'src/chrome/link_card.dart' show LinkCard;
 export 'src/chrome/strings.dart' show LofficeStrings;
+export 'src/doc_preview.dart' show DocKind, DocPreview;
 export 'src/excel/editor.dart' show SpreadsheetEditor;
 export 'src/fonts.dart' show OfficeFonts;
 export 'src/plain_text_editor.dart' show PlainTextEditor;
