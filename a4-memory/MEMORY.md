@@ -17,7 +17,7 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m129** Tests xlsx de l'agent : attendre le recalcul du hub en interrogeant Range jusqu'à ce que la cellule ait la valeur ET la formule attendues, car la valeur seule peut déjà être la bonne avant que le Follower réécrive la formule décalée par un insert/delete. — _ag2b, t26_
 
 ### dart/lib/src/excel/formula_text.dart
-- **m26** (à_revérifier) La table de traduction français/anglais des fonctions est côté Dart (_functions et _newer dans dart/lib/src/excel/formula_text.dart), pas dans le package Go formula, qui ne connaît que les noms anglais. Une nouvelle fonction Go doit y recevoir son nom français, et son préfixe _xlfn. dans _newer si elle date d'Excel 2010 ou après. La table est une bijection (le nom français est une clé inverse) : deux noms anglais ne peuvent pas partager un nom français. — _ag2, t8_
+- **m26** (à_revérifier) Fonction Excel ajoutée au package Go formula : son nom français va dans la table Dart `_functions` de dart/lib/src/excel/formula_text.dart (le package Go ne connaît que les noms anglais ; la table est une bijection, deux noms anglais ne peuvent partager un nom français). Si elle date d'Excel 2010 ou après, la déclarer aussi dans `newer` (formula/rewrite.go, rempli par init ; contient en plus ANCHORARRAY et SINGLE) et dans `_newer`/`_windowed` du fichier Dart, qui doivent rester alignés ; sinon une formule saisie est enregistrée sans préfixe _xlfn. Ne pas confondre avec `prefixes` de formula/fn_eng.go (préfixes du système métrique). — _ag2, t8_
 - **m99** (à_revérifier) Les noms français des fonctions Excel 365 de manipulation de tableaux : PRENDRE, EXCLURE, CHOISIRCOLS, CHOISIRLIGNES, ETENDRE, ASSEMB.V, ASSEMB.H, DANSCOL, DANSLIGNE, ORGA.COLS, ORGA.LIGNES, FRACTIONNER.TEXTE. Les pages Microsoft fr-FR laissent DROP et EXPAND non traduits ; EXCLURE et ETENDRE viennent d'autres sources et sont à vérifier avec Excel FR. — _ag1, t12_
 
 ### dart/test/chart_extended_test.dart
@@ -25,9 +25,6 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 
 ### formula/fn_securities.go
 - **m57** formula : les fonctions de titres (PRICE, YIELD, COUP*, DURATION, ACCRINT) partagent le type `bond` de formula/fn_securities.go (dates des coupons précédent/suivant, nombre de coupons, décompte des jours par base 0-4). Les fonctions escomptées passent par `Context.discounted` et `Context.yearFrac`, extrait de YEARFRAC dans fn_date.go. — _ag5, t9_
-
-### formula/rewrite.go
-- **m61** formula : une fonction récente d'Excel doit être déclarée dans `newer` (formula/rewrite.go, remplie par init ; contient en plus ANCHORARRAY et SINGLE) et dans `_newer`/`_windowed` de dart/lib/src/excel/formula_text.dart, qui doivent rester alignés ; sinon une formule saisie est enregistrée sans son préfixe _xlfn. Ne pas confondre avec `prefixes` de fn_eng.go (préfixes du système métrique). — _ag6, t6_
 
 ### formula/structured.go
 - **m90** (à_revérifier) formula : les références structurées sont calculées si le Book implémente l'interface formula.Tables (Table(name), TableAt(sheet,row,col)). resolve(tb, s, pos) donne la zone, et Engine.reads s'en sert pour les dépendances. Sans Tables, l'évaluation rend ErrUnsupported. — _ag6, t17_
@@ -160,7 +157,7 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m203** Dans les tests xlsx du dépôt loffice, la feuille du classeur de test s'appelle « Feuille1 » et non « Sheet1 » : une référence de graphique « Sheet1!… » ne la trouve pas (ErrChartLayout dans chartbook). — _ag3, t45_
 
 ### xlsx/check.go
-- **m43** (à_revérifier) xlsx : Document.Check (checkCell, xlsx/check.go) refuse toute clé de cellule qu'il ne connaît pas. Une nouvelle clé du modèle de cellule (par ex. cm) doit y recevoir son cas, sinon toute édition qui la porte est refusée (« this part of the workbook cannot be edited »). TestCorpusEdits, lancé seulement sans -short, le détecte. — _ag6, t6_
+- **m43** (à_revérifier) xlsx : Document.Check (xlsx/check.go) refuse toute clé de cellule absente de cellKeys (check.go:265). Une nouvelle clé du modèle de cellule (par ex. cm) doit y être ajoutée, sinon toute édition qui la porte est refusée (« this part of the workbook cannot be edited ») ; TestCorpusEdits, lancé seulement sans -short, le détecte. — _ag6, t6_
 
 ### xlsx/validation_test.go
 - **m111** (à_revérifier) xlsx tests : le paquet xlsx a déjà une fonction de test `validation(fields string)` (validation_test.go) ; un nom de fonction non test `validation` dans le paquet fait échouer la compilation des tests mais pas go build. Lancer go vet ./xlsx après un renommage. Dans moveRows des tests, At est 1-based pour OpIns/OpRem sur les lignes (At:1 insère avant la ligne 1). — _ag2, t40_
@@ -214,7 +211,7 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m205** (à_revérifier) Graphiques docx/pptx (internal/chartpart) : le nœud porte « chart » (modèle chart.Chart, patché sur la seule partie) et « chartData » ({categories, series:[{index,name,values}]}, absent sans classeur incorporé ou pour une disposition non simple). Toute modification des données sans chartData est refusée par ErrReadOnly. En docx, le graphique est un nœud de type « chart » placé après le corps, que l'image désigne par img.chartNode. — _ag3, t45_
 
 ### mcp/tools.go
-- **m113** (à_revérifier) loffice MCP : l'outil select (curseur ou présence de l'IA) reste autorisé comme une lecture (Access.Write=false), décision de l'hôte Citadelle : la présence ne modifie pas le document. Aucun tag de version loffice (v0.12.0…) ne doit être posé ni publié sans l'accord transmis par sys:main/orchestra. — _orchestra_
+- **m113** loffice MCP : l'outil select (curseur ou présence de l'IA) reste autorisé comme une lecture (Access.Write=false), décision de l'hôte Citadelle : la présence ne modifie pas le document. Aucun tag de version loffice (v0.12.0…) ne doit être posé ni publié sans l'accord transmis par sys:main/orchestra. — _orchestra_
 
 ### opc/strict.go
 - **m36** loffice opc : dans un paquet OOXML Strict (Package.Strict()), Read rend chaque partie XML traduite en Transitional (espaces de noms, types de relations, pourcentages DrawingML « 75% » → 75000), et Set/Add retraduisent en Strict. Les lecteurs et writers des formats ne voient donc que du Transitional. Table et liste des attributs pourcentage : opc/strict.go. — _ag1, t7_
@@ -246,6 +243,9 @@ Vue générée par a4 — ne pas éditer (outils remember / forget, `a4 mem`, pa
 - **m20** (à_revérifier) xlsx : l'attribut book "iterate" ({"count","delta"} ou absent) reflète calcPr iterate/iterateCount/iterateDelta, avec les valeurs par défaut d'Excel 100/0.001. L'attribut book "circular" ({sheetId:["A1"…]}) est dérivé : posé par NewCalc et Follow, l'éditeur s'en sert pour avertir. — _ag5, t5_
 
 ## décision
+
+### CHANGELOG.md
+- **m246** loffice 1.0.0 = tag v1.0.0 posé sur 7be6d69 (11/11/2026, accord humain) ; le push du tag sur origin revient à l'humain (sessions a4 sans droit de push), et l'app du projet ne passe à loffice v1.0.0 qu'une fois le tag sur origin. Toute évolution ultérieure (tests de contrat Go↔Dart, README des limites de format, formats .doc/.ppt/.xlsb/ODF) est hors 1.0 et passe par une version suivante avec entrée CHANGELOG. — _orchestra_
 
 ### agent/
 - **m3** (à_revérifier) Coédition IA dans loffice : l'IA est un participant de la salle du hub (paquet Go agent, en processus via un trame.Conn en mémoire), passe par le même Check que les humains, et écrit dans Word en suivi des modifications signé de son nom (lots atomiques avec aperçu CriticMarkup, UndoMine). Le serveur MCP est écrit à la main sans dépendance (http.Handler pour un hôte + cmd/loffice-mcp en stdio). Inspiré de WordCraft, Revise et Adeu ; pourquoi : réutiliser rebase, historique et UI d'acceptation existants. — _orchestra_
